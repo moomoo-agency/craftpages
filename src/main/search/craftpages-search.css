@@ -1,0 +1,328 @@
+/*!
+ * CraftPages site search: the search box. https://github.com/craftpages (GPL-3.0)
+ * Its own design on every site. Tune it with these variables, e.g.
+ *   craftpages-search { --craftpages-search-accent: var(--brand); }
+ */
+
+craftpages-search {
+  --craftpages-search-accent: #737373;
+  --craftpages-search-bg: #ffffff;
+  --craftpages-search-fg: #171717;
+  --craftpages-search-muted: #737373;
+  --craftpages-search-border: rgba(0, 0, 0, 0.08);
+  --craftpages-search-backdrop: rgba(15, 15, 15, 0.28);
+  --craftpages-search-radius: 14px;
+  --craftpages-search-font:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, Roboto, 'Helvetica Neue', Arial,
+    sans-serif;
+  --craftpages-search-top: 14vh;
+  --craftpages-search-width: 640px;
+}
+
+craftpages-search[data-theme='dark'] {
+  --craftpages-search-bg: #1f1f1f;
+  --craftpages-search-fg: #f5f5f5;
+  --craftpages-search-muted: #a3a3a3;
+  --craftpages-search-border: rgba(255, 255, 255, 0.1);
+  --craftpages-search-backdrop: rgba(0, 0, 0, 0.5);
+}
+
+@media (prefers-color-scheme: dark) {
+  craftpages-search[data-theme='auto'] {
+    --craftpages-search-bg: #1f1f1f;
+    --craftpages-search-fg: #f5f5f5;
+    --craftpages-search-muted: #a3a3a3;
+    --craftpages-search-border: rgba(255, 255, 255, 0.1);
+    --craftpages-search-backdrop: rgba(0, 0, 0, 0.5);
+  }
+}
+
+html.cps-lock {
+  overflow: hidden;
+}
+
+/* A clean slate inside the box, whatever the site's CSS says about div, ul, a, input…
+   SVG is left out: its geometry (r, cx, d) is CSS too and would be wiped. */
+craftpages-search.cps,
+craftpages-search.cps :not(svg, svg *),
+craftpages-search.cps :not(svg, svg *)::before,
+craftpages-search.cps :not(svg, svg *)::after {
+  all: unset;
+  box-sizing: border-box;
+}
+
+/* Sites often style :focus broadly (e.g. *:focus:focus-visible); the box draws its own. */
+craftpages-search.cps :focus,
+craftpages-search.cps :focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+craftpages-search.cps .cps-esc:focus-visible {
+  outline: 2px solid var(--craftpages-search-accent);
+  outline-offset: 2px;
+}
+
+craftpages-search.cps[hidden] {
+  display: none;
+}
+
+craftpages-search.cps {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  display: block;
+  color: var(--craftpages-search-fg);
+  font: 400 15px/1.45 var(--craftpages-search-font);
+  -webkit-font-smoothing: antialiased;
+  text-align: left;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+craftpages-search.cps .cps-backdrop {
+  position: absolute;
+  inset: 0;
+  display: block;
+  background: var(--craftpages-search-backdrop);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+  animation: cps-fade 0.12s ease-out;
+}
+
+craftpages-search.cps .cps-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: min(var(--craftpages-search-width), calc(100vw - 32px));
+  max-height: calc(100vh - var(--craftpages-search-top) - 32px);
+  margin: var(--craftpages-search-top) auto 0;
+  overflow: hidden;
+  border: 1px solid var(--craftpages-search-border);
+  border-radius: var(--craftpages-search-radius);
+  background: var(--craftpages-search-bg);
+  box-shadow:
+    0 24px 60px -12px rgba(0, 0, 0, 0.35),
+    0 2px 6px rgba(0, 0, 0, 0.08);
+  animation: cps-pop 0.14s ease-out;
+}
+
+craftpages-search.cps .cps-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px 0 16px;
+  min-height: 56px;
+}
+
+craftpages-search.cps .cps-icon {
+  display: flex;
+  flex: none;
+  color: var(--craftpages-search-muted);
+}
+
+craftpages-search.cps .cps-icon svg {
+  display: block;
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+}
+
+craftpages-search.cps .cps-icon svg * {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+craftpages-search.cps .cps-input {
+  display: block;
+  flex: 1;
+  min-width: 0;
+  height: 56px;
+  color: var(--craftpages-search-fg);
+  font: 400 18px/1.2 var(--craftpages-search-font);
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+craftpages-search.cps .cps-input::placeholder {
+  color: var(--craftpages-search-muted);
+  opacity: 0.8;
+}
+
+craftpages-search.cps .cps-input::-webkit-search-cancel-button {
+  display: none;
+}
+
+craftpages-search.cps .cps-esc,
+craftpages-search.cps .cps-kbd {
+  display: inline-block;
+  padding: 1px 6px;
+  border: 1px solid var(--craftpages-search-border);
+  border-radius: 5px;
+  color: var(--craftpages-search-muted);
+  font: 500 11px/16px var(--craftpages-search-font);
+}
+
+craftpages-search.cps .cps-esc {
+  cursor: pointer;
+}
+
+craftpages-search.cps .cps-list {
+  display: none;
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 6px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-top: 1px solid var(--craftpages-search-border);
+  list-style: none;
+}
+
+craftpages-search.cps[data-has-results] .cps-list {
+  display: block;
+}
+
+craftpages-search.cps .cps-group {
+  display: block;
+  padding: 8px 10px 4px;
+  color: var(--craftpages-search-muted);
+  font: 600 11px/1.4 var(--craftpages-search-font);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+craftpages-search.cps .cps-item {
+  display: block;
+  border-radius: 9px;
+}
+
+craftpages-search.cps .cps-item[aria-selected='true'] {
+  background: color-mix(in srgb, var(--craftpages-search-accent) 14%, transparent);
+}
+
+craftpages-search.cps .cps-link {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 9px 12px;
+  border-radius: 9px;
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+craftpages-search.cps .cps-link:focus-visible {
+  outline: 2px solid var(--craftpages-search-accent);
+  outline-offset: -2px;
+}
+
+craftpages-search.cps .cps-title {
+  display: block;
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+craftpages-search.cps .cps-where {
+  display: block;
+  overflow: hidden;
+  color: var(--craftpages-search-muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+craftpages-search.cps .cps-snippet {
+  display: -webkit-box;
+  margin-top: 3px;
+  overflow: hidden;
+  color: var(--craftpages-search-muted);
+  font-size: 13.5px;
+  line-height: 1.45;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+craftpages-search.cps .cps-mark {
+  display: inline;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--craftpages-search-accent) 22%, transparent);
+  color: var(--craftpages-search-fg);
+  font-weight: 600;
+}
+
+craftpages-search.cps .cps-status {
+  display: none;
+  padding: 18px 16px 20px;
+  border-top: 1px solid var(--craftpages-search-border);
+  color: var(--craftpages-search-muted);
+  font-size: 14px;
+  text-align: center;
+}
+
+craftpages-search.cps .cps-status.cps-status--visible {
+  display: block;
+}
+
+craftpages-search.cps .cps-foot {
+  display: none;
+  gap: 16px;
+  padding: 8px 16px;
+  border-top: 1px solid var(--craftpages-search-border);
+  color: var(--craftpages-search-muted);
+  font-size: 12px;
+}
+
+craftpages-search.cps[data-has-results] .cps-foot {
+  display: flex;
+}
+
+craftpages-search.cps .cps-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+@media (max-width: 640px), (pointer: coarse) {
+  craftpages-search.cps .cps-panel {
+    width: calc(100vw - 16px);
+    max-height: calc(100vh - 16px);
+    margin-top: 8px;
+  }
+
+  craftpages-search.cps .cps-foot,
+  craftpages-search.cps[data-has-results] .cps-foot,
+  craftpages-search.cps .cps-esc {
+    display: none;
+  }
+
+  craftpages-search.cps .cps-input {
+    font-size: 17px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  craftpages-search.cps .cps-backdrop,
+  craftpages-search.cps .cps-panel {
+    animation: none;
+  }
+}
+
+@keyframes cps-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes cps-pop {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.985);
+  }
+}

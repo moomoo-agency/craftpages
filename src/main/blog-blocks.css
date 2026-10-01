@@ -1,0 +1,196 @@
+/* Layout for the editor's blocks inside generated blog posts (CraftPages).
+   Typography and colours come from the site's own CSS; this only adds what
+   the blocks need to lay out. Rewritten on every blog publish. */
+.wp-block-image,
+.wp-block-gallery,
+.wp-block-embed,
+.wp-block-table,
+.wp-block-code,
+.wp-block-buttons {
+  margin: 1.5em 0;
+}
+.wp-block-image img,
+.wp-block-gallery img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+.wp-block-image figcaption,
+.wp-block-gallery figcaption,
+.wp-block-table figcaption,
+.wp-block-embed figcaption {
+  margin-top: 0.5em;
+  font-size: 0.9em;
+  opacity: 0.75;
+  text-align: center;
+}
+.aligncenter {
+  margin-left: auto;
+  margin-right: auto;
+  text-align: center;
+}
+.aligncenter img {
+  margin: 0 auto;
+}
+.alignleft {
+  float: left;
+  margin: 0.3em 1.5em 1em 0;
+}
+.alignright {
+  float: right;
+  margin: 0.3em 0 1em 1.5em;
+}
+.wp-block-gallery {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 0;
+}
+.wp-block-gallery > .wp-block-image {
+  flex: 1 1 calc(33.333% - 12px);
+  margin: 0;
+}
+.wp-block-gallery.columns-2 > .wp-block-image {
+  flex-basis: calc(50% - 12px);
+}
+.wp-block-gallery .wp-block-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.wp-block-quote {
+  margin: 1.5em 0;
+  padding-left: 1em;
+  border-left: 3px solid currentColor;
+}
+.wp-block-quote cite {
+  display: block;
+  margin-top: 0.5em;
+  font-size: 0.9em;
+  font-style: normal;
+  opacity: 0.75;
+}
+.wp-block-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75em;
+}
+.wp-block-button__link {
+  display: inline-block;
+  padding: 0.7em 1.4em;
+  border-radius: 6px;
+  background: #1b1c1f;
+  color: #fff;
+  text-decoration: none;
+}
+.wp-block-table {
+  overflow-x: auto;
+}
+.wp-block-table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.wp-block-table td,
+.wp-block-table th {
+  padding: 0.5em 0.75em;
+  border: 1px solid rgba(127, 127, 127, 0.35);
+  text-align: left;
+}
+.wp-block-separator {
+  margin: 2em auto;
+  border: 0;
+  border-top: 1px solid currentColor;
+  opacity: 0.3;
+}
+.wp-block-code {
+  padding: 1em;
+  border-radius: 6px;
+  background: rgba(127, 127, 127, 0.12);
+  overflow-x: auto;
+}
+.wp-block-embed__wrapper {
+  position: relative;
+}
+.wp-embed-aspect-16-9 .wp-block-embed__wrapper::before {
+  content: '';
+  display: block;
+  padding-top: 56.25%;
+}
+.wp-embed-aspect-16-9 .wp-block-embed__wrapper iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* Content width: wide and full blocks break out of the article's text column. */
+.alignwide {
+  position: relative;
+  left: 50%;
+  width: min(1200px, 100vw - 32px);
+  max-width: none;
+  transform: translateX(-50%);
+}
+.alignfull {
+  position: relative;
+  left: 50%;
+  width: 100vw;
+  max-width: none;
+  transform: translateX(-50%);
+}
+.alignfull img,
+.alignwide img {
+  width: 100%;
+}
+
+/* Text columns: paragraphs flowed across columns (CSS multi-column). */
+.cp-text-columns {
+  column-gap: 2.5em;
+  margin: 1.5em 0;
+}
+.cp-text-columns-2 {
+  column-count: 2;
+}
+.cp-text-columns-3 {
+  column-count: 3;
+}
+.cp-text-columns > :is(figure, h2, h3, h4, blockquote, ul, ol) {
+  break-inside: avoid;
+}
+.cp-text-columns > :first-child {
+  margin-top: 0;
+}
+@media (max-width: 700px) {
+  .cp-text-columns-2,
+  .cp-text-columns-3 {
+    column-count: 1;
+  }
+}
+
+/* Gallery column counts chosen in the editor. */
+.wp-block-gallery.columns-1 > .wp-block-image {
+  flex-basis: 100%;
+}
+.wp-block-gallery.columns-2 > .wp-block-image {
+  flex-basis: calc(50% - 12px);
+}
+.wp-block-gallery.columns-3 > .wp-block-image {
+  flex-basis: calc(33.333% - 12px);
+}
+.wp-block-gallery.columns-4 > .wp-block-image {
+  flex-basis: calc(25% - 12px);
+}
+.wp-block-gallery.columns-5 > .wp-block-image {
+  flex-basis: calc(20% - 12px);
+}
+.wp-block-gallery.columns-6 > .wp-block-image {
+  flex-basis: calc(16.666% - 12px);
+}
+.wp-block-gallery.is-cropped .wp-block-image img {
+  aspect-ratio: 1;
+}
+@media (max-width: 600px) {
+  .wp-block-gallery > .wp-block-image {
+    flex-basis: calc(50% - 12px) !important;
+  }
+}

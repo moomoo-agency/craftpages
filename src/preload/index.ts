@@ -1,0 +1,113 @@
+import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
+import type { Api, AppEvent } from '../shared/types'
+
+const api: Api = {
+  pickWorkspace: () => ipcRenderer.invoke('workspace:pick'),
+  getWorkspace: () => ipcRenderer.invoke('workspace:get'),
+
+  getAppSettings: () => ipcRenderer.invoke('settings:app:get'),
+  saveAppSettings: (patch) => ipcRenderer.invoke('settings:app:save', patch),
+  listConnections: () => ipcRenderer.invoke('connections:list'),
+  saveConnection: (input) => ipcRenderer.invoke('connections:save', input),
+  deleteConnection: (id) => ipcRenderer.invoke('connections:delete', id),
+  testConnection: (id) => ipcRenderer.invoke('connections:test', id),
+
+  listRecentProjects: () => ipcRenderer.invoke('projects:recent'),
+  openProject: (path) => ipcRenderer.invoke('projects:open', path),
+  forgetProject: (path) => ipcRenderer.invoke('projects:forget', path),
+  getSiteSettings: () => ipcRenderer.invoke('settings:site:get'),
+  saveSiteSettings: (patch) => ipcRenderer.invoke('settings:site:save', patch),
+
+  editPage: (path) => ipcRenderer.invoke('page:edit', path),
+  setDraft: (path, hash, changes, lists) =>
+    ipcRenderer.invoke('draft:set', path, hash, changes, lists),
+  setComponentScope: (path, id, scope) => ipcRenderer.invoke('draft:scope', path, id, scope),
+  getPageSeo: (path) => ipcRenderer.invoke('draft:seo:get', path),
+  setSeoDraft: (path, seo) => ipcRenderer.invoke('draft:seo:set', path, seo),
+  getDrafts: () => ipcRenderer.invoke('draft:state'),
+  saveAll: () => ipcRenderer.invoke('draft:save-all'),
+  discardDrafts: (path) => ipcRenderer.invoke('draft:discard', path),
+  scheduleDrafts: (input) => ipcRenderer.invoke('schedule:drafts', input),
+  getSchedule: () => ipcRenderer.invoke('schedule:get'),
+  releaseNow: (id, force) => ipcRenderer.invoke('schedule:release', id, force),
+  endRelease: (id, force) => ipcRenderer.invoke('schedule:end', id, force),
+  cancelRelease: (id) => ipcRenderer.invoke('schedule:cancel', id),
+  revertHistory: (historyId) => ipcRenderer.invoke('history:revert', historyId),
+  listImages: () => ipcRenderer.invoke('images:list'),
+  importImage: () => ipcRenderer.invoke('image:import'),
+  optimizeImages: (paths, apply) => ipcRenderer.invoke('images:optimize', paths, apply),
+  replaceImage: (path) => ipcRenderer.invoke('image:replace', path),
+  deleteImage: (path) => ipcRenderer.invoke('image:delete', path),
+  addImageDimensions: () => ipcRenderer.invoke('images:dimensions'),
+  interactUrl: (path) => ipcRenderer.invoke('interact:url', path),
+  setAllowExternalScripts: (allow) => ipcRenderer.invoke('interact:external', allow),
+  previewUrl: (path) => ipcRenderer.invoke('preview:url', path),
+  openExternal: (url) => ipcRenderer.invoke('shell:open', url),
+  reportSelection: (selection) => ipcRenderer.invoke('selection:report', selection),
+
+  getSearch: () => ipcRenderer.invoke('search:get'),
+  enableSearch: (box) => ipcRenderer.invoke('search:enable', box),
+  disableSearch: () => ipcRenderer.invoke('search:disable'),
+  rebuildSearchIndex: () => ipcRenderer.invoke('search:rebuild'),
+  searchIconMarkup: (icon) => ipcRenderer.invoke('search:icon-markup', icon),
+  placeSearchIcon: (path, locator, position, scope, icon, enableWith) =>
+    ipcRenderer.invoke('search:place-icon', path, locator, position, scope, icon, enableWith),
+  updateSearchIcons: (icon) => ipcRenderer.invoke('search:update-icons', icon),
+  setSearchExcluded: (path, excluded) => ipcRenderer.invoke('search:exclude', path, excluded),
+
+  auditSeo: () => ipcRenderer.invoke('seo:audit'),
+  rebuildSitemap: () => ipcRenderer.invoke('seo:sitemap'),
+  getRobots: () => ipcRenderer.invoke('seo:robots:get'),
+  saveRobots: (text) => ipcRenderer.invoke('seo:robots:save', text),
+  getSiteIdentity: () => ipcRenderer.invoke('seo:identity:get'),
+  addSiteIdentity: (identity) => ipcRenderer.invoke('seo:identity:add', identity),
+
+  getBlogSetup: () => ipcRenderer.invoke('blog:setup'),
+  saveBlogTemplates: (templates) => ipcRenderer.invoke('blog:templates', templates),
+  startPointing: (path) => ipcRenderer.invoke('point:start', path),
+  pointAt: (key, n) => ipcRenderer.invoke('point:at', key, n),
+  resolveLocators: (key, locators) => ipcRenderer.invoke('point:resolve', key, locators),
+  pathWithin: (key, ancestor, n) => ipcRenderer.invoke('point:within', key, ancestor, n),
+  previewBlog: () => ipcRenderer.invoke('blog:preview'),
+
+  listPosts: () => ipcRenderer.invoke('posts:list'),
+  generatedPages: () => ipcRenderer.invoke('blog:generated'),
+  getPost: (id) => ipcRenderer.invoke('posts:get', id),
+  newPost: () => ipcRenderer.invoke('posts:new'),
+  savePost: (post) => ipcRenderer.invoke('posts:save', post),
+  deletePost: (id) => ipcRenderer.invoke('posts:delete', id),
+  previewPost: (post) => ipcRenderer.invoke('posts:preview', post),
+  regenerateBlog: () => ipcRenderer.invoke('posts:regenerate'),
+  importImageData: (name, data) => ipcRenderer.invoke('image:import-data', name, data),
+
+  scanComponents: () => ipcRenderer.invoke('components:scan'),
+
+  listCloudflareProjects: () => ipcRenderer.invoke('cf:projects'),
+  listCloudflareWorkers: () => ipcRenderer.invoke('cf:workers'),
+  createCloudflareProject: (name) => ipcRenderer.invoke('cf:project:create', name),
+  deployStatus: () => ipcRenderer.invoke('cf:status'),
+  deploy: (target, force) => ipcRenderer.invoke('cf:deploy', target, force),
+  checkLive: () => ipcRenderer.invoke('cf:check-live'),
+  getUpdate: () => ipcRenderer.invoke('update:get'),
+  checkForUpdate: () => ipcRenderer.invoke('update:check'),
+  installUpdate: () => ipcRenderer.invoke('update:install'),
+  listDeployments: () => ipcRenderer.invoke('cf:deployments'),
+  rollback: (deploymentId) => ipcRenderer.invoke('cf:rollback', deploymentId),
+
+  getMcpStatus: () => ipcRenderer.invoke('mcp:status'),
+  regenerateMcpToken: () => ipcRenderer.invoke('mcp:regenerate-token'),
+  setAutoAccept: (on) => ipcRenderer.invoke('mcp:auto-accept', on),
+  listProposals: () => ipcRenderer.invoke('proposals:list'),
+  acceptProposal: (id) => ipcRenderer.invoke('proposals:accept', id),
+  rejectProposal: (id, reason) => ipcRenderer.invoke('proposals:reject', id, reason),
+  revertProposal: (id) => ipcRenderer.invoke('proposals:revert', id),
+  proposalPreviewUrl: (id, path) => ipcRenderer.invoke('proposals:preview-url', id, path),
+
+  onEvent: (listener) => {
+    const handler = (_event: IpcRendererEvent, payload: AppEvent): void => listener(payload)
+    ipcRenderer.on('app:event', handler)
+    return () => ipcRenderer.removeListener('app:event', handler)
+  }
+}
+
+contextBridge.exposeInMainWorld('api', api)

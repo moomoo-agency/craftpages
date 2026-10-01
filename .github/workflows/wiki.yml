@@ -1,0 +1,41 @@
+# Copies wiki/ to the repository's GitHub wiki on every push to main that changes it.
+# One-time setup: Settings → Features → Wikis on, then create any first page on the
+# Wiki tab (GitHub only creates the wiki's repository then). After that, edit wiki/ here;
+# changes made on github.com are overwritten.
+name: Wiki
+
+on:
+  push:
+    branches: [main]
+    paths: ['wiki/**']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wiki
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Push to the wiki
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git clone "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.wiki.git" ../wiki
+          rsync -a --delete --exclude .git wiki/ ../wiki/
+          cd ../wiki
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Wiki is up to date."
+          else
+            git commit -m "Docs from ${GITHUB_SHA::7}"
+            git push
+          fi
