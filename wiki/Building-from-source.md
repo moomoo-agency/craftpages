@@ -59,9 +59,9 @@ Windows and Linux runners when a version tag is pushed.
    git push origin v1.0.1
    ```
 
-3. When the workflow finishes (about 15 minutes), **Releases** has a **draft** with every
-   installer plus the `latest*.yml` files the in-app update check reads. Edit the notes and
-   click **Publish release**. Installed apps see it within a few hours, or right away with
+3. When the workflow finishes (about 15 minutes), the release is published under **Releases**
+   with every installer plus the `latest*.yml` files the in-app update check reads (edit the
+   notes there if you like). Installed apps see it within a few hours, or right away with
    **Check now**.
 
 The tag must match `package.json` (`v1.0.1` ↔ `1.0.1`). To redo a tag after a failed build:
