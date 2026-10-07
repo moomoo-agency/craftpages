@@ -5,16 +5,17 @@ const messages: Translation['pages'] = {
   modeLabel: 'Modalità dell’editor',
   modeEdit: 'Modifica',
   modeEditTip: 'Fai clic sul testo della pagina per modificarlo',
-  modeInteract: 'Interagisci',
-  modeInteractTip: 'Usa la pagina come un visitatore: pulsanti, menu e link funzionano',
+  modeCode: 'Codice',
+  modeCodeTip: 'Modifica HTML, CSS e JavaScript della pagina come codice, con anteprima dal vivo',
+  modeInteract: 'Anteprima',
+  modeInteractTip:
+    'Guarda la pagina come la vedono i visitatori: link, menu e script funzionano. Qui non si modifica nulla.',
   viewportLabel: 'Larghezza anteprima',
   viewportDesktop: 'Desktop',
   viewportTablet: 'Tablet',
   viewportMobile: 'Mobile',
-  openInBrowser: 'Apri nel browser, con le modifiche non salvate',
+  openInBrowser: 'Apri nel browser',
   confirmDiscardPage: 'Scartare le modifiche non salvate di questa pagina?',
-  discardPage: 'Scarta modifiche pagina',
-  discardPageTip: 'Elimina le modifiche non salvate fatte su questa pagina',
   sharedBar: {
     one: '{name} compare in {count} pagina. Applica le modifiche a:',
     other: '{name} compare in {count} pagine. Applica le modifiche a:'
@@ -22,10 +23,9 @@ const messages: Translation['pages'] = {
   scopeLabel: 'Applica le modifiche a',
   scopeAll: { one: '{count} pagina', other: 'Tutte le {count} pagine' },
   scopePage: 'Solo questa pagina',
-  scopeHint:
-    'Le altre pagine ricevono una modifica solo dove la loro copia dell’elemento corrisponde a questa.',
+  scopeHint: 'Le pagine in cui qualcuno ha cambiato la propria copia la mantengono.',
   interactBar:
-    'Modalità Interagisci: la pagina esegue i suoi script, con le modifiche non salvate applicate.',
+    'Anteprima: la pagina esegue i propri script, con le modifiche non salvate applicate.',
   allowExternal: 'Consenti script esterni (analytics, pagamenti, embed)',
   frameEdit: 'Modifica di {path}',
   framePreview: 'Anteprima di {path}',
@@ -33,6 +33,16 @@ const messages: Translation['pages'] = {
   closePanel: 'Chiudi pannello',
   imageSize: '{width} × {height} px',
   changeImage: 'Cambia immagine…',
+  imageGroup: 'Immagini in questo slider o galleria ({count})',
+  imageGroupItem: 'Immagine {index}',
+  imageGroupHint:
+    'Qui ci sono anche le slide nascoste nella pagina. Scegline una per mostrarla e modificarla.',
+  searchPages: 'Cerca per titolo o nome file',
+  publishOff: 'Non pubblicata',
+  publishOffTip:
+    'Tenuta fuori dal sito: non viene caricata né messa nella sitemap o nella ricerca. Accendi per pubblicarla la prossima volta.',
+  publishLocked:
+    'Esclusa dal modello “{pattern}” in Impostazioni progetto → Deploy → Non caricare mai.',
   chooseImage: 'Scegli immagine…',
   altText: 'Testo alternativo',
   altHint: 'Descrivi l’immagine per gli screen reader e i motori di ricerca.',
@@ -48,7 +58,7 @@ const messages: Translation['pages'] = {
   canonical: 'URL canonico',
   robots: 'Robots',
   robotsHint:
-    'Ad esempio “noindex, nofollow”. Lascia vuoto per far indicizzare la pagina dai motori di ricerca.',
+    'Altre regole per i motori di ricerca, impostate nel codice della pagina. Restano come sono.',
   ogTitle: 'Titolo social (og:title)',
   ogDescription: 'Descrizione social (og:description)',
   ogImage: 'Immagine social',
@@ -57,13 +67,86 @@ const messages: Translation['pages'] = {
   ogImageSize: 'La misura ideale è 1200 × 630 px.',
   ogImageBaseUrl: 'Imposta l’URL di base in Impostazioni progetto per avere un URL completo.',
   seoDraftNote: 'Anche le modifiche SEO sono bozze: Salva tutto le scrive nella cartella del sito.',
-  footer: {
-    one: '{count} elemento modificabile · Fai clic sul testo per modificarlo o su un’immagine per cambiarla · Maiusc+Invio va a capo · Le modifiche restano bozze finché non usi Salva tutto (⌘S)',
-    other:
-      '{count} elementi modificabili · Fai clic sul testo per modificarlo o su un’immagine per cambiarla · Maiusc+Invio va a capo · Le modifiche restano bozze finché non usi Salva tutto (⌘S)'
-  },
+  footer:
+    'Fai clic sul testo per modificarlo, o su un’immagine per cambiarla. Maiusc+Invio va a capo. Il sito non cambia finché non scegli Salva tutto ({shortcut}).',
   pickerSocial: 'Immagine social',
-  pickerChange: 'Cambia immagine'
+  pickerChange: 'Cambia immagine',
+  editPostTemplate: 'Modifica il modello articolo',
+  editListTemplate: 'Modifica il modello del blog',
+  managePosts: 'Gestisci gli articoli',
+  seoButton: 'SEO della pagina',
+  moreActions: 'Altre azioni',
+  openCode: 'Modifica il codice…',
+  discardPageAction: 'Scarta le modifiche di questa pagina…',
+  unpublishAction: 'Togli questa pagina dal sito online…',
+  unpublishHint: 'Resta nella cartella; puoi rimetterla in seguito.',
+  republishAction: 'Rimetti questa pagina sul sito online…',
+  republishHint: 'Va online con la prossima pubblicazione.',
+  publishNotFound:
+    'I visitatori vedono la pagina 404 quando un link non funziona, quindi va sempre online.',
+  publishTemplate:
+    'Di questo modello si occupa il blog: una volta pubblicato il blog, resta fuori dal sito online.',
+  confirmUnpublish:
+    'Togliere questa pagina dal sito online? Resta nella cartella. La prossima pubblicazione la rimuove dal sito, dalla sitemap e dalla ricerca del sito.',
+  unpublishYes: 'Toglila dal sito',
+  confirmPublish:
+    'Rimettere questa pagina sul sito online? Va online con la prossima pubblicazione.',
+  republishYes: 'Rimettila',
+  searchVisible: 'Mostra questa pagina nei risultati di ricerca',
+  searchVisibleHint: 'Se disattivato, i motori di ricerca non la mostrano.',
+  advanced: 'Avanzate',
+  advancedSet: { one: '{count} impostata', other: '{count} impostate' },
+  advancedHint:
+    'Testi per i social, indirizzo canonico e regole robots. Lasciali vuoti se non sai di averne bisogno.',
+  ogTitleHint:
+    'Mostrato quando la pagina viene condivisa sui social. Lascia vuoto per usare il titolo.',
+  canonicalHint:
+    'L’indirizzo principale della pagina, se lo stesso contenuto è raggiungibile da più indirizzi.',
+  homeBadge: 'home',
+  frameBold: 'Grassetto',
+  frameItalic: 'Corsivo',
+  frameLink: 'Link',
+  frameApplyLink: 'Applica link',
+  frameClear: 'Rimuovi formattazione',
+  frameMoveUp: 'Sposta su',
+  frameMoveDown: 'Sposta giù',
+  frameDuplicate: 'Duplica: aggiungine uno uguale',
+  frameDelete: 'Elimina',
+  frameNoPage: 'Nessuna pagina del sito ha questo indirizzo.',
+  frameHome: 'Home',
+  frameEdited: 'Modificato · non ancora salvato',
+  frameLinkPlaceholder: 'https://… o /pagina/',
+  srHeading: 'Titolo',
+  srImage: 'Immagine',
+  srLink: 'Link',
+  srText: 'Testo',
+  srEditable: '{kind}, «{text}»: premi Invio per modificare',
+  publishHome: 'La home page è l’ingresso del sito, quindi resta sempre online.',
+  frameDeleted: 'Elemento eliminato',
+  frameDuplicated: 'Elemento aggiunto',
+  frameUndo: 'Annulla',
+  sharedAlso: {
+    one: 'le modifiche cambiano anche {count} altra pagina',
+    other: 'le modifiche cambiano anche altre {count} pagine'
+  },
+  sharedOnlyHere: 'le modifiche restano su questa pagina',
+  builtByBlog: 'Generate dal blog ({count})',
+  builtByBlogHint: 'modelli e pagine che il blog crea dai tuoi post',
+  frameMoved: 'Elemento spostato',
+  frameRevert: 'Ripristina questo elemento',
+  scopeForked: '{name} su questa pagina ora ha una versione propria',
+  openInBrowserDrafts: 'Apri nel browser, con le modifiche non salvate',
+  homePage: 'Home page',
+  yourSite: 'tuosito.it',
+  scopeChipAll: { one: 'su {count} pagina', other: 'su tutte le {count} pagine' },
+  scopeChipPage: 'solo questa pagina',
+  scopeKey: '{key} cambia dove vanno le modifiche',
+  frameEnterToEdit: 'Invio per modificare',
+  frameEnterToChange: 'Invio per cambiare',
+  frameRevertShort: 'Ripristina',
+  scopeAsk: '{name}: cambiare su tutte le {count} pagine o solo su questa?',
+  sharedTag: '{name} · su {count} pagine',
+  noindexTip: 'Aggiunge «noindex» alla pagina'
 }
 
 export default messages

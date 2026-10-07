@@ -1,8 +1,8 @@
 import { useEffect, useId, useState } from 'react'
 import Diff from '../components/Diff'
-import { Notice, Section } from '../components/Field'
+import { Explainer, Notice, Section } from '../components/Field'
 import { useT, type Key } from '../i18n'
-import { copyText, errorMessage, formatDate, useAppEvent } from '../lib/api'
+import { errorMessage, formatDate, useAppEvent } from '../lib/api'
 import type { McpStatus, Proposal } from '../../../shared/types'
 
 interface Props {
@@ -161,7 +161,6 @@ function ProposalCard({ proposal }: { proposal: Proposal }): React.JSX.Element {
 export default function AiView({ mcp, onOpenSettings }: Props): React.JSX.Element {
   const t = useT()
   const [proposals, setProposals] = useState<Proposal[]>([])
-  const [copied, setCopied] = useState(false)
 
   useEffect(() => {
     window.api.listProposals().then(setProposals)
@@ -176,14 +175,17 @@ export default function AiView({ mcp, onOpenSettings }: Props): React.JSX.Elemen
   return (
     <div className="ai-view">
       <Section
-        title={t('ai.connectTitle')}
-        description={t('ai.connectDescription')}
+        title={t('ai.conceptTitle')}
         actions={
           <button className="btn btn--ghost" onClick={onOpenSettings}>
             {t('ai.openSettings')}
           </button>
         }
       >
+        <Explainer>
+          <p>{t('ai.concept')}</p>
+          <p>{t('ai.conceptCode')}</p>
+        </Explainer>
         {mcp ? (
           <>
             <p className="status-line" role="status">
@@ -191,43 +193,9 @@ export default function AiView({ mcp, onOpenSettings }: Props): React.JSX.Elemen
               {mcp.running
                 ? mcp.clients.length
                   ? t('ai.connected', { clients: mcp.clients.join(', ') })
-                  : t('ai.waiting', { url: mcp.url })
+                  : t('ai.notConnected')
                 : (mcp.error ?? t('ai.off'))}
             </p>
-            <ol className="steps ai-view__steps">
-              <li>{t('ai.stepOpen')}</li>
-              <li>
-                {t('ai.stepCommand')}
-                <div className="input-group">
-                  <input
-                    className="mono"
-                    readOnly
-                    value={mcp.command}
-                    aria-label={t('ai.command')}
-                  />
-                  <button
-                    className="btn btn--accent"
-                    aria-label={copied ? undefined : t('ai.copyCommand')}
-                    onClick={async () => {
-                      await copyText(mcp.command)
-                      setCopied(true)
-                      setTimeout(() => setCopied(false), 1500)
-                    }}
-                  >
-                    {copied ? t('common.copied') : t('common.copy')}
-                  </button>
-                  <span className="visually-hidden" role="status">
-                    {copied ? t('common.copied') : ''}
-                  </span>
-                </div>
-                <span className="muted small">{t('ai.stepCommandHint')}</span>
-              </li>
-              <li>
-                {t('ai.stepStart')}
-                <span className="muted small">{t('ai.stepStartHint')}</span>
-              </li>
-              <li>{t('ai.stepAsk')}</li>
-            </ol>
             <label className="check">
               <input
                 type="checkbox"

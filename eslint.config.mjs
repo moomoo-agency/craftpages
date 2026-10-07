@@ -34,6 +34,12 @@ export default defineConfig(
     rules: { '@typescript-eslint/explicit-function-return-type': 'off' }
   },
   {
+    // The sync Worker, uploaded to Cloudflare as it is (see src/main/sync/cloudflare-store.ts).
+    files: ['src/main/sync/worker/*.js'],
+    languageOptions: { globals: { WebSocketPair: 'readonly' } },
+    rules: { '@typescript-eslint/explicit-function-return-type': 'off' }
+  },
+  {
     // Site search scripts shipped into users' sites: plain ES2015 without a build step.
     files: ['src/main/search/*.js'],
     rules: {

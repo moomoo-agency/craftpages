@@ -89,6 +89,15 @@ export function flushDraftsSync(): void {
   writeFileSync(draftsFile(job.root), JSON.stringify(JSON.parse(job.text), null, 2))
 }
 
+/** Writes pending drafts to disk now (before a sync reads drafts.json). */
+export const flushDrafts = (): Promise<void> => flush()
+
+/** Reads drafts.json again after a sync changed it, and tells the app. */
+export async function reloadDrafts(): Promise<void> {
+  await loadDrafts(draftsRoot)
+  notify()
+}
+
 function persist(): void {
   if (!draftsRoot) return
   // Snapshot now: if the project switches before the write, the old project still gets its own drafts.
@@ -465,6 +474,11 @@ export async function setSeoDraft(path: string, seo: PageSeo | null): Promise<vo
 
 export function hasDraft(path: string): boolean {
   return drafts.has(path)
+}
+
+/** Whether any page has unsaved edits. */
+export function hasAnyDrafts(): boolean {
+  return drafts.size > 0
 }
 
 export function discardDrafts(path: string | null): void {

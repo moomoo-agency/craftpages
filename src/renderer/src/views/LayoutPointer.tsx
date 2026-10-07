@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Notice } from '../components/Field'
+import { Explainer, Notice } from '../components/Field'
 import { errorMessage } from '../lib/api'
 import { useT, type Key } from '../i18n'
 import type {
@@ -24,8 +24,13 @@ type StepId =
   | 'card-excerpt'
   | 'card-image'
   | 'card-link'
+  | 'card-category'
+  | 'card-tags'
+  | 'card-author'
   | 'pagination'
   | 'tags'
+  | 'category'
+  | 'author'
   | 'heading'
   | 'remove'
 
@@ -40,6 +45,8 @@ interface Step {
   within?: StepId
   needsImage?: boolean
   skipLabel?: Key
+  /** Tags or a category: the panel says how the pick will repeat. */
+  badges?: boolean
 }
 
 const POST_STEPS: Step[] = [
@@ -77,12 +84,31 @@ const POST_STEPS: Step[] = [
     skipLabel: 'blog.imageSkip'
   },
   {
+    id: 'category',
+    label: 'blog.category',
+    prompt: 'blog.categoryPrompt',
+    help: 'blog.categoryHelp',
+    optional: true,
+    skipLabel: 'blog.categorySkip',
+    badges: true
+  },
+  {
     id: 'tags',
     label: 'blog.tags',
     prompt: 'blog.tagsPrompt',
     help: 'blog.tagsHelp',
     optional: true,
-    skipLabel: 'blog.tagsSkip'
+    skipLabel: 'blog.tagsSkip',
+    badges: true
+  },
+  {
+    id: 'author',
+    label: 'blog.author',
+    prompt: 'blog.authorPrompt',
+    help: 'blog.authorHelp',
+    optional: true,
+    multiple: true,
+    skipLabel: 'blog.authorSkip'
   },
   {
     id: 'remove',
@@ -154,6 +180,32 @@ const LIST_STEPS: Step[] = [
     within: 'card'
   },
   {
+    id: 'card-category',
+    label: 'blog.cardCategory',
+    prompt: 'blog.cardCategoryPrompt',
+    help: 'blog.cardCategoryHelp',
+    optional: true,
+    within: 'card',
+    badges: true
+  },
+  {
+    id: 'card-tags',
+    label: 'blog.cardTags',
+    prompt: 'blog.cardTagsPrompt',
+    help: 'blog.cardTagsHelp',
+    optional: true,
+    within: 'card',
+    badges: true
+  },
+  {
+    id: 'card-author',
+    label: 'blog.cardAuthor',
+    prompt: 'blog.cardAuthorPrompt',
+    help: 'blog.cardAuthorHelp',
+    optional: true,
+    within: 'card'
+  },
+  {
     id: 'pagination',
     label: 'blog.pagination',
     prompt: 'blog.paginationPrompt',
@@ -189,7 +241,10 @@ const LATEST_STEPS: Step[] = LIST_STEPS.filter((step) =>
     'card-date',
     'card-excerpt',
     'card-image',
-    'card-link'
+    'card-link',
+    'card-category',
+    'card-tags',
+    'card-author'
   ].includes(step.id)
 ).map((step) =>
   step.id === 'container'
@@ -209,7 +264,10 @@ const CARD_FIELD: Partial<Record<StepId, keyof CardFields>> = {
   'card-date': 'date',
   'card-excerpt': 'excerpt',
   'card-image': 'image',
-  'card-link': 'link'
+  'card-link': 'link',
+  'card-category': 'category',
+  'card-tags': 'tags',
+  'card-author': 'author'
 }
 
 interface Props {
@@ -266,9 +324,10 @@ export default function LayoutPointer({
         kind === 'post'
           ? [
               ...(postLayout?.regions ?? []).map((r): [StepId, ElementLocator] => ['regions', r]),
-              ...(['title', 'date', 'image', 'tags'] as const)
+              ...(['title', 'date', 'image', 'category', 'tags'] as const)
                 .filter((id) => postLayout?.[id])
-                .map((id): [StepId, ElementLocator] => [id, postLayout![id]!])
+                .map((id): [StepId, ElementLocator] => [id, postLayout![id]!]),
+              ...(postLayout?.author ?? []).map((l): [StepId, ElementLocator] => ['author', l])
             ]
           : [
               ...(cardLayout?.container
@@ -396,7 +455,9 @@ export default function LayoutPointer({
             title: one('title'),
             date: one('date'),
             image: one('image'),
+            category: one('category'),
             tags: one('tags'),
+            author: (picks.author ?? []).map((p) => p.locator),
             keepOnly,
             remove: (picks.remove ?? []).map((p) => p.locator)
           }
@@ -500,9 +561,11 @@ export default function LayoutPointer({
           })}
         </ol>
 
-        <div className="pointer__prompt" aria-live="polite">
-          <strong>{t(step.prompt)}</strong>
-          <p className="small">{t(step.help)}</p>
+        <div aria-live="polite">
+          <div className="pointer__prompt">
+            <strong>{t(step.prompt)}</strong>
+          </div>
+          <Explainer>{t(step.help)}</Explainer>
         </div>
 
         {current.map((pick, i) => (
@@ -510,6 +573,13 @@ export default function LayoutPointer({
             <span className="mono small">
               {step.multiple ? `${i + 1}. ` : ''}
               {pick.locator.hint}
+              {step.badges && (
+                <span className="pointer__pick-note">
+                  {pick.badges > 1
+                    ? t('blog.badgesGroup', { count: pick.badges })
+                    : t(step.id.endsWith('category') ? 'blog.badgeOneCategory' : 'blog.badgeOne')}
+                </span>
+              )}
             </span>
             <span className="pointer__pick-actions">
               <button

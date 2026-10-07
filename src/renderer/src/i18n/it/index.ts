@@ -14,6 +14,9 @@ import ai from './ai'
 import settings from './settings'
 import schedule from './schedule'
 import updates from './updates'
+import code from './code'
+import versions from './versions'
+import sync from './sync'
 import type { Translation } from '../types'
 
 export const it: Translation = {
@@ -32,5 +35,8 @@ export const it: Translation = {
   ai,
   settings,
   schedule,
-  updates
+  updates,
+  code,
+  versions,
+  sync
 }

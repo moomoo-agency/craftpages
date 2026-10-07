@@ -9,9 +9,15 @@ const messages: Translation['media'] = {
     other: '{count} зображення, разом {size}.'
   },
   scanning: 'Пошук зображень…',
-  addSizes: 'Додати відсутні розміри',
+  addSizes: {
+    one: 'Додати відсутній розмір ({count})',
+    few: 'Додати відсутні розміри ({count})',
+    many: 'Додати відсутні розміри ({count})',
+    other: 'Додати відсутні розміри ({count})'
+  },
   addSizesTip:
-    'Записати ширину й висоту для кожного зображення, де їх немає, щоб сторінки не стрибали під час завантаження',
+    'Деякі теги <img> на сторінках не мають ширини й висоти, тож сторінка стрибає під час завантаження. Ця дія запише в ці теги справжній розмір кожного зображення.',
+  addSizesNoneTip: 'Нічого виправляти: кожен тег <img> на сторінках уже має ширину й висоту.',
   optimizeSelected: {
     one: 'Оптимізувати вибрані ({count})…',
     few: 'Оптимізувати вибрані ({count})…',
@@ -19,11 +25,15 @@ const messages: Translation['media'] = {
     other: 'Оптимізувати вибрані ({count})…'
   },
   optimizeShown: 'Оптимізувати показані…',
+  optimizeNone: 'Оптимізувати вибрані…',
+  optimizeHint: 'Спершу позначте зображення, які треба оптимізувати.',
+  selectShown: 'Вибрати всі показані ({count})',
   filterLabel: 'Показати',
   filterAll: 'Усі',
   filterUnused: 'Невикористані',
   filterLarge: 'Понад 400 KB',
   filterWide: 'Ширші за {width} px',
+  filterUnsized: 'Без розміру',
   folder: 'Тека',
   allFolders: 'Усі теки',
   allFoldersCount: 'Усі теки ({count})',
@@ -54,7 +64,7 @@ const messages: Translation['media'] = {
   },
   sizesPages: 'Оновлено сторінок: {count}.',
   sizesSkipped: 'Пропущено {files}: там є незбережені зміни.',
-  sizesNone: 'Усі зображення вже мають ширину й висоту.',
+  sizesNone: 'Нічого виправляти: кожен тег <img> уже має ширину й висоту.',
   undone: 'Скасовано.',
   planTitle: {
     one: 'Можна оптимізувати {count} зображення й заощадити {size}.',
@@ -79,6 +89,14 @@ const messages: Translation['media'] = {
   optimizeOne: 'Оптимізувати…',
   deleteInUse: 'Видаляти можна лише невикористані зображення.',
   upload: 'Завантажити зображення…',
+  uploadMany: 'Завантажити зображення…',
+  uploadedMany: {
+    one: 'Завантажено {count} зображення: {before} → {after}.',
+    few: 'Завантажено {count} зображення: {before} → {after}.',
+    many: 'Завантажено {count} зображень: {before} → {after}.',
+    other: 'Завантажено {count} зображення: {before} → {after}.'
+  },
+  noSize: 'Без розміру в HTML',
   uploaded: '{name} завантажено: {before} → {after}.',
   uploadedSmaller: '{name} завантажено: {before} → {after} (на {percent}% менше).',
   pickerUsedIn: '{path} · Використовується в {files}',

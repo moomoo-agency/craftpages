@@ -35,6 +35,17 @@ const messages: Translation['project'] = {
   noToken: 'Questa connessione non ha ancora un API token.',
   choose: '— Scegli —',
   unknownConnection: 'Connessione sconosciuta (configurata su un altro computer?)',
+  servers: 'Server (FTP / SFTP)',
+  noPassword: 'Questa connessione non ha ancora una password.',
+  remoteDir: 'Cartella sul server',
+  remoteDirHint:
+    'Dove vanno i file del sito, di solito public_html, www o htdocs. Vuoto = la cartella in cui parte l’accesso. CraftPages elimina solo file che ha caricato lui.',
+  browse: 'Sfoglia…',
+  browseLabel: 'Cartelle sul server',
+  browsePath: 'Cartella attuale',
+  browseSuggested: 'Gli hosting di solito servono i siti da una cartella con questo nome',
+  browseEmpty: 'Nessuna cartella qui.',
+  browseUse: 'Usa {dir}',
   publishAs: 'Pubblica come',
   targetWorkers: 'Worker (consigliato)',
   targetPages: 'Progetto Pages',
@@ -43,8 +54,9 @@ const messages: Translation['project'] = {
   pagesHint:
     'Per progetti che sono già su Cloudflare Pages. Aggiunge i deploy di anteprima con un loro URL.',
   worker: 'Worker',
-  workerHint:
-    'Scegline uno o scrivi un nuovo nome. Il nuovo Worker viene creato alla prima pubblicazione, su nome.tuo-sottodominio.workers.dev. Aggiungi un dominio personalizzato in Cloudflare.',
+  workerHint: 'Scegline uno o scrivi un nuovo nome.',
+  workerExplain:
+    'Il nuovo Worker viene creato alla prima pubblicazione, su nome.tuo-sottodominio.workers.dev. Per usare un tuo dominio, aggiungilo al Worker in Cloudflare.',
   workersHidden: 'Non elencati perché pubblicare sostituirebbe il loro codice: {names}.',
   workerPlaceholder: 'mio-sito',
   pagesProject: 'Progetto Pages',
@@ -54,7 +66,7 @@ const messages: Translation['project'] = {
   previewBranchHint: 'I deploy di anteprima hanno un loro URL.',
   neverUpload: 'Non caricare mai',
   neverUploadHint:
-    'Un pattern per riga. * vale dentro una cartella, ** attraverso le cartelle. .sitecms e i file che iniziano con un punto sono sempre esclusi.',
+    'Un pattern per riga. * vale dentro una cartella, ** attraverso le cartelle. .sitecms e i file che iniziano con un punto sono sempre esclusi (tranne .htaccess quando pubblichi su un server).',
   newProjectName: 'Nome del nuovo progetto Pages',
   newProjectPlaceholder: 'nome-nuovo-progetto',
   createProject: 'Crea progetto Pages',
@@ -80,7 +92,12 @@ const messages: Translation['project'] = {
       '{count} Worker in questo account; CraftPages può pubblicare su {usable}. Scegline uno o scrivi un nuovo nome.'
   },
   noWorkers:
-    'Ancora nessun Worker. Scrivi un nome: il Worker viene creato alla prima pubblicazione.'
+    'Ancora nessun Worker. Scrivi un nome: il Worker viene creato alla prima pubblicazione.',
+  editing: 'Modifica',
+  codeEditor: 'Mostra l’editor di codice',
+  codeEditorHint:
+    'Aggiunge Codice accanto a Modifica e Anteprima, per cambiare HTML, CSS e JavaScript della pagina. Lascialo disattivato per chi modifica solo i contenuti.',
+  unsavedChanges: 'Modifiche non salvate'
 }
 
 export default messages

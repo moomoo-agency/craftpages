@@ -4,6 +4,7 @@ import {
   applyPatches,
   attr,
   attrPatches,
+  children,
   escapeAttr,
   escapeText,
   find,
@@ -15,6 +16,7 @@ import {
   type Patch
 } from './html/dom'
 import { follow, resolveLocator } from './html/locator'
+import { renderPagination } from './html/pagination'
 import { readSeo, writeSeo } from './html/seo'
 import type {
   CardFields,
@@ -40,12 +42,17 @@ export interface PostData {
   image?: { src: string; alt: string } | null
   /** Site path of the post page, e.g. /blog/my-post/ */
   url: string
-  tags?: { name: string; url: string }[]
+  tags?: Term[]
+  category?: Term | null
+  /** Shown where the layout has an author; without one the layout's own name stays. */
+  author?: string
 }
 
 export interface PageContext {
   baseUrl: string
   locale: string
+  /** The list page's message while there are no posts. */
+  emptyText?: string
 }
 
 /** Marker a writer can put between blocks to choose where a banner splits the article. */
@@ -95,6 +102,98 @@ export function relocate(source: string, fromPath: string): string {
     return true
   })
   return applyPatches(source, patches)
+}
+
+/** A tag or category as shown on a page: its name, linking to its archive. */
+export interface Term {
+  name: string
+  url: string
+}
+
+const outerOf = (source: string, element: Element): string => {
+  const location = element.sourceCodeLocation!
+  return source.slice(location.startOffset, location.endOffset)
+}
+
+/** The element whose text is the badge's label: the innermost one holding text. */
+function labelOf(element: Element): Element {
+  for (const child of children(element)) {
+    if (textContent(child).trim()) return labelOf(child)
+  }
+  return element
+}
+
+/** One badge copied for a term: its label becomes the name, its link the archive. */
+function fillTerm(itemHtml: string, term: Term): string {
+  const fragment = parseFragment(itemHtml, { sourceCodeLocationInfo: true })
+  const item = fragment.childNodes.find(isElement)
+  if (!item) return escapeText(term.name)
+  const patches: Patch[] = []
+  const label = labelOf(item)
+  const location = label.sourceCodeLocation
+  if (location?.startTag && location.endTag) {
+    patches.push({
+      start: location.startTag.endOffset,
+      end: location.endTag.startOffset,
+      text: escapeText(term.name)
+    })
+  }
+  const link = item.tagName === 'a' ? item : find(item, (e) => e.tagName === 'a')
+  if (link) patches.push(...attrPatches(itemHtml, link, { href: term.url }))
+  return applyPatches(itemHtml, patches)
+}
+
+/** The badges of a group of badges; null when the element is one badge itself. */
+export function badgesIn(element: Element): Element[] | null {
+  if (element.tagName === 'a' || element.tagName === 'li') return null
+  const kids = children(element).filter((child) => textContent(child).trim())
+  const linked = kids.filter(
+    (child) => child.tagName === 'a' || Boolean(find(child, (e) => e.tagName === 'a'))
+  )
+  const items = linked.length ? linked : kids
+  return items.length ? items : null
+}
+
+/**
+ * Tags or a category in the template's own design. The pointed-at element is either
+ * one badge (a link, a list item, or a text element: it's copied once per term) or the
+ * group holding badges (its first badge is copied for the run of badges; anything else
+ * in the group, such as a date, stays). No terms: the badges are removed.
+ */
+function termsPatch(source: string, pointed: Element, terms: Term[]): Patch {
+  const items = badgesIn(pointed)
+  const single = items === null
+  // A badge alone in its list item: the item is what repeats.
+  const parent = pointed.parentNode as Element
+  const element =
+    single &&
+    parent?.tagName === 'li' &&
+    children(parent).filter((child) => textContent(child).trim()).length === 1
+      ? parent
+      : pointed
+  // One badge among look-alike siblings (the layout's sample tags): they all go, and the
+  // clicked one repeats in their place.
+  const shape = (e: Element): string => `${e.tagName}.${attr(e, 'class') ?? ''}`
+  const run = single
+    ? children(element.parentNode as Element).filter((e) => shape(e) === shape(element))
+    : items
+  const first = single ? run[0] : items[0]
+  const last = single ? run[run.length - 1] : items[items.length - 1]
+  const start = first.sourceCodeLocation!.startOffset
+  const end = last.sourceCodeLocation!.endOffset
+  // Badges are joined the way the template separates them, else one per line.
+  const next = run[1]?.sourceCodeLocation
+  const between = next ? source.slice(run[0].sourceCodeLocation!.endOffset, next.startOffset) : null
+  const lineStart = source.lastIndexOf('\n', start - 1) + 1
+  const indent = source.slice(lineStart, start)
+  const separator =
+    between !== null && /^[\s,·|/]*$/.test(between)
+      ? between
+      : /^\s*$/.test(indent)
+        ? '\n' + indent
+        : ' '
+  const template = outerOf(source, single ? element : items[0])
+  return { start, end, text: terms.map((term) => fillTerm(template, term)).join(separator) }
 }
 
 function contains(ancestor: Element, element: Element): boolean {
@@ -349,18 +448,33 @@ export function renderPost(
     )
   }
 
-  // Tag links (e.g. under the title); the area is emptied for a post without tags.
+  // Tags and category in the layout's own badge design; removed when the post has none.
   const tagsElement = layout.tags ? resolveLocator(document, layout.tags) : null
   if (tagsElement && !insideRegion(tagsElement)) {
-    const links = (post.tags ?? [])
-      .map((tag) => `<a href="${escapeAttr(tag.url)}" rel="tag">${escapeText(tag.name)}</a>`)
-      .join(', ')
-    patches.push({ ...innerRange(tagsElement, 'tags area'), text: links })
+    patches.push(termsPatch(source, tagsElement, post.tags ?? []))
+  }
+  const categoryElement = layout.category ? resolveLocator(document, layout.category) : null
+  if (categoryElement && !insideRegion(categoryElement)) {
+    patches.push(termsPatch(source, categoryElement, post.category ? [post.category] : []))
+  }
+  const authorElements = (layout.author ?? [])
+    .map((locator) => resolveLocator(document, locator))
+    .filter((element): element is Element => Boolean(element) && !insideRegion(element!))
+  if (post.author?.trim()) {
+    for (const element of authorElements) {
+      patches.push({ ...innerRange(labelOf(element), 'author'), text: escapeText(post.author) })
+    }
   }
 
-  const keptParts = [...regions, titleElement, dateElement, imageElement, tagsElement].filter(
-    (element): element is Element => Boolean(element)
-  )
+  const keptParts = [
+    ...regions,
+    titleElement,
+    dateElement,
+    imageElement,
+    tagsElement,
+    categoryElement,
+    ...authorElements
+  ].filter((element): element is Element => Boolean(element))
   patches.push(...trimPatches(document, keptParts, layout.remove, layout.keepOnly))
 
   const body = applyPatches(source, patches)
@@ -438,6 +552,16 @@ function fillCard(
     )
   }
 
+  const tagsHolder = at(fields.tags)
+  if (tagsHolder) patches.push(termsPatch(cardHtml, tagsHolder, post.tags ?? []))
+  const categoryHolder = at(fields.category)
+  if (categoryHolder)
+    patches.push(termsPatch(cardHtml, categoryHolder, post.category ? [post.category] : []))
+  const authorHolder = at(fields.author)
+  if (authorHolder && post.author?.trim()) setText(labelOf(authorHolder), post.author)
+  const inTerms = (anchor: Element): boolean =>
+    [tagsHolder, categoryHolder].some((holder) => holder && contains(holder, anchor))
+
   // Every link in the card that pointed where the mapped link pointed now points to the post.
   const linkHolder =
     at(fields.link) ?? (card.tagName === 'a' ? card : find(card, (e) => e.tagName === 'a'))
@@ -451,7 +575,7 @@ function fillCard(
       if (e.tagName === 'a') anchors.push(e)
     })
     for (const anchor of anchors) {
-      if (attr(anchor, 'href') === original)
+      if (attr(anchor, 'href') === original && !inTerms(anchor))
         patches.push(...attrPatches(cardHtml, anchor, { href: post.url }))
     }
   }
@@ -474,30 +598,44 @@ export interface ListPage {
 function buildCards(
   source: string,
   document: ReturnType<typeof parseWithLocations>,
-  layout: Pick<ListLayout, 'container' | 'card'>,
+  layout: Pick<ListLayout, 'container'> & { card?: LatestLayout['card'] },
   posts: PostData[],
   context: PageContext,
-  what: string
+  what: string,
+  /** Shown when there are no posts (the list); null leaves the area empty (latest posts). */
+  empty: string | null
 ): { target: Element; html: string } {
+  const emptyIn = (parent: Element): string =>
+    empty === null
+      ? ''
+      : /^(ul|ol)$/.test(parent.tagName)
+        ? `<li class="cp-empty">${escapeText(empty)}</li>`
+        : `<p class="cp-empty">${escapeText(empty)}</p>`
   if (layout.card) {
-    const card = required(
-      resolveLocator(document, layout.card.element),
-      layout.card.element,
-      'post card'
-    )
-    const location = card.sourceCodeLocation!
-    const template = source.slice(location.startOffset, location.endOffset)
-    // The cards replace everything in the card's own parent (the grid).
+    // The saved original card when there is one: the page's cards are earlier output, which
+    // may lack parts (a post without a category) or be gone (no posts).
+    const saved = layout.card.html
+    const found = resolveLocator(document, layout.card.element)
+    const card = saved ? found : required(found, layout.card.element, 'post card')
+    const template = saved || outerOf(source, card!)
+    // The cards replace everything in the card's own parent (the grid); with no card left on
+    // the page, the area pointed at.
+    const parent = card
+      ? (card.parentNode as Element)
+      : required(resolveLocator(document, layout.container), layout.container, what)
     return {
-      target: card.parentNode as Element,
-      html: posts.map((post) => fillCard(template, layout.card!.fields, post, context)).join('\n')
+      target: parent,
+      html: posts.length
+        ? posts.map((post) => fillCard(template, layout.card!.fields, post, context)).join('\n')
+        : emptyIn(parent)
     }
   }
+  const target = required(resolveLocator(document, layout.container), layout.container, what)
   return {
-    target: required(resolveLocator(document, layout.container), layout.container, what),
+    target,
     html: posts.length
       ? `<div class="cp-cards">${posts.map((post) => defaultCard(post, context)).join('\n')}</div>`
-      : '<p class="cp-empty">No posts yet.</p>'
+      : emptyIn(target)
   }
 }
 
@@ -507,6 +645,14 @@ function withCardStyle(html: string): string {
   return headEnd >= 0
     ? html.slice(0, headEnd) + DEFAULT_CARD_STYLE + '\n' + html.slice(headEnd)
     : html
+}
+
+/** The latest-posts card's markup on the page, to keep for when the area is empty. */
+export function latestCardHtml(pageSource: string, layout: LatestLayout): string | null {
+  if (!layout.card) return null
+  const card = resolveLocator(parseWithLocations(pageSource), layout.card.element)
+  const location = card?.sourceCodeLocation
+  return location ? pageSource.slice(location.startOffset, location.endOffset) : null
 }
 
 /**
@@ -526,7 +672,8 @@ export function renderLatest(
     layout,
     posts,
     context,
-    'latest posts area'
+    'latest posts area',
+    null
   )
   const next = applyPatches(pageSource, [
     { ...innerRange(target, 'latest posts area'), text: html }
@@ -546,7 +693,15 @@ export function renderList(
   const document = parseWithLocations(source)
   const patches: Patch[] = []
 
-  const built = buildCards(source, document, layout, posts, context, 'list area')
+  const built = buildCards(
+    source,
+    document,
+    layout,
+    posts,
+    context,
+    'list area',
+    context.emptyText || 'No posts yet.'
+  )
   const target = built.target
   let cardsHtml = built.html
 
@@ -568,9 +723,11 @@ export function renderList(
   if (paginationElement && paginationElement !== target) {
     const firstLink = find(paginationElement, (e) => e.tagName === 'a')
     const cls = firstLink && attr(firstLink, 'class')
+    // The template's own pagination markup when it can be read; else simple links.
+    const own = paging.total > 1 ? renderPagination(source, paginationElement, paging) : ''
     patches.push({
       ...innerRange(paginationElement, 'pagination'),
-      text: pagination(cls ? ` class="${escapeAttr(cls)}"` : '')
+      text: own ?? pagination(cls ? ` class="${escapeAttr(cls)}"` : '')
     })
   } else if (paging.total > 1) {
     cardsHtml += `\n<nav class="cp-pagination" aria-label="Posts">${pagination('')}</nav>`
@@ -610,6 +767,11 @@ export interface HeadFinish {
   extraHead?: string[]
   /** Nav links to this path are marked current (e.g. the blog's list address). */
   currentPath?: string
+  /**
+   * Links to rewrite, by link path (see linkPath): the blog's layout pages aren't published,
+   * so links to them (the site's "Blog" link to blog.html…) go to the blog instead.
+   */
+  linkAliases?: Record<string, string>
   /** Site-wide JSON-LD (e.g. from the home page) for layouts that carry none of their own. */
   fallbackSiteNodes?: Record<string, unknown>[]
   baseUrl?: string
@@ -709,6 +871,7 @@ export function finishPage(html: string, finish: HeadFinish): string {
   inserts.push(...(finish.extraHead ?? []))
 
   patches.push(...navPatches(html, document, finish))
+  patches.push(...aliasPatches(html, document, finish))
 
   const headEnd = head?.sourceCodeLocation?.endTag?.startOffset
   if (headEnd !== undefined && inserts.length) {
@@ -760,6 +923,31 @@ function siteWideNodes(json: string): Record<string, unknown>[] {
     })
 }
 
+/** An element's href, or what it becomes when it links to an aliased page. */
+function aliasedHref(element: Element, finish: HeadFinish): string | undefined {
+  const href = attr(element, 'href')
+  const path = finish.linkAliases && linkPath(href, finish.baseUrl ?? '')
+  return (path && finish.linkAliases?.[path]) || href
+}
+
+/** Aliased links outside the navigation (navPatches rewrites the ones inside it). */
+function aliasPatches(
+  html: string,
+  document: ReturnType<typeof parseWithLocations>,
+  finish: HeadFinish
+): Patch[] {
+  if (!finish.linkAliases || !Object.keys(finish.linkAliases).length) return []
+  const patches: Patch[] = []
+  walk(document, (element) => {
+    if (element.tagName === 'nav' || element.tagName === 'header') return false
+    if (element.tagName !== 'a' || !element.sourceCodeLocation?.startTag) return true
+    const href = aliasedHref(element, finish)
+    if (href !== attr(element, 'href')) patches.push(...attrPatches(html, element, { href: href! }))
+    return true
+  })
+  return patches
+}
+
 /** Path of a link for comparison: /blog/, /blog/index.html and https://site/blog/ all match. */
 function linkPath(href: string | undefined, baseUrl: string): string | null {
   if (!href || /^(#|mailto:|tel:|javascript:)/i.test(href.trim())) return null
@@ -806,7 +994,8 @@ function navPatches(
   if (finish.currentPath) {
     for (const element of navElements) {
       if (element.tagName !== 'a') continue
-      if (linkPath(attr(element, 'href'), finish.baseUrl ?? '') !== finish.currentPath) continue
+      if (linkPath(aliasedHref(element, finish), finish.baseUrl ?? '') !== finish.currentPath)
+        continue
       current.add(element)
       const parent = element.parentNode as Element
       if (parent && 'tagName' in parent && navElements.includes(parent)) wrappers.add(parent)
@@ -823,6 +1012,8 @@ function navPatches(
     if (wrappers.has(element)) next.push(...wrapperState)
     const joined = [...new Set(next)].join(' ')
     if (joined !== classes.join(' ')) values.class = joined || null
+    const href = aliasedHref(element, finish)
+    if (element.tagName === 'a' && href !== attr(element, 'href')) values.href = href ?? null
     const aria = attr(element, 'aria-current')
     if (current.has(element)) {
       if (aria !== 'page') values['aria-current'] = 'page'

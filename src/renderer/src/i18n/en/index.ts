@@ -14,6 +14,9 @@ import ai from './ai'
 import settings from './settings'
 import schedule from './schedule'
 import updates from './updates'
+import code from './code'
+import versions from './versions'
+import sync from './sync'
 
 export const en = {
   common,
@@ -31,7 +34,10 @@ export const en = {
   ai,
   settings,
   schedule,
-  updates
+  updates,
+  code,
+  versions,
+  sync
 }
 
 export type Catalog = typeof en

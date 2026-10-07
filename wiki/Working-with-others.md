@@ -1,7 +1,8 @@
 # Working with others
 
 Cloudflare keeps only the published site, not its source files, and there is no way to
-download them back: no token permission allows it. Each publish replaces the **whole** site
+download them back: no token permission allows it. A web host does keep the files, but
+nothing there says which copy is the latest. Each publish replaces the **whole** site
 with the folder it was published from.
 
 So if two copies of the site folder exist (two people, two computers, or CraftPages and
@@ -23,6 +24,11 @@ The check tells you that two copies have drifted apart. It can't merge them. Tha
 up to how you share the folder.
 
 ## Sharing one site
+
+**Sync (beta, new in 1.1).** CraftPages can keep the project in step between computers
+itself, through your Cloudflare account or your web host: changes, unsaved edits, publish
+history, and who has which page open. Publishing with sync on publishes on top of what the
+other computers have, never over it. See [[Sync between computers]].
 
 **Git (best for teams).** Keep the site folder in a repository on GitHub, GitLab or
 Bitbucket, including `.sitecms/`.

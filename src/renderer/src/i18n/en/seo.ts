@@ -60,17 +60,45 @@ export default {
     one: 'sitemap.xml is already up to date ({count} page).',
     other: 'sitemap.xml is already up to date ({count} pages).'
   } satisfies Msg,
+  sitemapCreated: {
+    one: 'sitemap.xml created with {count} page.',
+    other: 'sitemap.xml created with {count} pages.'
+  } satisfies Msg,
+  sitemapSettingsSaved: 'Saved.',
+  sitemapDescription:
+    'A file at the root of your site (/sitemap.xml) that lists your pages, so search engines find all of them.',
+  sitemapCurrent: 'Up to date',
+  sitemapStale: 'Out of date',
+  sitemapStatus: {
+    one: 'Your site has sitemap.xml: it lists {count} page and last changed on {date}.',
+    other: 'Your site has sitemap.xml: it lists {count} pages and last changed on {date}.'
+  } satisfies Msg,
+  sitemapWouldList: {
+    one: 'A rebuild would list {count} page.',
+    other: 'A rebuild would list {count} pages.'
+  } satisfies Msg,
+  sitemapMissing: 'Your site has no sitemap.xml yet.',
+  createSitemap: 'Create sitemap.xml',
+  fileMissing: 'No file',
+  fileExists: 'File exists',
+  viewFile: 'View file',
 
   // robots.txt
-  robotsDescription: 'Tells search engines which parts of the site they may crawl.',
+  robotsDescription:
+    'A file at the root of your site (/robots.txt) that tells search engines which parts they may crawl.',
   robotsSaved: 'robots.txt saved.',
+  robotsCreated: 'robots.txt created. It goes live with your next publish.',
+  robotsMissing:
+    'Your site has no robots.txt. Search engines then crawl everything, which is usually fine, but the file is the standard place to point them at your sitemap.',
+  robotsCreate: 'Create default robots.txt',
+  robotsDefaultLabel: 'Default robots.txt',
   robotsNoSitemap:
     'There’s no Sitemap line, so search engines have to find sitemap.xml on their own. <link>Add the line</link>',
 
   // Site identity
-  identityTitle: 'Site identity',
+  identityTitle: 'Site identity (code in index.html)',
   identityDescription:
-    'Structured data on the home page that tells search engines the site’s name and logo.',
+    'Not a separate file: a block of structured data (JSON-LD) in the <head> of your home page that tells search engines the site’s name and logo.',
   identityLogo: 'logo {logo}',
   identityFound: 'Found in index.html. Blog posts reference it as their publisher.',
   identityFoundWithWebsite:
@@ -80,5 +108,8 @@ export default {
   identityUrl: 'Site URL',
   identityLogoLabel: 'Logo',
   identityAdd: 'Add to the home page',
-  identityAdded: 'Added to index.html.'
+  identityAdded: 'Added to index.html.',
+  identityCode: 'This code in {file} describes it (visitors don’t see it):',
+  identityAddedCode: 'This code was added to {file}, just before {head}. Visitors don’t see it:',
+  identityPreview: 'This code will be added to {file}, just before {head}. Visitors don’t see it:'
 } satisfies Record<string, Msg>

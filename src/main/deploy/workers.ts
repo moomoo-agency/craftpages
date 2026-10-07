@@ -92,7 +92,7 @@ async function accountSubdomain(creds: Credentials): Promise<string | null> {
   }
 }
 
-async function workerUrl(creds: Credentials, name: string): Promise<string> {
+export async function workerUrl(creds: Credentials, name: string): Promise<string> {
   const subdomain = await accountSubdomain(creds)
   return subdomain ? `https://${name}.${subdomain}.workers.dev` : ''
 }

@@ -17,6 +17,7 @@ import type {
   DeployConnectionView,
   SiteSettings
 } from '../shared/types'
+import { isServerConnection } from '../shared/types'
 
 export const DEFAULT_MCP_PORT = 7424
 
@@ -119,6 +120,10 @@ interface Secrets {
   /** Before connections: Cloudflare tokens by project id. Moved on first open. */
   cloudflareTokens?: Record<string, string>
   mcpToken?: string
+  /** This computer's id for sync stores (its Worker secret is KEY_<id>). */
+  syncDevice?: string
+  /** Sync secrets: a device key per Cloudflare account, a passphrase per project on servers. */
+  syncSecrets?: Record<string, string>
 }
 
 const secretsFile = (): string => join(app.getPath('userData'), 'secrets.bin')
@@ -189,24 +194,61 @@ export async function listConnections(): Promise<ConnectionsView> {
   }
 }
 
+/** The server fields of a connection, checked; throws with what's missing. */
+export function serverFields(
+  input: ConnectionInput
+): Pick<DeployConnection, 'host' | 'port' | 'username' | 'secure' | 'keyPath'> {
+  const host = (input.host ?? '')
+    .trim()
+    .replace(/^(s?ftps?|ssh):\/\//i, '')
+    .replace(/\/.*$/, '')
+  if (!host) throw new Error('Enter the server address, e.g. ftp.example.com.')
+  const username = (input.username ?? '').trim()
+  if (!username) throw new Error('Enter the user name for the server.')
+  const fallback = input.type === 'sftp' ? 22 : 21
+  const port = Number(input.port) || fallback
+  if (!Number.isInteger(port) || port < 1 || port > 65535)
+    throw new Error('The port is a number between 1 and 65535.')
+  return {
+    host,
+    port,
+    username,
+    ...(input.type === 'ftp' ? { secure: Boolean(input.secure) } : {}),
+    ...(input.type === 'sftp' && input.keyPath?.trim() ? { keyPath: input.keyPath.trim() } : {})
+  }
+}
+
 export async function saveConnection(input: ConnectionInput): Promise<DeployConnectionView> {
   const { connections } = await getAppSettings()
   const name = input.name.trim()
-  const accountId = input.accountId.trim()
-  if (!name) throw new Error('Give the connection a name, e.g. “My Cloudflare”.')
-  if (!/^[0-9a-f]{32}$/i.test(accountId)) {
+  const server = isServerConnection(input.type)
+  const accountId = server ? '' : input.accountId.trim()
+  if (!name)
+    throw new Error(
+      server
+        ? 'Give the connection a name, e.g. “My hosting”.'
+        : 'Give the connection a name, e.g. “My Cloudflare”.'
+    )
+  if (!server && !/^[0-9a-f]{32}$/i.test(accountId)) {
     throw new Error('The account ID is 32 letters and digits (Cloudflare → Workers & Pages).')
   }
   const existing = input.id ? connections.find((c) => c.id === input.id) : undefined
   if (input.id && !existing) throw new Error('That connection no longer exists.')
+  const fields = server ? serverFields(input) : {}
   const connection: DeployConnection = {
     id: existing?.id ?? randomBytes(6).toString('hex'),
     type: input.type,
     name,
-    accountId
+    accountId,
+    ...fields,
+    // A host key stays trusted only while the server it belongs to stays the same.
+    ...(existing?.hostKey && existing.host === fields.host && existing.port === fields.port
+      ? { hostKey: existing.hostKey }
+      : {})
   }
   if (input.token !== undefined) await setConnectionToken(connection.id, input.token.trim() || null)
-  else if (!existing) throw new Error('Paste the API token.')
+  else if (!existing && !(input.type === 'sftp' && connection.keyPath))
+    throw new Error(server ? 'Enter the password.' : 'Paste the API token.')
   await saveAppSettings({
     connections: existing
       ? connections.map((c) => (c.id === connection.id ? connection : c))
@@ -225,9 +267,27 @@ export async function deleteConnection(id: string): Promise<void> {
 export async function connectionById(id: string): Promise<DeployConnection & { token: string }> {
   const connection = (await getAppSettings()).connections.find((c) => c.id === id)
   if (!connection) throw new Error('Choose a deploy connection in Project settings → Deploy first.')
-  const token = (await readSecrets()).connectionTokens?.[id]
-  if (!token) throw new Error(`“${connection.name}” has no API token. Add it in Settings.`)
+  const token = (await readSecrets()).connectionTokens?.[id] ?? ''
+  // An SFTP key without a passphrase needs no secret.
+  if (!token && !(connection.type === 'sftp' && connection.keyPath))
+    throw new Error(
+      `“${connection.name}” has no ${isServerConnection(connection.type) ? 'password' : 'API token'}. Add it in Settings.`
+    )
   return { ...connection, token }
+}
+
+/** The stored secret of a connection ('' when none), e.g. to test edits before saving. */
+export async function connectionSecret(id: string): Promise<string> {
+  return (await readSecrets()).connectionTokens?.[id] ?? ''
+}
+
+/** Remembers the SFTP server key a connection trusts from now on. */
+export async function trustHostKey(id: string, hostKey: string): Promise<void> {
+  const { connections } = await getAppSettings()
+  if (!connections.some((c) => c.id === id)) return
+  await saveAppSettings({
+    connections: connections.map((c) => (c.id === id ? { ...c, hostKey } : c))
+  })
 }
 
 /**
@@ -272,6 +332,27 @@ export async function migrateDeploy(root: string): Promise<void> {
   await writeJson(siteFile(root), stored)
 }
 
+/** This computer's stable sync id: 12 uppercase hex characters. */
+export async function syncDeviceId(): Promise<string> {
+  const current = await readSecrets()
+  if (current.syncDevice) return current.syncDevice
+  const id = randomBytes(6).toString('hex').toUpperCase()
+  await writeSecrets({ ...current, syncDevice: id })
+  return id
+}
+
+export async function getSyncSecret(name: string): Promise<string | null> {
+  return (await readSecrets()).syncSecrets?.[name] ?? null
+}
+
+export async function setSyncSecret(name: string, value: string | null): Promise<void> {
+  const current = await readSecrets()
+  const next = { ...current.syncSecrets }
+  if (value) next[name] = value
+  else delete next[name]
+  await writeSecrets({ ...current, syncSecrets: next })
+}
+
 /** Bearer token AI clients must send. Kept across launches so the client config keeps working. */
 export async function getMcpToken(): Promise<string> {
   const current = await readSecrets()
@@ -302,9 +383,11 @@ function defaultSite(root: string): SiteSettings {
       workerName: '',
       productionBranch: 'main',
       previewBranch: 'preview',
+      remoteDir: '',
       exclude: ['.DS_Store', 'Thumbs.db', '*.bak*']
     },
     images: { maxWidth: 2400, quality: 80, pngToJpeg: true, dir: 'assets/img' },
+    editing: { codeEditor: false },
     seo: {
       titlePattern: '%title% · %site%',
       defaultImage: '',
@@ -316,7 +399,8 @@ function defaultSite(root: string): SiteSettings {
       listPath: DEFAULT_LIST_PATH,
       postsPerPage: 10,
       title: 'Blog',
-      scheduleDeploy: false
+      scheduleDeploy: false,
+      emptyText: 'No posts yet.'
     }
   }
 }
@@ -336,16 +420,48 @@ async function inferBaseUrl(root: string): Promise<string> {
   }
 }
 
+/** What a connection points at, the same on every computer. */
+export const connectionHint = (connection: DeployConnection): string =>
+  isServerConnection(connection.type)
+    ? `${connection.type}:${connection.username}@${connection.host}:${connection.port ?? ''}`
+    : `cloudflare:${connection.accountId}`
+
+/** This computer's connection matching a hint from another computer, if any. */
+export async function connectionForHint(hint: string | undefined): Promise<string | null> {
+  if (!hint) return null
+  const found = (await getAppSettings()).connections.find((c) => connectionHint(c) === hint)
+  return found?.id ?? null
+}
+
+/** A server folder as /path/without/trailing/slash ('' = where the login starts). */
+export function normalizeRemoteDir(dir: string): string {
+  const clean = dir.trim().replace(/\\/g, '/').replace(/\/+/g, '/').replace(/\/$/, '')
+  if (clean.split('/').includes('..')) throw new Error('The server folder can’t contain “..”.')
+  return clean
+}
+
 export const WORKER_NAME = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/
 
 /** Whether a project has somewhere to publish to. */
 export const deployTarget = (site: SiteSettings): string =>
-  site.deploy.target === 'pages' ? site.deploy.projectName : site.deploy.workerName
+  site.deploy.target === 'server'
+    ? site.deploy.connection
+      ? site.deploy.remoteDir || '/'
+      : ''
+    : site.deploy.target === 'pages'
+      ? site.deploy.projectName
+      : site.deploy.workerName
 
 export async function getSiteSettings(root: string): Promise<SiteSettings> {
   const stored = await readJson<SiteSettings>(siteFile(root))
   const settings = merge(defaultSite(root), stored)
-  if (!stored) settings.baseUrl = await inferBaseUrl(root)
+  if (!stored) {
+    settings.baseUrl = await inferBaseUrl(root)
+    // Kept from the first read on: the project id must stay the same (keychain, sync).
+    await writeJson(siteFile(root), settings).catch(() => null)
+  }
+  // Set up before the code editor became an option: keeps it, as it always had it.
+  if (stored && stored.editing?.codeEditor === undefined) settings.editing.codeEditor = true
   // Set up before Workers were supported: keeps publishing to its Pages project.
   if (stored?.deploy && !stored.deploy.target && stored.deploy.projectName)
     settings.deploy.target = 'pages'
@@ -375,6 +491,11 @@ export async function saveSiteSettings(
   next.seo.defaultImage = next.seo.defaultImage.trim()
   next.seo.sitemapExclude = next.seo.sitemapExclude.map((p) => p.trim()).filter(Boolean)
   next.deploy.exclude = next.deploy.exclude.map((pattern) => pattern.trim()).filter(Boolean)
+  next.deploy.remoteDir = normalizeRemoteDir(next.deploy.remoteDir)
+  const connection = (await getAppSettings()).connections.find(
+    (c) => c.id === next.deploy.connection
+  )
+  if (connection) next.deploy.connectionHint = connectionHint(connection)
   next.images.dir = next.images.dir.trim().replace(/^\/+|\/+$/g, '') || 'assets/img'
   await writeJson(siteFile(root), next)
   return next

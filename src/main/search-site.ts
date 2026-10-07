@@ -21,6 +21,7 @@ import { pageComponents } from './html/components'
 import { follow, pathFrom, resolveLocator } from './html/locator'
 import { POST_META } from './posts'
 import { urlOfPage } from './seo-site'
+import { isPublished } from './deploy/exclude'
 import { getSiteSettings } from './settings'
 import { listFiles } from './workspace'
 import { SEARCH_ICONS } from './search/icons'
@@ -89,8 +90,12 @@ interface Page {
   document: Document
 }
 
+/** Pages that get published (the index must not reveal pages kept off the site). */
 async function htmlPages(root: string): Promise<Page[]> {
-  const files = (await listFiles(root)).filter((file) => /\.html?$/.test(file.path))
+  const site = await getSiteSettings(root)
+  const files = (await listFiles(root)).filter(
+    (file) => /\.html?$/.test(file.path) && isPublished(site, file.path)
+  )
   return Promise.all(
     files.map(async (file) => {
       const source = await readFile(join(root, file.path), 'utf8')

@@ -98,5 +98,11 @@ export default {
   columnsPanel: 'Columns',
   columnsCount: 'Number of columns',
   columnsOption: { one: '{count} column', other: '{count} columns' } satisfies Msg,
-  columnsHelp: 'On phones, the text becomes a single column.'
+  columnsHelp: 'On phones, the text becomes a single column.',
+  categoryLabel: 'Category',
+  categoryHint:
+    'One per post, shown where your layout has a category badge. Each gets a page listing its posts.',
+  categoryHintExample: 'Its page: {path}',
+  authorLabel: 'Author',
+  authorHint: 'Leave empty to keep the name already in your layout.'
 } satisfies Record<string, Msg>

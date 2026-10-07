@@ -3,7 +3,7 @@ import type { Translation } from '../types'
 const messages: Translation['app'] = {
   viewPages: 'Pagine',
   viewBlog: 'Blog',
-  viewComponents: 'Componenti condivisi',
+  viewComponents: 'Parti condivise',
   viewMedia: 'Media',
   viewSeo: 'SEO',
   viewSearch: 'Ricerca nel sito',
@@ -26,7 +26,10 @@ const messages: Translation['app'] = {
     '“{label}” va online {at} e viene ritirato {until}. Puoi seguirlo in Pubblica.',
   scheduledOtherProject: '{project}: {message}',
 
-  savedPages: { one: '{count} pagina salvata', other: '{count} pagine salvate' },
+  savedPages: {
+    one: '{count} pagina salvata nella cartella del sito · non ancora online',
+    other: '{count} pagine salvate nella cartella del sito · non ancora online'
+  },
   nothingToSave: 'Niente da salvare',
   skippedShared: {
     one: '{count} modifica condivisa saltata: lì il contenuto è diverso',
@@ -39,12 +42,11 @@ const messages: Translation['app'] = {
     other: 'Modifiche non salvate su {count} pagine'
   },
   editsCount: { one: '{count} modifica', other: '{count} modifiche' },
-  fromShared: { one: '{count} da blocchi condivisi', other: '{count} da blocchi condivisi' },
+  fromShared: { one: '{count} da parti condivise', other: '{count} da parti condivise' },
   seoChanges: 'SEO',
   discardPage: 'Scarta le modifiche su {page}',
   staleNote: 'Modificate sul disco, quindi queste modifiche verranno scartate: {pages}',
   confirmDiscardAll: 'Scartare tutte le modifiche non salvate?',
-  discardAll: 'Scarta tutto',
   schedule: 'Programma…',
   scheduleHint: 'Salva queste modifiche a un’ora stabilita invece che adesso',
   saveAll: 'Salva tutto',
@@ -66,12 +68,45 @@ const messages: Translation['app'] = {
   openProjectButton: 'Apri progetto…',
   noPages: 'Ancora nessuna pagina HTML in questa cartella.',
   colTitle: 'Titolo',
-  colFile: 'File',
-  colSize: 'Dimensione',
   badgeBlog: 'blog',
-  generatedHint: 'Generata dal blog: modifica l’articolo in Blog',
+  generatedHint: 'Costruita dal blog: aprila come la vedono i visitatori',
+  badgeTemplate: 'modello del blog',
+  badgePostTemplate: 'modello articolo',
+  postTemplateHint:
+    'Ogni articolo è costruito da questa pagina: modificala per cambiare l’aspetto di tutti gli articoli. Una volta pubblicato il blog, resta fuori dal sito e i link verso di essa portano al blog.',
+  templateHint:
+    'Il blog è costruito da questa pagina: modificala per cambiare l’aspetto dell’elenco degli articoli. Una volta pubblicato il blog, resta fuori dal sito e i link verso di essa portano al blog.',
   editPageHint: 'Modifica {title}',
-  untitled: 'Senza titolo'
+  untitled: 'Senza titolo',
+  publishUnsaved: {
+    one: '{count} pagina ha modifiche non salvate: salvale per pubblicarle',
+    other: '{count} pagine hanno modifiche non salvate: salvale per pubblicarle'
+  },
+  saveFailed: 'Salvataggio non riuscito: {error}',
+  skippedExplain:
+    'Queste pagine hanno una propria versione della parte condivisa, quindi la modifica non è stata applicata. Aprine una per modificarla a mano.',
+  colAddress: 'Indirizzo',
+  discardAllAction: 'Scarta tutte le modifiche…',
+  navContent: 'Contenuti',
+  navSite: 'Sito',
+  allLive: 'Tutto salvato · sito online aggiornato',
+  navSettings: 'Impostazioni',
+  unsavedShort: { one: '{count} non salvata', other: '{count} non salvate' },
+  savedFiles: {
+    one: '{count} file scritto · non ancora online',
+    other: '{count} file scritti · non ancora online'
+  },
+  readyToPublish: 'Modifiche pronte da pubblicare',
+  changesHere: {
+    one: '{count} modifica su questa pagina',
+    other: '{count} modifiche su questa pagina'
+  },
+  pagesUnsaved: { one: '{count} pagina non salvata', other: '{count} pagine non salvate' },
+  confirmDiscardPage: 'Scartare le modifiche su {page}?',
+  pagesReady: {
+    one: '{count} pagina pronta da pubblicare',
+    other: '{count} pagine pronte da pubblicare'
+  }
 }
 
 export default messages

@@ -1,5 +1,7 @@
 import '@wordpress/components/build-style/style.css'
 import '@wordpress/block-editor/build-style/style.css'
+// The canvas styles: per-block selection overlay, block outlines, drag states.
+import '@wordpress/block-editor/build-style/content.css'
 import '@wordpress/block-library/build-style/style.css'
 import '@wordpress/block-library/build-style/editor.css'
 import '@wordpress/block-library/build-style/theme.css'

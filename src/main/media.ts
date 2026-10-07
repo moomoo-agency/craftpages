@@ -2,7 +2,15 @@ import { readFile } from 'fs/promises'
 import { basename, extname, join, posix } from 'path'
 import sharp from 'sharp'
 import { hasDraft } from './drafts'
-import { applyPatches, attr, attrPatches, parseWithLocations, walk, type Patch } from './html/dom'
+import {
+  applyPatches,
+  attr,
+  attrPatches,
+  parseWithLocations,
+  walk,
+  type Element,
+  type Patch
+} from './html/dom'
 import { writeFiles, type FileWrite } from './history'
 import { encodeImage, keepOriginal, shortHash, slug } from './images'
 import { getSiteSettings } from './settings'
@@ -157,16 +165,36 @@ async function sizeOf(root: string, file: FileEntry): Promise<{ width: number; h
   return size
 }
 
+/** Calls `found` for every <img> tag of an HTML page that has neither width nor height. */
+function unsizedImages(
+  path: string,
+  source: string,
+  site: SiteSettings,
+  found: (element: Element, target: string) => void
+): void {
+  walk(parseWithLocations(source), (element) => {
+    if (element.tagName !== 'img' || !element.sourceCodeLocation?.startTag) return true
+    if (attr(element, 'width') !== undefined || attr(element, 'height') !== undefined) return true
+    const target = resolveToken(attr(element, 'src') ?? '', path, site)
+    if (target) found(element, target)
+    return true
+  })
+}
+
 /** Every image in the site with its size and which pages / stylesheets use it. */
 export async function listImages(root: string, origin: string): Promise<ImageEntry[]> {
   const site = await getSiteSettings(root)
   const files = await listFiles(root)
   const images = files.filter((file) => IMAGE_EXTENSIONS.has(extname(file.path).toLowerCase()))
-  const refs = findReferences(
-    await textFiles(root, files),
-    new Set(images.map((i) => i.path)),
-    site
-  )
+  const texts = await textFiles(root, files)
+  const refs = findReferences(texts, new Set(images.map((i) => i.path)), site)
+  const unsized = new Map<string, number>()
+  for (const { path, text } of texts) {
+    if (!/\.html?$/.test(path) || !/<img\b/i.test(text)) continue
+    unsizedImages(path, text, site, (_element, target) =>
+      unsized.set(target, (unsized.get(target) ?? 0) + 1)
+    )
+  }
   return Promise.all(
     images.map(async (file): Promise<ImageEntry> => {
       const size = await sizeOf(root, file)
@@ -176,7 +204,9 @@ export async function listImages(root: string, origin: string): Promise<ImageEnt
         bytes: file.bytes,
         width: size.width,
         height: size.height,
-        usedIn: [...new Set(refs.filter((ref) => ref.target === file.path).map((ref) => ref.file))]
+        usedIn: [...new Set(refs.filter((ref) => ref.target === file.path).map((ref) => ref.file))],
+        // Vector images may have no intrinsic size; nothing to write then.
+        unsized: size.width && size.height ? (unsized.get(file.path) ?? 0) : 0
       }
     })
   )
@@ -360,27 +390,25 @@ export async function deleteImage(root: string, path: string): Promise<MediaChan
  * alone; pages with unsaved edits are skipped.
  */
 export async function addImageDimensions(
-  root: string
+  root: string,
+  only?: string[]
 ): Promise<{ images: number; pages: string[]; skipped: string[] }> {
   const site = await getSiteSettings(root)
   const files = await listFiles(root)
   const byPath = new Map(files.map((file) => [file.path, file]))
+  const chosen = only && new Set(only)
   const writes: FileWrite[] = []
   const skipped: string[] = []
   let images = 0
   for (const file of files) {
     if (!/\.html?$/.test(file.path)) continue
     const source = await readFile(join(root, file.path), 'utf8')
-    const document = parseWithLocations(source)
     const patches: Patch[] = []
     let found = 0
     const pending: Promise<void>[] = []
-    walk(document, (element) => {
-      if (element.tagName !== 'img' || !element.sourceCodeLocation?.startTag) return true
-      if (attr(element, 'width') !== undefined || attr(element, 'height') !== undefined) return true
-      const target = resolveToken(attr(element, 'src') ?? '', file.path, site)
-      const entry = target && byPath.get(target)
-      if (!entry) return true
+    unsizedImages(file.path, source, site, (element, target) => {
+      const entry = byPath.get(target)
+      if (!entry || (chosen && !chosen.has(target))) return
       pending.push(
         sizeOf(root, entry).then((size) => {
           if (size.width && size.height) {
@@ -394,7 +422,6 @@ export async function addImageDimensions(
           }
         })
       )
-      return true
     })
     await Promise.all(pending)
     if (!patches.length) continue

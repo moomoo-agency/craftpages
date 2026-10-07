@@ -58,7 +58,7 @@ export default {
   aiDescription:
     'Your connected AI builds them in the site’s own design. You review the proposal (changes and preview) before anything is written, then come back here and pick them.',
   aiConnected: 'Connected: {clients}',
-  aiNotConnected: 'No AI connected yet. Set one up in {view}.',
+  aiNotConnected: 'No AI connected yet. Set one up in App settings → AI connection.',
   copyPrompt: 'Copy prompt',
 
   // Preview
@@ -81,7 +81,7 @@ export default {
   setupTitle: 'Setup',
   setupTitleTodo: 'Set up your blog',
   setupDone: 'Done. You can adjust any part at any time.',
-  setupTodo: 'Point at where posts and cards go, then check a preview.',
+  setupTodo: 'Point at where posts and cards go, check a preview, then create the blog.',
   stepChoose: 'Choose layouts',
   stepChooseSummary: 'Posts look like {post}; the list looks like {list}.',
   changeLayouts: 'Change layouts',
@@ -118,6 +118,12 @@ export default {
   adjustLatest: 'Adjust latest posts on {page}',
   removeLatest: 'Remove latest posts from {page}',
   removeLatestHint: 'The area keeps its current cards; they just stop updating.',
+  latestShows: {
+    one: 'Shows the newest post',
+    other: 'Shows the {count} newest posts'
+  } satisfies Msg,
+  latestAdd: 'Add latest posts to a page',
+  latestAddAnother: 'Add to another page',
   latestPage: 'Page for latest posts',
   pointArea: 'Point at the area…',
   finishLayoutsFirst: 'Finish the post and list layouts first.',
@@ -125,6 +131,7 @@ export default {
   // Posts
   posts: 'Posts',
   newPost: 'New post',
+  searchPosts: 'Search by title, URL or tag',
   noPosts: 'No posts yet',
   noPostsReady: 'Choose New post to write the first one.',
   noPostsSetup: 'Finish the setup to start writing.',
@@ -151,9 +158,11 @@ export default {
   blogTitleHint: 'Heading and title of the list page. Tag pages show “Blog: tag”.',
   scheduleDeploy: 'Deploy to production when a scheduled post goes live',
   scheduleDeployHint:
-    'Uses this project’s Cloudflare settings. CraftPages must be open at that time; otherwise it deploys at the next launch.',
+    'Uses this project’s deploy settings. CraftPages must be open at that time; otherwise it deploys at the next launch.',
   urlsMove:
     'Published posts move to the new URLs. Their old URLs get 301 redirects in _redirects, so links and search results keep working.',
+  urlsMoveServer:
+    'Published posts move to the new URLs. Their old URLs get 301 redirects in .htaccess, so links and search results keep working on Apache hosting (most shared hosts). Servers that run only nginx ignore .htaccess.',
 
   // Pointing mode
   opening: 'Opening {page}…',
@@ -193,9 +202,9 @@ export default {
   imageHelp: 'Skip it if the layout has no hero image.',
   imageSkip: 'Skip: no cover image',
   tags: 'Tags',
-  tagsPrompt: 'Click where the post’s tags should be listed.',
+  tagsPrompt: 'Click one tag badge, for example “Habits”.',
   tagsHelp:
-    'A small line near the title or under the article works. It shows the tags as links to their tag pages, and stays empty for posts without tags.',
+    'It’s copied once for each of the post’s tags, in the same style, and links to the tag’s page. Clicked the list instead (Wider)? Its first badge is copied; anything else in it stays. Posts without tags show none.',
   tagsSkip: 'Skip: don’t show tags',
   remove: 'Leave out',
   removePrompt: 'Click anything else that shouldn’t appear on generated pages.',
@@ -241,5 +250,68 @@ export default {
   latestArea: 'Area',
   latestAreaPrompt: 'Click the area where the latest posts should appear.',
   latestAreaHelp:
-    'Only this area changes when you publish; the rest of the page stays exactly as it is. If the page already shows a few cards, click their grid and then one card.'
+    'Only this area changes when you publish; the rest of the page stays exactly as it is. If the page already shows a few cards, click their grid and then one card.',
+  layoutLinksTitle: 'Links to the blog templates',
+  layoutLinksBody: {
+    one: '{count} link on your pages still points to {layouts}, which the blog has replaced. Visitors are redirected to {blog}, but pointing the link there directly is cleaner, and it works in the editor too.',
+    other:
+      '{count} links on your pages still point to {layouts}, which the blog has replaced. Visitors are redirected to {blog}, but pointing the links there directly is cleaner, and it works in the editor too.'
+  } satisfies Msg,
+  layoutLinksUnsaved: 'unsaved edits: save first',
+  layoutLinksFix: 'Point links at the blog',
+  layoutLinksDone: {
+    one: 'Pointed {count} link at the blog.',
+    other: 'Pointed {count} links at the blog.'
+  } satisfies Msg,
+  layoutLinksSkipped: 'Left alone, because they have unsaved edits: {list}.',
+  layoutLinksUndone: 'The links are back as they were.',
+  stepCreate: 'Create the blog',
+  stepCreateHint:
+    'Builds the real blog from your templates, so you can open it right away, even before your first post.',
+  createList: 'Creates {blog} from {list}. It stays empty until you publish a post.',
+  createPosts: 'Builds every post you publish from {post}.',
+  createRetire:
+    'Takes {pages} off the site. They stay in Pages as templates: edit them to change how the blog looks.',
+  createLinks: {
+    one: 'Point {count} link on your pages at {blog} instead of the template',
+    other: 'Point {count} links on your pages at {blog} instead of the templates'
+  } satisfies Msg,
+  createButton: 'Create the blog',
+  createdSummary: 'Your blog is at {blog}. It updates every time you save a post.',
+  createdNotice: 'Blog created at {blog}.',
+  openBlog: 'Open {blog}',
+  viewerNote:
+    'As visitors see it. Links work; this page is rebuilt by the blog, so it isn’t edited here.',
+  viewerFrame: 'Page as visitors see it',
+  emptyTextLabel: 'Text when there are no posts',
+  emptyTextHint: 'Shown on the post list until you publish the first post.',
+  category: 'Category',
+  categoryPrompt:
+    'Click the category badge, if the page shows one (often above the title, e.g. “Writing”).',
+  categoryHelp:
+    'Click the badge itself, not the line around it. It shows the post’s category in the same style and links to the category’s page. Posts without a category show none.',
+  categorySkip: 'Skip: no category on the page',
+  author: 'Author',
+  authorPrompt:
+    'Click the author’s name. If it shows in more than one place (byline, author box), click each.',
+  authorHelp:
+    'Only the name changes, and only for posts that have an author. Posts without one keep the name already on the page, which suits a one-person blog.',
+  authorSkip: 'Skip: no author on the page',
+  cardCategory: 'Card · category',
+  cardCategoryPrompt: 'In the card, click the category badge (if it has one).',
+  cardCategoryHelp:
+    'Shows the post’s category in the badge’s style; removed for posts without one.',
+  cardTags: 'Card · tags',
+  cardTagsPrompt: 'In the card, click one tag badge (if it has tags).',
+  cardTagsHelp: 'Copied once per tag, in the same style; removed for posts without tags.',
+  cardAuthor: 'Card · author',
+  cardAuthorPrompt: 'In the card, click the author’s name (if it has one).',
+  cardAuthorHelp: 'Replaced by the post’s author; posts without one keep this name.',
+  badgeOne: 'One badge: copied once for each tag.',
+  badgeOneCategory: 'One badge: shows the category.',
+  badgesGroup: {
+    one: 'A group with {count} badge: it’s repeated per tag; the rest of the group stays.',
+    other:
+      'A group with {count} badges: the first is repeated per tag; the rest of the group stays.'
+  } satisfies Msg
 } satisfies Record<string, Msg>

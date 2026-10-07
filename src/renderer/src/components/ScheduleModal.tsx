@@ -42,7 +42,11 @@ export default function ScheduleModal({ drafts, onScheduled, onClose }: Props): 
     window.api.getSiteSettings().then((site) => {
       const ready = Boolean(
         site.deploy.connection &&
-        (site.deploy.target === 'pages' ? site.deploy.projectName : site.deploy.workerName)
+        (site.deploy.target === 'server'
+          ? site.deploy.connection
+          : site.deploy.target === 'pages'
+            ? site.deploy.projectName
+            : site.deploy.workerName)
       )
       setCanDeploy(ready)
       setDeploy(ready)

@@ -3,10 +3,12 @@ import { Field, Notice, Section } from '../components/Field'
 import MediaPicker from '../components/MediaPicker'
 import { useT, type Key } from '../i18n'
 import { errorMessage } from '../lib/api'
+import { defaultRobots, identityScript } from '../../../shared/identity'
 import type {
   SeoIssue,
   SeoReport,
   SiteIdentity,
+  SitemapStatus,
   SiteSettings,
   Workspace
 } from '../../../shared/types'
@@ -53,8 +55,11 @@ export default function SeoView({ workspace, onEditPage }: Props): React.JSX.Ele
   const [severity, setSeverity] = useState<'all' | SeoIssue['severity']>('all')
   const [kind, setKind] = useState<'all' | SeoIssue['kind']>('all')
   const [site, setSite] = useState<SiteSettings | null>(null)
-  const [robots, setRobots] = useState<string | null>(null)
+  /** The text being edited; null when the site has no robots.txt (undefined: loading). */
+  const [robots, setRobots] = useState<string | null | undefined>(undefined)
+  const [sitemap, setSitemap] = useState<SitemapStatus | null>(null)
   const [identity, setIdentity] = useState<SiteIdentity | null>(null)
+  const [addedCode, setAddedCode] = useState<string | null>(null)
   const [newIdentity, setNewIdentity] = useState({ name: '', url: '', logo: '' })
   const [picker, setPicker] = useState<'default' | 'logo' | null>(null)
   const [status, setStatus] = useState<Record<string, Status>>({})
@@ -83,7 +88,11 @@ export default function SeoView({ workspace, onEditPage }: Props): React.JSX.Ele
       setNewIdentity({ name: next.siteName, url: next.baseUrl, logo: '' })
     })
     window.api.getRobots().then(setRobots)
-    window.api.getSiteIdentity().then(setIdentity)
+    window.api.getSitemapStatus().then(setSitemap)
+    window.api.getSiteIdentity().then((next) => {
+      setIdentity(next)
+      setAddedCode(null)
+    })
   }, [workspace])
 
   if (!workspace) {
@@ -95,38 +104,50 @@ export default function SeoView({ workspace, onEditPage }: Props): React.JSX.Ele
     )
   }
 
-  const saveDefaults = async (): Promise<void> => {
+  /** Saves the SEO settings; `section` is where the confirmation is shown. */
+  const saveSeo = async (section: 'defaults' | 'sitemap'): Promise<void> => {
     if (!site) return
     try {
       setSite(await window.api.saveSiteSettings({ seo: site.seo }))
-      note('defaults', {
+      setSitemap(await window.api.getSitemapStatus())
+      note(section, {
         kind: 'success',
-        text: t('seo.defaultsSaved')
+        text: t(section === 'defaults' ? 'seo.defaultsSaved' : 'seo.sitemapSettingsSaved')
       })
     } catch (e) {
-      note('defaults', { kind: 'error', text: errorMessage(e) })
+      note(section, { kind: 'error', text: errorMessage(e) })
     }
   }
 
   const rebuildSitemap = async (): Promise<void> => {
     try {
+      const existed = sitemap?.exists
       const result = await window.api.rebuildSitemap()
-      note('defaults', {
+      setSitemap(await window.api.getSitemapStatus())
+      note('sitemap', {
         kind: 'success',
-        text: t(result.changed ? 'seo.sitemapRebuilt' : 'seo.sitemapUpToDate', {
-          count: result.urls
-        })
+        text: t(
+          !existed
+            ? 'seo.sitemapCreated'
+            : result.changed
+              ? 'seo.sitemapRebuilt'
+              : 'seo.sitemapUpToDate',
+          { count: result.urls }
+        )
       })
     } catch (e) {
-      note('defaults', { kind: 'error', text: errorMessage(e) })
+      note('sitemap', { kind: 'error', text: errorMessage(e) })
     }
   }
 
-  const saveRobots = async (): Promise<void> => {
-    if (robots === null) return
+  const saveRobots = async (text: string, created = false): Promise<void> => {
     try {
-      await window.api.saveRobots(robots)
-      note('robots', { kind: 'success', text: t('seo.robotsSaved') })
+      await window.api.saveRobots(text)
+      setRobots(await window.api.getRobots())
+      note('robots', {
+        kind: 'success',
+        text: t(created ? 'seo.robotsCreated' : 'seo.robotsSaved')
+      })
     } catch (e) {
       note('robots', { kind: 'error', text: errorMessage(e) })
     }
@@ -134,12 +155,17 @@ export default function SeoView({ workspace, onEditPage }: Props): React.JSX.Ele
 
   const addIdentity = async (): Promise<void> => {
     try {
-      setIdentity(await window.api.addSiteIdentity(newIdentity))
+      const result = await window.api.addSiteIdentity(newIdentity)
+      setIdentity(result.identity)
+      setAddedCode(result.added)
       note('identity', { kind: 'success', text: t('seo.identityAdded') })
     } catch (e) {
       note('identity', { kind: 'error', text: errorMessage(e) })
     }
   }
+
+  const viewFile = async (path: string): Promise<void> =>
+    window.api.openExternal(await window.api.previewUrl(path))
 
   const show = (section: string): React.ReactNode => {
     const current = status[section]
@@ -260,7 +286,7 @@ export default function SeoView({ workspace, onEditPage }: Props): React.JSX.Ele
           title={t('seo.defaultsTitle')}
           description={t('seo.defaultsDescription')}
           actions={
-            <button className="btn btn--primary" onClick={saveDefaults}>
+            <button className="btn btn--primary" onClick={() => saveSeo('defaults')}>
               {t('common.save')}
             </button>
           }
@@ -305,6 +331,59 @@ export default function SeoView({ workspace, onEditPage }: Props): React.JSX.Ele
               </span>
             </div>
           </div>
+          {show('defaults')}
+        </Section>
+      )}
+
+      {site && (
+        <Section
+          title="sitemap.xml"
+          description={t('seo.sitemapDescription')}
+          actions={
+            <button className="btn btn--primary" onClick={() => saveSeo('sitemap')}>
+              {t('common.save')}
+            </button>
+          }
+        >
+          {sitemap && (
+            <div className="file-status">
+              <span
+                className={`badge${sitemap.exists ? (sitemap.upToDate ? ' badge--ok' : ' badge--warn') : ''}`}
+              >
+                {t(
+                  !sitemap.exists
+                    ? 'seo.fileMissing'
+                    : sitemap.upToDate
+                      ? 'seo.sitemapCurrent'
+                      : 'seo.sitemapStale'
+                )}
+              </span>
+              <span>
+                {sitemap.exists
+                  ? t('seo.sitemapStatus', {
+                      count: sitemap.urls,
+                      date: new Date(sitemap.modified!).toLocaleString()
+                    })
+                  : t('seo.sitemapMissing')}{' '}
+                {sitemap.exists &&
+                  !sitemap.upToDate &&
+                  t('seo.sitemapWouldList', { count: sitemap.pages })}
+              </span>
+              <span className="file-status__actions">
+                {sitemap.exists && (
+                  <button
+                    className="btn btn--small btn--ghost"
+                    onClick={() => viewFile('sitemap.xml')}
+                  >
+                    {t('seo.viewFile')}
+                  </button>
+                )}
+                <button className="btn btn--small" onClick={rebuildSitemap}>
+                  {t(sitemap.exists ? 'seo.rebuildSitemap' : 'seo.createSitemap')}
+                </button>
+              </span>
+            </div>
+          )}
           <div className="seo-check">
             <label className="check check--inline">
               <input
@@ -340,10 +419,7 @@ export default function SeoView({ workspace, onEditPage }: Props): React.JSX.Ele
               }
             />
           </Field>
-          <button className="btn" onClick={rebuildSitemap}>
-            {t('seo.rebuildSitemap')}
-          </button>
-          {show('defaults')}
+          {show('sitemap')}
         </Section>
       )}
 
@@ -351,13 +427,45 @@ export default function SeoView({ workspace, onEditPage }: Props): React.JSX.Ele
         title="robots.txt"
         description={t('seo.robotsDescription')}
         actions={
-          <button className="btn btn--primary" onClick={saveRobots} disabled={robots === null}>
-            {t('common.save')}
-          </button>
+          typeof robots === 'string' && (
+            <button className="btn btn--primary" onClick={() => saveRobots(robots)}>
+              {t('common.save')}
+            </button>
+          )
         }
       >
-        {robots !== null && (
+        {robots === null && (
+          <div className="file-status">
+            <span className="badge">{t('seo.fileMissing')}</span>
+            <span>{t('seo.robotsMissing')}</span>
+            <span className="file-status__actions">
+              <button
+                className="btn btn--small btn--primary"
+                onClick={() => saveRobots(defaultRobots(site?.baseUrl ?? ''), true)}
+              >
+                {t('seo.robotsCreate')}
+              </button>
+            </span>
+          </div>
+        )}
+        {robots === null && (
+          <pre className="code" aria-label={t('seo.robotsDefaultLabel')}>
+            {defaultRobots(site?.baseUrl ?? '')}
+          </pre>
+        )}
+        {typeof robots === 'string' && (
           <>
+            <div className="file-status">
+              <span className="badge badge--ok">{t('seo.fileExists')}</span>
+              <span className="file-status__actions">
+                <button
+                  className="btn btn--small btn--ghost"
+                  onClick={() => viewFile('robots.txt')}
+                >
+                  {t('seo.viewFile')}
+                </button>
+              </span>
+            </div>
             <textarea
               className="mono"
               rows={6}
@@ -386,7 +494,7 @@ export default function SeoView({ workspace, onEditPage }: Props): React.JSX.Ele
       </Section>
 
       <Section title={t('seo.identityTitle')} description={t('seo.identityDescription')}>
-        {identity?.organization ? (
+        {!identity ? null : identity.organization ? (
           <p>
             <strong>{identity.organization.name}</strong> ·{' '}
             <span className="mono muted">{identity.organization.url}</span>
@@ -444,6 +552,28 @@ export default function SeoView({ workspace, onEditPage }: Props): React.JSX.Ele
             >
               {t('seo.identityAdd')}
             </button>
+          </>
+        )}
+        {identity?.organization && (addedCode ?? identity.code) && (
+          <>
+            <p className="small">
+              {t.rich(addedCode ? 'seo.identityAddedCode' : 'seo.identityCode', {
+                file: <code>index.html</code>,
+                head: <code>{'</head>'}</code>
+              })}
+            </p>
+            <pre className="code">{addedCode ?? identity.code}</pre>
+          </>
+        )}
+        {identity && !identity.organization && (
+          <>
+            <p className="small">
+              {t.rich('seo.identityPreview', {
+                file: <code>index.html</code>,
+                head: <code>{'</head>'}</code>
+              })}
+            </p>
+            <pre className="code">{identityScript(newIdentity, !identity.website)}</pre>
           </>
         )}
         {show('identity')}

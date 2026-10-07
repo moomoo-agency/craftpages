@@ -8,19 +8,27 @@ export default {
     other: '{count} images, {size} in total.'
   } satisfies Msg,
   scanning: 'Looking for images…',
-  addSizes: 'Add missing image sizes',
+  addSizes: {
+    one: 'Add missing size ({count})',
+    other: 'Add missing sizes ({count})'
+  } satisfies Msg,
   addSizesTip:
-    'Write width and height on every image that lacks them, so pages don’t jump while loading',
+    'Some <img> tags on your pages have no width and height, so the page jumps while they load. This writes each image’s real size into those tags.',
+  addSizesNoneTip: 'Nothing to fix: every <img> tag on your pages already has width and height.',
   optimizeSelected: {
     one: 'Optimise {count} selected…',
     other: 'Optimise {count} selected…'
   } satisfies Msg,
   optimizeShown: 'Optimise all shown…',
+  optimizeNone: 'Optimise selected…',
+  optimizeHint: 'Tick the images you want to optimise first.',
+  selectShown: 'Select all shown ({count})',
   filterLabel: 'Show',
   filterAll: 'All',
   filterUnused: 'Unused',
   filterLarge: 'Over 400 KB',
   filterWide: 'Wider than {width} px',
+  filterUnsized: 'Missing size',
   folder: 'Folder',
   allFolders: 'All folders',
   allFoldersCount: 'All folders ({count})',
@@ -41,7 +49,7 @@ export default {
   } satisfies Msg,
   sizesPages: 'Pages updated: {count}.',
   sizesSkipped: 'Skipped {files}: they have unsaved edits.',
-  sizesNone: 'Every image already has its width and height.',
+  sizesNone: 'Nothing to fix: every <img> tag already has width and height.',
   undone: 'Undone.',
   planTitle: {
     one: '{count} image can be optimised, saving {size}.',
@@ -64,6 +72,12 @@ export default {
   optimizeOne: 'Optimise…',
   deleteInUse: 'Only unused images can be deleted.',
   upload: 'Upload image…',
+  uploadMany: 'Upload images…',
+  uploadedMany: {
+    one: 'Uploaded {count} image: {before} → {after}.',
+    other: 'Uploaded {count} images: {before} → {after}.'
+  } satisfies Msg,
+  noSize: 'No size in HTML',
   uploaded: 'Uploaded {name}: {before} → {after}.',
   uploadedSmaller: 'Uploaded {name}: {before} → {after} ({percent}% smaller).',
   pickerUsedIn: '{path} · Used in {files}',

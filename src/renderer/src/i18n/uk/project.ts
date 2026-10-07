@@ -35,6 +35,17 @@ const messages: Translation['project'] = {
   noToken: 'Для цього підключення ще немає API token.',
   choose: '— Виберіть —',
   unknownConnection: 'Невідоме підключення (налаштоване на іншому комп’ютері?)',
+  servers: 'Сервери (FTP / SFTP)',
+  noPassword: 'Для цього підключення ще немає пароля.',
+  remoteDir: 'Папка на сервері',
+  remoteDirHint:
+    'Куди йдуть файли сайту, зазвичай public_html, www або htdocs. Порожньо = папка, що відкривається після входу. CraftPages видаляє лише ті файли, які завантажив сам.',
+  browse: 'Огляд…',
+  browseLabel: 'Папки на сервері',
+  browsePath: 'Поточна папка',
+  browseSuggested: 'Хостинги зазвичай віддають сайти з папки з такою назвою',
+  browseEmpty: 'Тут немає папок.',
+  browseUse: 'Використати {dir}',
   publishAs: 'Публікувати як',
   targetWorkers: 'Worker (рекомендовано)',
   targetPages: 'Проєкт Pages',
@@ -43,8 +54,9 @@ const messages: Translation['project'] = {
   pagesHint:
     'Для проєктів, які вже працюють на Cloudflare Pages. Додає деплої попереднього перегляду з власним URL.',
   worker: 'Worker',
-  workerHint:
-    'Виберіть наявний або введіть нову назву. Новий Worker буде створено під час першої публікації за адресою назва.ваш-піддомен.workers.dev. Власний домен додається в Cloudflare.',
+  workerHint: 'Виберіть наявний або введіть нову назву.',
+  workerExplain:
+    'Новий Worker буде створено під час першої публікації за адресою назва.ваш-піддомен.workers.dev. Щоб використати власний домен, додайте його до Worker у Cloudflare.',
   workersHidden: 'Не показано, бо публікація замінила б їхній код: {names}.',
   workerPlaceholder: 'my-site',
   pagesProject: 'Проєкт Pages',
@@ -54,7 +66,7 @@ const messages: Translation['project'] = {
   previewBranchHint: 'Деплої попереднього перегляду отримують власний URL.',
   neverUpload: 'Ніколи не завантажувати',
   neverUploadHint:
-    'Один шаблон на рядок. * діє в межах папки, ** — через папки. .sitecms і файли, що починаються з крапки, завжди пропускаються.',
+    'Один шаблон на рядок. * діє в межах папки, ** — через папки. .sitecms і файли, що починаються з крапки, завжди пропускаються (крім .htaccess під час публікації на сервер).',
   newProjectName: 'Назва нового проєкту Pages',
   newProjectPlaceholder: 'new-project-name',
   createProject: 'Створити проєкт Pages',
@@ -85,7 +97,12 @@ const messages: Translation['project'] = {
     other:
       'У цьому акаунті {count} Workers; CraftPages може публікувати в {usable}. Виберіть наявний або введіть нову назву.'
   },
-  noWorkers: 'Workers ще немає. Введіть назву: Worker буде створено під час першої публікації.'
+  noWorkers: 'Workers ще немає. Введіть назву: Worker буде створено під час першої публікації.',
+  editing: 'Редагування',
+  codeEditor: 'Показувати редактор коду',
+  codeEditorHint:
+    'Додає «Код» поруч із «Редагування» та «Перегляд», щоб змінювати HTML, CSS і JavaScript сторінки. Залиште вимкненим для тих, хто лише редагує вміст.',
+  unsavedChanges: 'Незбережені зміни'
 }
 
 export default messages

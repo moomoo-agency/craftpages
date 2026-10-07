@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import Connections from '../components/Connections'
-import { Field, Notice, Section } from '../components/Field'
+import { Explainer, Field, Notice, Section } from '../components/Field'
 import { LOCALES, useLocale, useT, type Key, type Locale } from '../i18n'
 import { FEATURES } from '../../../shared/features'
 import { copyText, errorMessage, formatDate, isMac } from '../lib/api'
@@ -147,7 +147,7 @@ export default function SettingsView({
             />
             {t('settings.openAtLogin')}
           </label>
-          <p className="muted small">{t('settings.sleepNote')}</p>
+          <Explainer>{t('settings.sleepNote')}</Explainer>
           {show('background')}
         </Section>
       )}
@@ -236,6 +236,7 @@ export default function SettingsView({
                 <CopyButton text={mcp.command} label={t('settings.copyCommand')} />
               </div>
             </Field>
+            <Explainer>{t('settings.addToClaudeSteps')}</Explainer>
           </>
         )}
         {show('mcp')}

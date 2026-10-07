@@ -2,26 +2,16 @@ import type { Translation } from '../types'
 
 const messages: Translation['ai'] = {
   // Connect
-  connectTitle: 'Collega la tua IA',
-  connectDescription:
-    'CraftPages non ha un’IA propria. Collega lo strumento di IA che usi già: legge il sito e propone modifiche che rivedi qui.',
-  openSettings: 'Apri Impostazioni',
+  openSettings: 'Impostazioni connessione IA',
+  conceptTitle: 'Modifica dei template con l’IA',
+  concept:
+    'Oggi il modo efficace di modificare i template di un sito, o di crearne di nuovi, è con un’IA. Il tuo strumento di IA (collegato nelle Impostazioni app) legge il sito e invia qui le modifiche come proposte: controlla differenze e anteprima, poi accetta o rifiuta ciascuna. Le modifiche accettate si possono annullare.',
+  conceptCode:
+    'Per una correzione puntuale su una pagina o un template, apri la pagina e passa alla modalità Codice.',
+  notConnected:
+    'Pronto, ma nessuna IA è collegata. Configurala in Impostazioni app → Connessione IA.',
   connected: 'Collegato: {clients}',
-  waiting: 'In attesa di una connessione su {url}',
   off: 'La connessione IA è disattivata nelle Impostazioni.',
-  command: 'Comando che aggiunge CraftPages a Claude Code',
-  copyCommand: 'Copia il comando',
-  stepOpen:
-    'Apri in CraftPages il sito su cui vuoi lavorare, anche una cartella vuota. Tieni l’app aperta mentre l’IA lavora.',
-  stepCommand: 'Copia questo comando, incollalo nel Terminale e premi Invio:',
-  stepCommandHint:
-    'Basta farlo una volta. Ripetilo solo se cambi la porta o rigeneri il token. Contiene il token, quindi tienilo riservato.',
-  stepStart:
-    'Avvia Claude Code: nel Terminale scrivi «claude» e premi Invio. Quando si collega, lo stato qui sopra indica «Collegato».',
-  stepStartHint:
-    'Claude Code era già aperto? Chiudilo e riavvialo, perché si collega solo all’avvio. Scrivi «/mcp» per verificare che craftpages sia collegato.',
-  stepAsk:
-    'Di’ a Claude cosa vuoi, per esempio «crea un layout di base con intestazione e piè di pagina, più le pagine Home, Chi siamo e Contatti». Puoi anche selezionare un elemento nell’editor di pagina e chiedergli di cambiare lo stile della «sezione selezionata». Le sue modifiche compaiono qui sotto come proposte: controlla l’anteprima, poi fai clic su Accetta o Rifiuta.',
   autoAccept: 'Accetta le proposte automaticamente fino alla chiusura dell’app',
   autoAcceptHint: 'Ogni modifica si può comunque annullare qui sotto.',
 

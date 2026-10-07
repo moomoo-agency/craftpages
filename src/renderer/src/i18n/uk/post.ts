@@ -110,7 +110,13 @@ const messages: Translation['post'] = {
     many: '{count} колонок',
     other: '{count} колонки'
   },
-  columnsHelp: 'На телефонах текст відображається в одну колонку.'
+  columnsHelp: 'На телефонах текст відображається в одну колонку.',
+  categoryLabel: 'Категорія',
+  categoryHint:
+    'Одна на допис, показується там, де в макеті є бейдж категорії. Кожна має сторінку зі своїми дописами.',
+  categoryHintExample: 'Її сторінка: {path}',
+  authorLabel: 'Автор',
+  authorHint: 'Залиште порожнім, щоб лишити ім’я, яке вже є в макеті.'
 }
 
 export default messages

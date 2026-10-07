@@ -332,6 +332,9 @@ export function serveCopy(
 
 // ---------- Saving ----------
 
+/** Sent with an image change: the new href of the <a> around the image. */
+const LINK_HREF = 'link:href'
+
 const SAFE_URL = /^(https?:|mailto:|tel:|#|\/|\.\/|\.\.\/|[\w-]+(\/|\.|$))/i
 
 /** Keeps inline markup only, and drops event handlers and script URLs. */
@@ -384,10 +387,16 @@ export function changesToPatches(
       })
     }
     if (change.attrs && Object.keys(change.attrs).length > 0) {
-      if (change.attrs.src && !SAFE_URL.test(change.attrs.src)) throw new Error('Invalid image URL')
-      if (change.attrs.href && !SAFE_URL.test(change.attrs.href))
-        throw new Error('Invalid link URL')
-      patches.push(...attrPatches(source, node.element, change.attrs))
+      // The link around an image (a gallery's full-size version) travels with the image.
+      const { [LINK_HREF]: link, ...attrs } = change.attrs
+      if (attrs.src && !SAFE_URL.test(attrs.src)) throw new Error('Invalid image URL')
+      if (attrs.href && !SAFE_URL.test(attrs.href)) throw new Error('Invalid link URL')
+      patches.push(...attrPatches(source, node.element, attrs))
+      const parent = node.element.parentNode
+      if (typeof link === 'string' && parent && isElement(parent) && parent.tagName === 'a') {
+        if (!SAFE_URL.test(link)) throw new Error('Invalid link URL')
+        patches.push(...attrPatches(source, parent, { href: link }))
+      }
     }
   }
   return patches

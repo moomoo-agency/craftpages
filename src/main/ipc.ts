@@ -1,10 +1,11 @@
 import { BrowserWindow, dialog, ipcMain, shell, type IpcMainInvokeEvent } from 'electron'
 import { watch, type FSWatcher } from 'fs'
-import { mkdtemp, readFile, stat, writeFile } from 'fs/promises'
-import { tmpdir } from 'os'
+import { mkdtemp, readdir, readFile, stat, writeFile } from 'fs/promises'
+import { homedir, tmpdir } from 'os'
 import { basename, join } from 'path'
 import * as cloudflare from './deploy/cloudflare'
-import { blogSetup, previewBlog, saveTemplates } from './blog'
+import { fixLayoutLinks, layoutLinks } from './blog-links'
+import { blogSetup, previewBlog, readTemplates, saveTemplates, viewUrl } from './blog'
 import { buildPostPage, generateBlog, generatedFiles } from './blog-generate'
 import * as posts from './posts'
 import { checkForUpdate, installUpdate, updateState } from './updates'
@@ -44,6 +45,11 @@ import { setSelection } from './mcp/selection'
 import * as settings from './settings'
 import { getWorkspace, onWorkspaceSwitch, requireRoot, setWorkspace } from './state'
 import { scanWorkspace } from './workspace'
+import { excludedBy, pagePattern } from './deploy/exclude'
+import { checkServer } from './deploy/server'
+import * as code from './code'
+import * as snapshots from './sync/snapshots'
+import * as sync from './sync/engine'
 import type {
   AppSettings,
   BlogTemplates,
@@ -59,10 +65,13 @@ import type {
   NodeChange,
   PageSeo,
   PostRecord,
+  ProcessedImage,
   SavePostResult,
   ScheduleInput,
   Selection,
-  SiteSettings
+  SiteSettings,
+  SyncSetup,
+  SyncSource
 } from '../shared/types'
 
 // ---------- Workspace ----------
@@ -105,6 +114,9 @@ onWorkspaceSwitch((workspace) => {
   clearSessions()
   proposals.clearProposals()
   setSelection(null)
+  // Presence and other computers' syncs, for the project now open.
+  if (workspace) sync.startLive(workspace.root).catch(() => {})
+  else sync.stopLive()
 })
 
 // ---------- MCP ----------
@@ -143,10 +155,20 @@ async function savePost(post: PostRecord): Promise<SavePostResult> {
 // ---------- Interact mode ----------
 
 async function pickImage(event: IpcMainInvokeEvent, title: string): Promise<string | null> {
+  return (await pickImages(event, title, false))[0] ?? null
+}
+
+async function pickImages(
+  event: IpcMainInvokeEvent,
+  title: string,
+  multiple = true
+): Promise<string[]> {
   const window = BrowserWindow.fromWebContents(event.sender)
   const options = {
     title,
-    properties: ['openFile' as const],
+    properties: multiple
+      ? ['openFile' as const, 'multiSelections' as const]
+      : ['openFile' as const],
     filters: [
       {
         name: 'Images',
@@ -157,7 +179,7 @@ async function pickImage(event: IpcMainInvokeEvent, title: string): Promise<stri
   const result = window
     ? await dialog.showOpenDialog(window, options)
     : await dialog.showOpenDialog(options)
-  return result.canceled || result.filePaths.length === 0 ? null : result.filePaths[0]
+  return result.canceled ? [] : result.filePaths
 }
 
 let externalScripts = false
@@ -198,15 +220,50 @@ export function registerIpc(appIcon: string): void {
     'connections:delete': (_event, id: string) => settings.deleteConnection(id),
     'connections:test': async (_event, id: string) => {
       const creds = await settings.connectionById(id)
-      const [found, pages] = await Promise.allSettled([
+      const [found, pages, r2] = await Promise.allSettled([
         workers.listWorkers(creds),
-        cloudflare.listProjects(creds)
+        cloudflare.listProjects(creds),
+        cloudflare.r2Access(creds)
       ])
       if (found.status === 'rejected' && pages.status === 'rejected') throw found.reason
       return {
         workers: found.status === 'fulfilled' ? found.value.length : null,
-        pages: pages.status === 'fulfilled' ? pages.value.length : null
+        pages: pages.status === 'fulfilled' ? pages.value.length : null,
+        r2: r2.status === 'fulfilled' ? r2.value : 'missing'
       }
+    },
+
+    'dialog:pick-file': async (event, title: string) => {
+      const window = BrowserWindow.fromWebContents(event.sender)
+      const options = {
+        title,
+        // SSH keys live in ~/.ssh, a hidden folder.
+        properties: ['openFile' as const, 'showHiddenFiles' as const],
+        defaultPath: join(homedir(), '.ssh')
+      }
+      const result = window
+        ? await dialog.showOpenDialog(window, options)
+        : await dialog.showOpenDialog(options)
+      return result.canceled ? null : (result.filePaths[0] ?? null)
+    },
+    'connections:check-server': async (_event, input: ConnectionInput, dir?: string) => {
+      const fields = settings.serverFields(input)
+      const saved = input.id
+        ? (await settings.listConnections()).connections.find((c) => c.id === input.id)
+        : undefined
+      const sameServer = saved && saved.host === fields.host && saved.port === fields.port
+      const connection = {
+        id: input.id ?? '',
+        type: input.type,
+        name: input.name,
+        accountId: '',
+        ...fields,
+        hostKey: sameServer ? saved.hostKey : undefined,
+        token: input.token || (input.id ? await settings.connectionSecret(input.id) : '')
+      }
+      return checkServer(connection, dir, (key) => {
+        if (input.id && sameServer) settings.trustHostKey(input.id, key).catch(() => null)
+      })
     },
 
     'projects:recent': async () => {
@@ -247,6 +304,85 @@ export function registerIpc(appIcon: string): void {
     },
 
     'page:edit': (_event, path: string) => startEditing(path),
+    'sync:status': () => sync.syncStatus(requireRoot()),
+    'sync:enable': async (_event, setup: SyncSetup) => {
+      const root = requireRoot()
+      const result = await sync.enableSync(root, setup)
+      setWorkspace(await scanWorkspace(root))
+      return result
+    },
+    'sync:disable': () => sync.disableSync(requireRoot()),
+    'sync:now': async () => {
+      const root = requireRoot()
+      const result = await sync.syncNow(root)
+      if (result.pulled) {
+        setWorkspace(await scanWorkspace(root))
+        await refreshSearch(root).catch(() => null)
+      }
+      return result
+    },
+    'sync:announce': (_event, page: string | null, mode: string | null) =>
+      sync.announce(page, mode),
+    'sync:projects': (_event, source: SyncSource) => sync.listProjects(source),
+    'sync:get': async (event, source: SyncSource, project: string) => {
+      const window = BrowserWindow.fromWebContents(event.sender)
+      const options = {
+        title: 'Choose an empty folder for the project',
+        buttonLabel: 'Download here',
+        properties: ['openDirectory' as const, 'createDirectory' as const]
+      }
+      const result = window
+        ? await dialog.showOpenDialog(window, options)
+        : await dialog.showOpenDialog(options)
+      const folder = result.canceled ? null : result.filePaths[0]
+      if (!folder) return null
+      if ((await readdir(folder)).some((name) => name !== '.DS_Store'))
+        throw new Error('Choose an empty folder: the project is downloaded into it.')
+      await sync.getProject(source, project, folder)
+      await openWorkspace(folder)
+      return getWorkspace()
+    },
+    'sync:take-theirs': async (_event, path: string) => {
+      const root = requireRoot()
+      await sync.takeTheirs(root, path)
+      setWorkspace(await scanWorkspace(root))
+    },
+    'versions:list': () => snapshots.summaries(requireRoot()),
+    'versions:details': (_event, id: string) => snapshots.details(requireRoot(), id),
+    'versions:restore': async (_event, id: string) => {
+      const root = requireRoot()
+      if (drafts.hasAnyDrafts())
+        throw new Error('Save or discard your unsaved edits first: restoring replaces page files.')
+      const result = await snapshots.restoreSnapshot(root, id)
+      setWorkspace(await scanWorkspace(root))
+      await refreshSearch(root).catch(() => null)
+      return result
+    },
+    'versions:export': async (event, id: string) => {
+      const window = BrowserWindow.fromWebContents(event.sender)
+      const options = {
+        title: 'Save this version as a folder',
+        buttonLabel: 'Save here',
+        properties: ['openDirectory' as const, 'createDirectory' as const]
+      }
+      const result = window
+        ? await dialog.showOpenDialog(window, options)
+        : await dialog.showOpenDialog(options)
+      const folder = result.canceled ? null : result.filePaths[0]
+      if (!folder) return null
+      return { folder, files: await snapshots.exportSnapshot(requireRoot(), id, folder) }
+    },
+    'code:read': (_event, path: string) => code.readSource(requireRoot(), path),
+    'code:assets': (_event, path: string) => code.pageAssets(requireRoot(), path),
+    'code:asset-usage': (_event, files: string[]) => code.assetUsage(requireRoot(), files),
+    'code:preview': (_event, path: string, text: string) => code.previewSource(path, text),
+    'code:save': async (_event, path: string, text: string, baseHash: string) => {
+      const root = requireRoot()
+      const result = await code.saveSource(root, path, text, baseHash)
+      setWorkspace(await scanWorkspace(root))
+      if (/\.html?$/i.test(path)) await refreshSearch(root).catch(() => null)
+      return result
+    },
     'draft:set': (_event, path: string, hash: string, changes: NodeChange[], lists?: ListEdits) =>
       drafts.setDraft(path, hash, changes, lists),
     'draft:scope': (_event, path: string, id: string, scope: ComponentScope) =>
@@ -291,7 +427,17 @@ export function registerIpc(appIcon: string): void {
       setWorkspace(await scanWorkspace(requireRoot()))
       return result
     },
-    'images:dimensions': async () => media.addImageDimensions(requireRoot()),
+    'images:dimensions': async (_event, paths?: string[]) =>
+      media.addImageDimensions(requireRoot(), paths),
+    'images:upload': async (event) => {
+      const root = requireRoot()
+      const files = await pickImages(event, 'Upload images')
+      const site = await settings.getSiteSettings(root)
+      const uploaded: ProcessedImage[] = []
+      for (const file of files) uploaded.push(await importImage(root, site, file))
+      if (uploaded.length) setWorkspace(await scanWorkspace(root))
+      return uploaded
+    },
     'image:import': async (event) => {
       const root = requireRoot()
       const file = await pickImage(event, 'Upload an image')
@@ -345,8 +491,34 @@ export function registerIpc(appIcon: string): void {
     'seo:robots:save': (_event, text: string) => seoSite.saveRobots(requireRoot(), text),
     'seo:identity:get': () => seoSite.siteIdentity(requireRoot()),
     'seo:identity:add': async (_event, identity: { name: string; url: string; logo: string }) => {
-      await seoSite.addSiteIdentity(requireRoot(), identity)
-      return seoSite.siteIdentity(requireRoot())
+      const added = await seoSite.addSiteIdentity(requireRoot(), identity)
+      return { identity: await seoSite.siteIdentity(requireRoot()), added }
+    },
+    'seo:sitemap:status': () => seoSite.sitemapStatus(requireRoot()),
+
+    'deploy:unpublished': async () => {
+      const root = requireRoot()
+      const site = await settings.getSiteSettings(root)
+      const pages = getWorkspace()?.pages ?? []
+      return Object.fromEntries(
+        pages
+          .map((page) => [page.path, excludedBy(site.deploy.exclude, page.path)] as const)
+          .filter(([, pattern]) => pattern !== null)
+      )
+    },
+    'deploy:set-published': async (_event, path: string, published: boolean) => {
+      const root = requireRoot()
+      const site = await settings.getSiteSettings(root)
+      const own = pagePattern(path)
+      const exclude = published
+        ? site.deploy.exclude.filter((pattern) => pattern !== own && pattern !== path)
+        : [...site.deploy.exclude.filter((pattern) => pattern !== own), own]
+      const other = published ? excludedBy(exclude, path) : null
+      if (other)
+        throw new Error(
+          `${path} is left out by the pattern “${other}” in Project settings → Deploy → Never upload. Change it there.`
+        )
+      await settings.saveSiteSettings(root, { deploy: { exclude } })
     },
 
     'point:start': (_event, path: string) => pointing.startPointing(path),
@@ -359,6 +531,29 @@ export function registerIpc(appIcon: string): void {
 
     'posts:list': () => posts.listPosts(requireRoot()),
     'blog:generated': () => generatedFiles(requireRoot()),
+    'blog:layout-links': (_event, planned?: boolean) => layoutLinks(requireRoot(), !!planned),
+    'blog:create': async (_event, fixLinks: boolean) => {
+      const root = requireRoot()
+      const generated = await generateBlog(root)
+      const links = fixLinks ? await fixLayoutLinks(root) : null
+      await refreshSearch(root).catch(() => null)
+      setWorkspace(await scanWorkspace(root))
+      return { generated, links }
+    },
+    'blog:view-url': (_event, path: string) => viewUrl(path),
+    'blog:fix-layout-links': async () => {
+      const root = requireRoot()
+      const result = await fixLayoutLinks(root)
+      if (result.historyId) {
+        await refreshSearch(root).catch(() => null)
+        setWorkspace(await scanWorkspace(root))
+      }
+      return result
+    },
+    'blog:layout-pages': async () => {
+      const templates = await readTemplates(requireRoot())
+      return { post: templates?.post ?? null, list: templates?.list ?? null }
+    },
     'posts:get': (_event, id: string) => posts.getPost(requireRoot(), id),
     'posts:new': () => posts.newPost(),
     'posts:save': (_event, post: PostRecord) => savePost(post),

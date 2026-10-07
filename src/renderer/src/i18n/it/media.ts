@@ -7,19 +7,27 @@ const messages: Translation['media'] = {
     other: '{count} immagini, {size} in totale.'
   },
   scanning: 'Ricerca delle immagini…',
-  addSizes: 'Aggiungi dimensioni mancanti',
+  addSizes: {
+    one: 'Aggiungi dimensione mancante ({count})',
+    other: 'Aggiungi dimensioni mancanti ({count})'
+  },
   addSizesTip:
-    'Scrivi larghezza e altezza su ogni immagine che non le ha, così le pagine non saltano durante il caricamento',
+    'Alcuni tag <img> nelle pagine non hanno larghezza e altezza, quindi la pagina salta durante il caricamento. Questo scrive in quei tag la dimensione reale di ogni immagine.',
+  addSizesNoneTip: 'Niente da sistemare: ogni tag <img> nelle pagine ha già larghezza e altezza.',
   optimizeSelected: {
     one: 'Ottimizza {count} selezionata…',
     other: 'Ottimizza {count} selezionate…'
   },
   optimizeShown: 'Ottimizza quelle mostrate…',
+  optimizeNone: 'Ottimizza selezionate…',
+  optimizeHint: 'Prima spunta le immagini da ottimizzare.',
+  selectShown: 'Seleziona tutte quelle mostrate ({count})',
   filterLabel: 'Mostra',
   filterAll: 'Tutte',
   filterUnused: 'Non usate',
   filterLarge: 'Oltre 400 KB',
   filterWide: 'Più larghe di {width} px',
+  filterUnsized: 'Senza dimensioni',
   folder: 'Cartella',
   allFolders: 'Tutte le cartelle',
   allFoldersCount: 'Tutte le cartelle ({count})',
@@ -41,7 +49,7 @@ const messages: Translation['media'] = {
   },
   sizesPages: 'Pagine aggiornate: {count}.',
   sizesSkipped: 'Saltate {files}: hanno modifiche non salvate.',
-  sizesNone: 'Tutte le immagini hanno già larghezza e altezza.',
+  sizesNone: 'Niente da sistemare: ogni tag <img> ha già larghezza e altezza.',
   undone: 'Annullato.',
   planTitle: {
     one: '{count} immagine può essere ottimizzata, risparmiando {size}.',
@@ -64,6 +72,12 @@ const messages: Translation['media'] = {
   optimizeOne: 'Ottimizza…',
   deleteInUse: 'Puoi eliminare solo le immagini non usate.',
   upload: 'Carica immagine…',
+  uploadMany: 'Carica immagini…',
+  uploadedMany: {
+    one: '{count} immagine caricata: {before} → {after}.',
+    other: '{count} immagini caricate: {before} → {after}.'
+  },
+  noSize: 'Senza dimensioni nell’HTML',
   uploaded: '{name} caricata: {before} → {after}.',
   uploadedSmaller: '{name} caricata: {before} → {after} ({percent}% in meno).',
   pickerUsedIn: '{path} · Usata in {files}',

@@ -1,19 +1,24 @@
 import { useEffect, useState } from 'react'
-import { Field, Notice, Section } from '../components/Field'
+import { Explainer, Field, Notice, Section } from '../components/Field'
+import RemoteFolder from '../components/RemoteFolder'
+import SyncSection from '../components/SyncSection'
 import { useT } from '../i18n'
 import { errorMessage } from '../lib/api'
 import { FEATURES } from '../../../shared/features'
+import { isServerConnection } from '../../../shared/types'
 import type {
   CloudflareProject,
   CloudflareWorker,
   ConnectionsView,
   SiteSettings,
+  SyncStatus,
   Workspace
 } from '../../../shared/types'
 
 interface Props {
   workspace: Workspace | null
   onOpenAppSettings: () => void
+  sync: SyncStatus | null
 }
 
 type Status = { kind: 'error' | 'success'; text: string } | null
@@ -21,10 +26,17 @@ type Status = { kind: 'error' | 'success'; text: string } | null
 /** Settings of the open site: name, URL, images, and where it deploys. Kept in .sitecms/site.json. */
 export default function ProjectSettingsView({
   workspace,
-  onOpenAppSettings
+  onOpenAppSettings,
+  sync
 }: Props): React.JSX.Element {
   const t = useT()
   const [site, setSite] = useState<SiteSettings | null>(null)
+  /** The settings as last loaded or saved: the Site section says when it has unsaved changes. */
+  const [savedSite, setSavedSite] = useState<SiteSettings | null>(null)
+  const loaded = (next: SiteSettings): void => {
+    setSite(next)
+    setSavedSite(next)
+  }
   const [connections, setConnections] = useState<ConnectionsView | null>(null)
   const [projects, setProjects] = useState<CloudflareProject[] | null>(null)
   const [newProject, setNewProject] = useState('')
@@ -34,7 +46,7 @@ export default function ProjectSettingsView({
 
   useEffect(() => {
     window.api.listConnections().then(setConnections)
-    if (workspace) window.api.getSiteSettings().then(setSite)
+    if (workspace) window.api.getSiteSettings().then(loaded)
   }, [workspace])
 
   const run = async (section: string, task: () => Promise<string | void>): Promise<void> => {
@@ -73,13 +85,13 @@ export default function ProjectSettingsView({
 
   const saveSite = (): Promise<void> =>
     run('site', async () => {
-      setSite(await window.api.saveSiteSettings(site!))
+      loaded(await window.api.saveSiteSettings(site!))
       return t('project.savedSite')
     })
 
   const saveCloudflare = (): Promise<void> =>
     run('cloudflare', async () => {
-      setSite(await window.api.saveSiteSettings({ deploy: site!.deploy }))
+      loaded(await window.api.saveSiteSettings({ deploy: site!.deploy }))
       return t('project.savedDeploy')
     })
 
@@ -111,13 +123,21 @@ export default function ProjectSettingsView({
   const createProject = (): Promise<void> =>
     run('cloudflare', async () => {
       const project = await window.api.createCloudflareProject(newProject.trim())
-      setSite(await window.api.getSiteSettings())
+      loaded(await window.api.getSiteSettings())
       setProjects((list) => [...(list ?? []), project])
       setNewProject('')
       return t('project.created', { name: project.name, subdomain: project.subdomain })
     })
 
   const chosen = connections?.connections.find((c) => c.id === site?.deploy.connection)
+  const onServer = site.deploy.target === 'server'
+  const cloudflareConnections =
+    connections?.connections.filter((c) => !isServerConnection(c.type)) ?? []
+  const serverConnections = connections?.connections.filter((c) => isServerConnection(c.type)) ?? []
+
+  const withoutDeploy = (value: SiteSettings | null): string =>
+    JSON.stringify(value ? { ...value, deploy: null } : null)
+  const siteDirty = !!savedSite && withoutDeploy(site) !== withoutDeploy(savedSite)
 
   const setSiteField = <K extends keyof SiteSettings>(key: K, value: SiteSettings[K]): void =>
     setSite((s) => (s ? { ...s, [key]: value } : s))
@@ -131,9 +151,14 @@ export default function ProjectSettingsView({
         })}
         actions={
           site && (
-            <button className="btn btn--primary" onClick={saveSite} disabled={busy === 'site'}>
-              {busy === 'site' ? t('common.saving') : t('common.save')}
-            </button>
+            <>
+              {siteDirty && (
+                <span className="muted small settings__unsaved">{t('project.unsavedChanges')}</span>
+              )}
+              <button className="btn btn--primary" onClick={saveSite} disabled={busy === 'site'}>
+                {busy === 'site' ? t('common.saving') : t('common.save')}
+              </button>
+            </>
           )
         }
       >
@@ -203,10 +228,25 @@ export default function ProjectSettingsView({
               {t('project.pngToJpeg')}
             </label>
 
+            <h3 className="settings__subhead">{t('project.editing')}</h3>
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={site.editing.codeEditor}
+                onChange={(e) =>
+                  setSiteField('editing', { ...site.editing, codeEditor: e.target.checked })
+                }
+              />
+              <span>
+                {t('project.codeEditor')}
+                <span className="field__hint check__hint">{t('project.codeEditorHint')}</span>
+              </span>
+            </label>
+
             {FEATURES.blog && (
               <>
                 <h3 className="settings__subhead">{t('project.blog')}</h3>
-                <p className="muted small">{t('project.blogNote')}</p>
+                <Explainer>{t('project.blogNote')}</Explainer>
               </>
             )}
             {show('site')}
@@ -227,15 +267,17 @@ export default function ProjectSettingsView({
           })}
           actions={
             <>
-              <button
-                className="btn"
-                onClick={site.deploy.target === 'workers' ? loadWorkers : loadProjects}
-                disabled={busy === 'cloudflare' || !chosen?.hasToken}
-              >
-                {site.deploy.target === 'workers'
-                  ? t('project.listWorkers')
-                  : t('project.listPages')}
-              </button>
+              {!onServer && (
+                <button
+                  className="btn"
+                  onClick={site.deploy.target === 'workers' ? loadWorkers : loadProjects}
+                  disabled={busy === 'cloudflare' || !chosen?.hasToken}
+                >
+                  {site.deploy.target === 'workers'
+                    ? t('project.listWorkers')
+                    : t('project.listPages')}
+                </button>
+              )}
               <button
                 className="btn btn--primary"
                 onClick={saveCloudflare}
@@ -253,8 +295,8 @@ export default function ProjectSettingsView({
                 ? t('project.noConnections', {
                     settings: `${t('app.viewSettings')} → ${t('connections.title')}`
                   })
-                : chosen && !chosen.hasToken
-                  ? t('project.noToken')
+                : chosen && !chosen.hasToken && !chosen.keyPath
+                  ? t(isServerConnection(chosen.type) ? 'project.noPassword' : 'project.noToken')
                   : undefined
             }
           >
@@ -263,22 +305,52 @@ export default function ProjectSettingsView({
               onChange={(e) => {
                 setProjects(null)
                 setWorkers(null)
-                setSiteField('deploy', { ...site.deploy, connection: e.target.value })
+                const next = connections.connections.find((c) => c.id === e.target.value)
+                // The connection decides where the site goes: a server, or Cloudflare.
+                const target = !next
+                  ? site.deploy.target
+                  : isServerConnection(next.type)
+                    ? 'server'
+                    : site.deploy.target === 'server'
+                      ? 'workers'
+                      : site.deploy.target
+                setSiteField('deploy', { ...site.deploy, connection: e.target.value, target })
               }}
             >
               <option value="">{t('project.choose')}</option>
-              {connections.connections.map((connection) => (
-                <option key={connection.id} value={connection.id}>
-                  {connection.name} ({connection.accountId.slice(0, 6)}…)
-                </option>
-              ))}
+              {cloudflareConnections.length > 0 && (
+                <optgroup label="Cloudflare">
+                  {cloudflareConnections.map((connection) => (
+                    <option key={connection.id} value={connection.id}>
+                      {connection.name} ({connection.accountId.slice(0, 6)}…)
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              {serverConnections.length > 0 && (
+                <optgroup label={t('project.servers')}>
+                  {serverConnections.map((connection) => (
+                    <option key={connection.id} value={connection.id}>
+                      {connection.name} ({connection.type.toUpperCase()} · {connection.host})
+                    </option>
+                  ))}
+                </optgroup>
+              )}
               {site.deploy.connection && !chosen && (
                 <option value={site.deploy.connection}>{t('project.unknownConnection')}</option>
               )}
             </select>
           </Field>
 
-          {(FEATURES.pages || site.deploy.target === 'pages') && (
+          {onServer && chosen && (
+            <RemoteFolder
+              connection={chosen}
+              value={site.deploy.remoteDir}
+              onChange={(remoteDir) => setSiteField('deploy', { ...site.deploy, remoteDir })}
+            />
+          )}
+
+          {!onServer && (FEATURES.pages || site.deploy.target === 'pages') && (
             <div className="field">
               <span className="field__label" id="publish-as-label">
                 {t('project.publishAs')}
@@ -310,7 +382,7 @@ export default function ProjectSettingsView({
             </div>
           )}
 
-          {site.deploy.target === 'workers' ? (
+          {onServer ? null : site.deploy.target === 'workers' ? (
             <Field
               label={t('project.worker')}
               hint={
@@ -346,7 +418,11 @@ export default function ProjectSettingsView({
                   ))}
               </datalist>
             </Field>
-          ) : (
+          ) : null}
+          {!onServer && site.deploy.target === 'workers' && (
+            <Explainer>{t('project.workerExplain')}</Explainer>
+          )}
+          {onServer || site.deploy.target === 'workers' ? null : (
             <div className="grid-3">
               <Field label={t('project.pagesProject')}>
                 {projects ? (
@@ -422,6 +498,8 @@ export default function ProjectSettingsView({
           {show('cloudflare')}
         </Section>
       )}
+
+      <SyncSection status={sync} />
     </div>
   )
 }

@@ -43,8 +43,9 @@ const messages: Translation['settings'] = {
   statusNoClients: 'nessun client connesso',
   notRunning: 'Non attivo',
   addToClaude: 'Aggiungi a Claude Code',
-  addToClaudeHint:
-    'Eseguilo una volta nel Terminale, poi avvia Claude Code scrivendo «claude». La schermata IA ha le istruzioni passo passo. Contiene il token, quindi tienilo riservato.',
+  addToClaudeHint: 'Contiene il token di accesso, quindi tienilo riservato.',
+  addToClaudeSteps:
+    'Esegui il comando una volta nel Terminale, poi avvia Claude Code scrivendo «claude». Se Claude Code era già aperto, riavvialo: si collega all’avvio, e «/mcp» mostra se craftpages è collegato. Le sue modifiche arrivano in Modifica template come proposte da rivedere.',
   copyCommand: 'Copia comando'
 }
 

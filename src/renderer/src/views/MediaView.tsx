@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Notice, Section } from '../components/Field'
+import { Explainer, Notice, Section } from '../components/Field'
 import { errorMessage, formatBytes } from '../lib/api'
 import { translate, useT, type Key } from '../i18n'
 import type { ImageEntry, OptimizeResult, Workspace } from '../../../shared/types'
@@ -12,20 +12,21 @@ interface Props {
 /** Images over this size are flagged (same threshold as the SEO check). */
 const LARGE = 400 * 1024
 
-type Filter = 'all' | 'unused' | 'large' | 'wide'
+type Filter = 'all' | 'unused' | 'large' | 'wide' | 'unsized'
 type Status = { kind: 'error' | 'success' | 'info'; text: string; undo?: string } | null
 
 const FILTERS: [Filter, Key][] = [
   ['all', 'media.filterAll'],
   ['unused', 'media.filterUnused'],
   ['large', 'media.filterLarge'],
-  ['wide', 'media.filterWide']
+  ['wide', 'media.filterWide'],
+  ['unsized', 'media.filterUnsized']
 ]
 
 const nameOf = (path: string): string => path.split('/').pop() ?? path
 const folderOf = (path: string): string => path.split('/').slice(0, -1).join('/') || '/'
 
-/** Every image of the site: usage, size, batch optimise, replace everywhere, delete unused. */
+/** Every image of the site: upload, usage, size, optimise, replace everywhere, delete unused. */
 export default function MediaView({ workspace, onEditPage }: Props): React.JSX.Element {
   const t = useT()
   const [images, setImages] = useState<ImageEntry[] | null>(null)
@@ -84,7 +85,8 @@ export default function MediaView({ workspace, onEditPage }: Props): React.JSX.E
     (filter === 'all' ||
       (filter === 'unused' && image.usedIn.length === 0) ||
       (filter === 'large' && image.bytes > LARGE) ||
-      (filter === 'wide' && image.width > maxWidth)) &&
+      (filter === 'wide' && image.width > maxWidth) ||
+      (filter === 'unsized' && image.unsized > 0)) &&
     (!folder || folderOf(image.path) === folder) &&
     (!query || image.path.toLowerCase().includes(query.toLowerCase()))
   const visible = all.filter(matches)
@@ -93,11 +95,15 @@ export default function MediaView({ workspace, onEditPage }: Props): React.JSX.E
     all: all.length,
     unused: all.filter((i) => i.usedIn.length === 0).length,
     large: all.filter((i) => i.bytes > LARGE).length,
-    wide: all.filter((i) => i.width > maxWidth).length
+    wide: all.filter((i) => i.width > maxWidth).length,
+    unsized: all.filter((i) => i.unsized > 0).length
   }
   const total = all.reduce((sum, image) => sum + image.bytes, 0)
   const chosen = all.find((image) => image.path === focus) ?? null
-  const targets = selected.size ? [...selected] : visible.map((image) => image.path)
+  // Sizes are fixed for the selected images, or for every image missing them.
+  const sizeTargets = (selected.size ? all.filter((i) => selected.has(i.path)) : all).filter(
+    (image) => image.unsized > 0
+  )
 
   const toggle = (path: string): void =>
     setSelected((current) => {
@@ -156,9 +162,40 @@ export default function MediaView({ workspace, onEditPage }: Props): React.JSX.E
       return { kind: 'success', text: translate('media.deleted', { path }), undo: result.historyId }
     })
 
+  const upload = (): Promise<void> =>
+    run(async () => {
+      const uploaded = await window.api.uploadImages()
+      if (!uploaded.length) return null
+      await reload()
+      const paths = uploaded.map((image) => image.src.replace(/^\//, ''))
+      setFilter('all')
+      setFolder('')
+      setQuery('')
+      setSelected(new Set(paths))
+      setFocus(paths[paths.length - 1])
+      const before = uploaded.reduce((sum, image) => sum + image.originalBytes, 0)
+      const after = uploaded.reduce((sum, image) => sum + image.bytes, 0)
+      return {
+        kind: 'success',
+        text:
+          uploaded.length === 1
+            ? translate('media.uploaded', {
+                name: nameOf(paths[0]),
+                before: formatBytes(before),
+                after: formatBytes(after)
+              })
+            : translate('media.uploadedMany', {
+                count: uploaded.length,
+                before: formatBytes(before),
+                after: formatBytes(after)
+              })
+      }
+    })
+
   const addSizes = (): Promise<void> =>
     run(async () => {
-      const result = await window.api.addImageDimensions()
+      const result = await window.api.addImageDimensions(sizeTargets.map((image) => image.path))
+      await reload()
       const skipped = result.skipped.length
         ? ` ${translate('media.sizesSkipped', { files: result.skipped.join(', ') })}`
         : ''
@@ -188,22 +225,26 @@ export default function MediaView({ workspace, onEditPage }: Props): React.JSX.E
         }
         actions={
           <>
+            <button className="btn btn--accent" onClick={upload} disabled={busy}>
+              {t('media.uploadMany')}
+            </button>
             <button
               className="btn"
               onClick={addSizes}
-              disabled={busy}
-              title={t('media.addSizesTip')}
+              disabled={busy || sizeTargets.length === 0}
+              title={t(sizeTargets.length ? 'media.addSizesTip' : 'media.addSizesNoneTip')}
             >
-              {t('media.addSizes')}
+              {t('media.addSizes', { count: sizeTargets.length })}
             </button>
             <button
               className="btn btn--primary"
-              onClick={() => preview(targets)}
-              disabled={busy || targets.length === 0}
+              onClick={() => preview([...selected])}
+              disabled={busy || selected.size === 0}
+              title={selected.size ? undefined : t('media.optimizeHint')}
             >
               {selected.size
                 ? t('media.optimizeSelected', { count: selected.size })
-                : t('media.optimizeShown')}
+                : t('media.optimizeNone')}
             </button>
           </>
         }
@@ -242,14 +283,24 @@ export default function MediaView({ workspace, onEditPage }: Props): React.JSX.E
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
-          {selected.size > 0 && (
-            <span className="media__selection">
-              <span>{t('media.selectedCount', { count: selected.size })}</span>
+          <span className="media__selection">
+            {selected.size > 0 && <span>{t('media.selectedCount', { count: selected.size })}</span>}
+            {visible.some((image) => !selected.has(image.path)) && (
+              <button
+                className="link"
+                onClick={() =>
+                  setSelected(new Set([...selected, ...visible.map((image) => image.path)]))
+                }
+              >
+                {t('media.selectShown', { count: visible.length })}
+              </button>
+            )}
+            {selected.size > 0 && (
               <button className="link" onClick={() => setSelected(new Set())}>
                 {t('media.clearSelection')}
               </button>
-            </span>
-          )}
+            )}
+          </span>
         </div>
 
         <div role={status?.kind === 'error' ? 'alert' : 'status'}>
@@ -271,10 +322,10 @@ export default function MediaView({ workspace, onEditPage }: Props): React.JSX.E
               <strong>
                 {t('media.planTitle', { count: plan.items.length, size: formatBytes(plan.saved) })}
               </strong>
-              <span className="muted small">
-                {t.rich('media.planNote', { folder: <code>.sitecms/media/originals</code> })}
-              </span>
             </header>
+            <Explainer>
+              {t.rich('media.planNote', { folder: <code>.sitecms/media/originals</code> })}
+            </Explainer>
             <ul>
               {plan.items.map((item) => (
                 <li key={item.path}>
@@ -350,6 +401,11 @@ export default function MediaView({ workspace, onEditPage }: Props): React.JSX.E
                     </span>
                     {image.usedIn.length === 0 && (
                       <span className="media-card__tag">{t('media.unused')}</span>
+                    )}
+                    {image.unsized > 0 && (
+                      <span className="media-card__tag" title={t('media.addSizesTip')}>
+                        {t('media.noSize')}
+                      </span>
                     )}
                   </button>
                 </div>

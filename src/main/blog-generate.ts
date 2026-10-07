@@ -1,9 +1,10 @@
 import { mkdir, readFile, rename } from 'fs/promises'
 import { join } from 'path'
-import { readTemplates } from './blog'
+import { readTemplates, saveTemplates } from './blog'
 import {
   finishPage,
   pageSiteNodes,
+  latestCardHtml,
   renderLatest,
   renderList,
   renderPost,
@@ -26,7 +27,8 @@ import {
   readPosts,
   type StoredPost
 } from './posts'
-import { APP_DIR, getSiteSettings } from './settings'
+import { APP_DIR, getSiteSettings, saveSiteSettings } from './settings'
+import { isPublished, pagePattern } from './deploy/exclude'
 import { listFiles, resolveInWorkspace } from './workspace'
 import { escapeAttr, escapeText } from './html/dom'
 import { fileOfPath, listPath, postPath, slugify } from '../shared/blog-urls'
@@ -70,7 +72,42 @@ async function readSite(root: string, path: string): Promise<string | null> {
 export const tagUrl = (site: SiteSettings, tag: string, page = 1): string =>
   listPath(`${listPath(site.blog.listPath)}tag/${slugify(tag)}/`, page)
 
+export const categoryUrl = (site: SiteSettings, category: string, page = 1): string =>
+  listPath(`${listPath(site.blog.listPath)}category/${slugify(category)}/`, page)
+
 const urlOfFile = (path: string): string => '/' + path.replace(/index\.html$/, '')
+
+/** A page's addresses: /blog.html, and /blog as servers with clean URLs serve it. */
+const addressesOf = (path: string): string[] => {
+  const url = urlOfFile(path)
+  return url.endsWith('.html') ? [url, url.slice(0, -'.html'.length)] : [url]
+}
+
+/**
+ * The layout pages (the sample post and list the blog is built from) are the blog's
+ * templates, not pages of the site: once the blog replaces them they come off the site
+ * (once; switching one back on is respected), and while they're off, links and old
+ * addresses lead to the blog. The home page is never taken off.
+ */
+async function retireLayouts(
+  root: string,
+  site: SiteSettings,
+  templates: BlogTemplates | null,
+  layouts: Layouts
+): Promise<string[]> {
+  const pages = [...new Set([layouts.post, layouts.list])].filter((path) => path !== 'index.html')
+  const done = templates?.unpublished ?? []
+  const fresh = pages.filter((path) => !done.includes(path))
+  if (fresh.length) {
+    const patterns = fresh.filter((path) => isPublished(site, path)).map(pagePattern)
+    if (patterns.length) {
+      site.deploy.exclude = [...site.deploy.exclude, ...patterns]
+      await saveSiteSettings(root, { deploy: { exclude: site.deploy.exclude } })
+    }
+    await saveTemplates(root, { unpublished: [...done, ...fresh] })
+  }
+  return pages.filter((path) => !isPublished(site, path))
+}
 
 /** Post data the renderer needs, from a post. Block comments stay in the body. */
 export function toPostData(post: PostRecord, site: SiteSettings): PostData {
@@ -81,7 +118,11 @@ export function toPostData(post: PostRecord, site: SiteSettings): PostData {
     date: post.date,
     image: post.cover,
     url: postPath(site.blog.permalink, post.slug),
-    tags: (post.tags ?? []).map((name) => ({ name, url: tagUrl(site, name) }))
+    tags: (post.tags ?? []).map((name) => ({ name, url: tagUrl(site, name) })),
+    category: post.category?.trim()
+      ? { name: post.category.trim(), url: categoryUrl(site, post.category.trim()) }
+      : null,
+    author: post.author?.trim() || undefined
   }
 }
 
@@ -128,6 +169,8 @@ interface RenderContext {
   postSource: string
   context: PageContext
   homeNodes: Record<string, unknown>[]
+  /** Links to layout pages that are off the site, to the blog (see retireLayouts). */
+  linkAliases?: Record<string, string>
 }
 
 /** A post's page, complete with everything needed to read it back as a post. */
@@ -163,6 +206,12 @@ function postPage(
     ...(data.tags ?? []).map(
       (tag) => `<meta property="article:tag" content="${escapeAttr(tag.name)}">`
     ),
+    ...(data.category
+      ? [`<meta property="article:section" content="${escapeAttr(data.category.name)}">`]
+      : []),
+    ...(data.author
+      ? [`<meta property="article:author" content="${escapeAttr(data.author)}">`]
+      : []),
     ...(post.cover?.alt
       ? [`<meta property="og:image:alt" content="${escapeAttr(post.cover.alt)}">`]
       : [])
@@ -182,10 +231,13 @@ function postPage(
       mainEntityOfPage: absolute(site, data.url),
       ...(image ? { image } : {}),
       ...(data.tags?.length ? { keywords: data.tags.map((t) => t.name).join(', ') } : {}),
+      ...(data.category ? { articleSection: data.category.name } : {}),
+      ...(data.author ? { author: { '@type': 'Person', name: data.author } } : {}),
       publisher: { '@type': 'Organization', name: site.siteName }
     },
     extraHead: [...sharedHead(site, /wp-block-gallery|cp-lightbox/.test(post.content)), ...metas],
     currentPath: listPath(site.blog.listPath),
+    linkAliases: ctx.linkAliases,
     baseUrl: site.baseUrl,
     fallbackSiteNodes: ctx.homeNodes
   })
@@ -203,7 +255,7 @@ async function renderContext(root: string): Promise<RenderContext> {
     site,
     layouts,
     postSource,
-    context: { baseUrl: site.baseUrl, locale: site.locale },
+    context: { baseUrl: site.baseUrl, locale: site.locale, emptyText: site.blog.emptyText },
     homeNodes: pageSiteNodes((await readSite(root, 'index.html')) ?? '')
   }
 }
@@ -296,6 +348,65 @@ function writeRedirects(current: string | null, redirects: Record<string, string
   return block + (text ? '\n' + text : '')
 }
 
+const escapeRegex = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+/**
+ * The same redirects for Apache, in a managed block of .htaccess (servers ignore
+ * _redirects; Cloudflare never receives dot-files, so the two never meet). RedirectMatch,
+ * not Redirect: Redirect matches by prefix, so /blog/a/ would also catch /blog/a-b/x.
+ * A folder address also matches its index.html. Returns null when nothing changes.
+ */
+export function writeHtaccess(
+  current: string | null,
+  redirects: Record<string, string>
+): string | null {
+  const lines = Object.entries(redirects).map(([from, to]) => {
+    const pattern = from.endsWith('/')
+      ? `${escapeRegex(from.slice(0, -1))}(/|/index\\.html)?`
+      : escapeRegex(from)
+    return `  RedirectMatch 301 ^${pattern}$ ${to}`
+  })
+  const block = lines.length
+    ? `${REDIRECTS_START}\n<IfModule mod_alias.c>\n${lines.join('\n')}\n</IfModule>\n${REDIRECTS_END}\n`
+    : ''
+  const text = current ?? ''
+  const start = text.indexOf(REDIRECTS_START)
+  const end = text.indexOf(REDIRECTS_END)
+  let next: string
+  if (start >= 0 && end > start) {
+    const after = text.slice(end + REDIRECTS_END.length).replace(block ? /^\n/ : /^\n+/, '')
+    next = text.slice(0, start) + block + after
+  } else if (!block) {
+    return null
+  } else {
+    // First, before the site's own rules (an old URL must not be rewritten elsewhere first).
+    next = block + (text ? '\n' + text : '')
+  }
+  return next === text ? null : next
+}
+
+/**
+ * Mirrors the blog's redirects from _redirects into .htaccess. Done for server deploys,
+ * and whenever .htaccess already has the block, so switching targets keeps both in step.
+ */
+async function htaccessWrite(
+  root: string,
+  site: SiteSettings,
+  redirects: Record<string, string>
+): Promise<FileWrite | null> {
+  const current = await readSite(root, '.htaccess')
+  if (site.deploy.target !== 'server' && !current?.includes(REDIRECTS_START)) return null
+  const content = writeHtaccess(current, redirects)
+  return content === null ? null : { path: '.htaccess', content }
+}
+
+/** Before a server publish: .htaccess gets the redirects already in _redirects. */
+export async function syncHtaccess(root: string): Promise<void> {
+  const redirects = readRedirects(await readSite(root, '_redirects'))
+  const write = await htaccessWrite(root, await getSiteSettings(root), redirects)
+  if (write) await writeFiles(root, [write], 'Blog: redirects for the server')
+}
+
 /** Site pages the blog generator made (post, list and tag pages). */
 async function ownedPages(root: string): Promise<string[]> {
   const owned: string[] = []
@@ -336,6 +447,14 @@ export async function generateBlog(
   const templates = await readTemplates(root)
   const listSource = await readSite(root, layouts.list)
   if (listSource === null) throw new Error(`The list layout page ${layouts.list} is missing.`)
+  const blogHome = listPath(site.blog.listPath)
+  const retired = await retireLayouts(root, site, templates, layouts)
+  const linkAliases = Object.fromEntries(
+    retired.flatMap((path) =>
+      addressesOf(path).map((url) => [url.replace(/([^/])$/, '$1/'), blogHome])
+    )
+  )
+  ctx.linkAliases = linkAliases
 
   const stored = await readPosts(root)
   const byId = new Map<string, StoredPost>(stored.map((post) => [post.record.id, post]))
@@ -346,25 +465,33 @@ export async function generateBlog(
   records.sort((a, b) => b.date.localeCompare(a.date))
   const live = records.filter((post) => isLive(post, now))
 
-  // One spelling per tag across the blog: the most used, ties to the earliest post.
-  const spellings = new Map<string, Map<string, number>>()
-  for (const post of [...live].reverse()) {
-    for (const tag of post.tags ?? []) {
-      const counts = spellings.get(slugify(tag)) ?? new Map<string, number>()
-      counts.set(tag, (counts.get(tag) ?? 0) + 1)
-      spellings.set(slugify(tag), counts)
+  // One spelling per tag (and category) across the blog: the most used, ties to the earliest post.
+  const spellingsOf = (namesOf: (post: PostRecord) => string[]): ((name: string) => string) => {
+    const spellings = new Map<string, Map<string, number>>()
+    for (const post of [...live].reverse()) {
+      for (const name of namesOf(post)) {
+        const counts = spellings.get(slugify(name)) ?? new Map<string, number>()
+        counts.set(name, (counts.get(name) ?? 0) + 1)
+        spellings.set(slugify(name), counts)
+      }
     }
+    return (name) =>
+      [...(spellings.get(slugify(name)) ?? new Map([[name, 1]]))].reduce((best, entry) =>
+        entry[1] > best[1] ? entry : best
+      )[0]
   }
-  const canonical = (name: string): string =>
-    [...(spellings.get(slugify(name)) ?? new Map([[name, 1]]))].reduce((best, entry) =>
-      entry[1] > best[1] ? entry : best
-    )[0]
+  const canonical = spellingsOf((post) => post.tags ?? [])
+  const canonicalCategory = spellingsOf((post) =>
+    post.category?.trim() ? [post.category.trim()] : []
+  )
   const dataOf = (post: PostRecord): PostData => {
     const data = toPostData(post, site)
     const seen = new Set<string>()
     data.tags = (data.tags ?? [])
       .map((tag) => ({ ...tag, name: canonical(tag.name) }))
       .filter((tag) => !seen.has(tag.url) && Boolean(seen.add(tag.url)))
+    if (data.category)
+      data.category = { ...data.category, name: canonicalCategory(data.category.name) }
     return data
   }
 
@@ -372,6 +499,13 @@ export async function generateBlog(
   const blogUrls: string[] = []
   const redirects = readRedirects(await readSite(root, '_redirects'))
   const deletions = new Set<string>()
+  for (const path of [layouts.post, layouts.list]) {
+    // Not /blog when the blog is /blog/: servers already add the slash, and a rule would loop.
+    for (const url of addressesOf(path).filter((url) => url + '/' !== blogHome)) {
+      if (retired.includes(path)) redirects[url] = blogHome
+      else if (redirects[url] === blogHome) delete redirects[url]
+    }
+  }
 
   // Posts: live ones on the site, the rest as drafts.
   const datas: PostData[] = []
@@ -438,6 +572,7 @@ export async function generateBlog(
           jsonLd: { '@type': 'CollectionPage', name: title, url: absolute(site, url) },
           extraHead: sharedHead(site, false),
           currentPath: listPath(site.blog.listPath),
+          linkAliases,
           baseUrl: site.baseUrl,
           fallbackSiteNodes: ctx.homeNodes
         })
@@ -456,6 +591,16 @@ export async function generateBlog(
   }
   for (const { name, posts } of tags.values()) {
     addList(posts, (n) => tagUrl(site, name, n), `${site.blog.title}: ${name}`)
+  }
+  const categories = new Map<string, { name: string; posts: PostData[] }>()
+  for (const data of datas) {
+    if (!data.category) continue
+    const entry = categories.get(data.category.url) ?? { name: data.category.name, posts: [] }
+    entry.posts.push(data)
+    categories.set(data.category.url, entry)
+  }
+  for (const { name, posts } of categories.values()) {
+    addList(posts, (n) => categoryUrl(site, name, n), `${site.blog.title}: ${name}`)
   }
   const feedUrl = `${listPath(site.blog.listPath)}feed.xml`
   outputs.set(feedUrl.replace(/^\//, ''), rss(site, datas))
@@ -512,25 +657,41 @@ export async function generateBlog(
 
   // "Latest posts" blocks on the site's own pages, changed only inside their area.
   const kept: string[] = []
-  for (const latest of templates?.latest ?? []) {
+  const latestBlocks = templates?.latest ?? []
+  let cardsSaved = false
+  for (const latest of latestBlocks) {
     if (hasDraft(latest.page)) {
       kept.push(`${latest.page} (has unsaved edits; its latest posts update after you save)`)
       continue
     }
     const source = await readSite(root, latest.page)
     if (source === null) continue
+    // Keep the card's design before the first rewrite: with no posts the area ends up empty.
+    if (latest.card && !latest.card.html) {
+      const html = latestCardHtml(source, latest)
+      if (html) {
+        latest.card = { ...latest.card, html }
+        cardsSaved = true
+      }
+    }
     const next = renderLatest(source, latest, datas.slice(0, Math.max(1, latest.count)), context)
     if (next !== source) {
       writes.push({ path: latest.page, content: next })
       written.push(latest.page)
     }
   }
+  if (cardsSaved) await saveTemplates(root, { latest: latestBlocks })
 
   const redirectsBefore = await readSite(root, '_redirects')
   const redirectsText = writeRedirects(redirectsBefore, redirects)
   if (redirectsText !== null && redirectsText !== redirectsBefore) {
     writes.push({ path: '_redirects', content: redirectsText })
     written.push('_redirects')
+  }
+  const htaccess = await htaccessWrite(root, site, redirects)
+  if (htaccess) {
+    writes.push(htaccess)
+    written.push('.htaccess')
   }
   const sitemapBefore = await readSite(root, 'sitemap.xml')
   const sitemap = site.seo.sitemapAuto

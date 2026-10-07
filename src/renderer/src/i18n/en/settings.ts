@@ -43,7 +43,8 @@ export default {
   statusNoClients: 'no clients connected',
   notRunning: 'Not running',
   addToClaude: 'Add to Claude Code',
-  addToClaudeHint:
-    'Run this once in Terminal, then start Claude Code by typing “claude”. The AI screen has step-by-step instructions. It includes the token, so keep it private.',
+  addToClaudeHint: 'Includes the access token, so keep it private.',
+  addToClaudeSteps:
+    'Run the command once in Terminal, then start Claude Code by typing “claude”. If Claude Code was already open, restart it: it connects when it starts, and “/mcp” in it shows whether craftpages is connected. What it changes arrives in Template editing as proposals for you to review.',
   copyCommand: 'Copy command'
 } satisfies Record<string, Msg>

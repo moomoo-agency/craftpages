@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { Icon, arrowLeft } from '@wordpress/icons'
 import Sidebar, { type ViewId } from './components/Sidebar'
 import PagesView from './views/PagesView'
 import PageEditor, { type EditorMode, type Viewport } from './views/PageEditor'
@@ -17,9 +18,12 @@ import { errorMessage, formatDate, useAppEvent, useStoredState } from './lib/api
 import { useTheme } from './lib/theme'
 import { describeRun } from './lib/schedule'
 import { useUpdate } from './lib/updates'
+import { useSyncStatus } from './lib/sync'
 import { useT } from './i18n'
 import { VIEW_TITLES } from './lib/views'
 import { FEATURES } from '../../shared/features'
+import type { PendingPublish } from './components/DraftBar'
+import { addressOfFile } from '../../shared/blog-urls'
 import type { DraftState, McpStatus, SaveResult, Workspace } from '../../shared/types'
 
 function App(): React.JSX.Element {
@@ -32,6 +36,31 @@ function App(): React.JSX.Element {
   const [saveError, setSaveError] = useState<string | null>(null)
   const [reloadToken, setReloadToken] = useState(0)
   const [baseUrl, setBaseUrl] = useState('')
+  const [codeEditor, setCodeEditor] = useState(false)
+  /**
+   * Saved changes not on the live site yet (files, and how many are pages); null while
+   * unknown or when publishing isn't set up, so nothing nags a client whose agency publishes.
+   */
+  const [pendingPublish, setPendingPublish] = useState<PendingPublish | null>(null)
+  const refreshPending = useCallback((): void => {
+    Promise.all([window.api.getSiteSettings(), window.api.deployStatus()]).then(
+      ([site, status]) => {
+        const { deploy } = site
+        const target =
+          deploy.target === 'server'
+            ? deploy.remoteDir || '/'
+            : deploy.target === 'pages'
+              ? deploy.projectName
+              : deploy.workerName
+        setPendingPublish(
+          deploy.connection && target
+            ? { files: status.changed, pages: status.changedPages.length }
+            : null
+        )
+      },
+      () => setPendingPublish(null)
+    )
+  }, [])
   const [projectsOpen, setProjectsOpen] = useState(false)
   const [toast, setToast] = useState<{ kind: 'success' | 'error'; text: string } | null>(null)
   const [editorMode, setEditorMode] = useStoredState<EditorMode>('editor.mode', 'edit')
@@ -40,7 +69,24 @@ function App(): React.JSX.Element {
   const update = useUpdate()
   const [pendingProposals, setPendingProposals] = useState(0)
   const [theme, setTheme] = useTheme()
+  const sync = useSyncStatus(workspace)
   const t = useT()
+
+  // Other computers see which page this one has open (and in which mode).
+  const announcedPage = view === 'pages' ? (editing?.path ?? null) : null
+  useEffect(() => {
+    if (sync && sync.mode !== 'off')
+      window.api.announcePresence(announcedPage, announcedPage ? editorMode : null).catch(() => {})
+  }, [announcedPage, editorMode, sync?.mode]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // A sync that brought files in: open pages reload, like after a save elsewhere.
+  const lastSync = useRef<string | null | undefined>(undefined)
+  useEffect(() => {
+    const at = sync?.lastSync
+    if (lastSync.current !== undefined && at && at !== lastSync.current && !sync?.busy)
+      setReloadToken((n) => n + 1)
+    lastSync.current = at
+  }, [sync?.lastSync, sync?.busy])
 
   // Success messages go away on their own; errors stay until dismissed.
   useEffect(() => {
@@ -84,21 +130,33 @@ function App(): React.JSX.Element {
   })
 
   useEffect(() => {
-    if (workspace) window.api.getSiteSettings().then((site) => setBaseUrl(site.baseUrl))
+    if (workspace) refreshPending()
+  }, [workspace?.root, refreshPending]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (workspace)
+      window.api.getSiteSettings().then((site) => {
+        setBaseUrl(site.baseUrl)
+        setCodeEditor(site.editing.codeEditor)
+      })
   }, [workspace?.root, view]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const saveAll = useCallback(async (): Promise<void> => {
+  /** Writes every draft to the site folder; false when it failed (the error is shown). */
+  const saveAll = useCallback(async (): Promise<boolean> => {
     setSaving(true)
     setSaveError(null)
     try {
       setLastSave(await window.api.saveAll())
       setReloadToken((n) => n + 1)
+      refreshPending()
+      return true
     } catch (error) {
       setSaveError(errorMessage(error))
+      return false
     } finally {
       setSaving(false)
     }
-  }, [])
+  }, [refreshPending])
 
   const discard = async (path: string | null): Promise<void> => {
     await window.api.discardDrafts(path)
@@ -110,6 +168,7 @@ function App(): React.JSX.Element {
     try {
       await window.api.revertHistory(lastSave.historyId)
       setLastSave(null)
+      refreshPending()
       setReloadToken((n) => n + 1)
     } catch (error) {
       setSaveError(errorMessage(error))
@@ -136,6 +195,8 @@ function App(): React.JSX.Element {
   }, [])
 
   const navigate = (next: ViewId): void => {
+    // Coming back from Publish (or going there): the live site may have just caught up.
+    if (next === 'publish' || view === 'publish') refreshPending()
     setView(next)
     if (next !== 'pages') setEditing(null)
   }
@@ -149,6 +210,9 @@ function App(): React.JSX.Element {
     ? workspace?.pages.find((page) => page.path === editing.path)
     : undefined
   const draftPaths = new Set(drafts.pages.map((page) => page.path))
+  const editingDrafts = editing
+    ? drafts.pages.find((page) => page.path === editing.path)
+    : undefined
 
   return (
     <div className="app">
@@ -158,17 +222,44 @@ function App(): React.JSX.Element {
         mcp={mcp}
         pendingProposals={pendingProposals}
         update={update}
+        sync={sync}
+        unsaved={drafts.pages.length}
+        pendingPublish={pendingPublish}
         onNavigate={navigate}
         onOpenProjects={() => setProjectsOpen(true)}
       />
 
       <main className="main">
         <header className="topbar">
-          <h1>{t(VIEW_TITLES[view])}</h1>
+          {view === 'pages' && editing ? (
+            <div className="topbar__page">
+              <button
+                className="btn btn--ghost btn--icon"
+                onClick={() => setEditing(null)}
+                aria-label={t('pages.backToPages')}
+                title={t('pages.backToPages')}
+              >
+                <Icon icon={arrowLeft} size={18} />
+              </button>
+              <div className="topbar__title">
+                <h1 title={editingPage?.title || editing.path}>
+                  {editingPage?.title || t('app.untitled')}
+                </h1>
+                <span title={editing.path}>
+                  {/^index\.html?$/i.test(editing.path)
+                    ? t('pages.homePage')
+                    : (baseUrl ? baseUrl.replace(/^https?:\/\//, '').replace(/\/$/, '') : '') +
+                      addressOfFile(editing.path)}
+                </span>
+              </div>
+            </div>
+          ) : (
+            <h1>{t(VIEW_TITLES[view])}</h1>
+          )}
           <div className="topbar__right">
             {saveError && (
               <span className="topbar__error" role="alert">
-                <span title={saveError}>{saveError}</span>
+                <span title={saveError}>{t('app.saveFailed', { error: saveError })}</span>
                 <button
                   className="btn btn--ghost btn--small btn--icon"
                   aria-label={t('app.dismissError')}
@@ -180,6 +271,8 @@ function App(): React.JSX.Element {
             )}
             <DraftBar
               drafts={drafts}
+              currentPage={view === 'pages' ? editing?.path : undefined}
+              pendingPublish={pendingPublish}
               lastSave={lastSave}
               busy={saving}
               onSaveAll={saveAll}
@@ -210,19 +303,22 @@ function App(): React.JSX.Element {
               <PageEditor
                 key={`${editing.path}#${editing.focus ?? ''}`}
                 path={editing.path}
-                title={editingPage?.title ?? editing.path}
+                pages={workspace?.pages ?? []}
                 focusComponent={editing.focus}
                 reloadToken={reloadToken}
-                hasDrafts={drafts.pages.some(
-                  (p) => p.path === editing.path && (p.own > 0 || p.seo)
-                )}
+                drafts={editingDrafts}
                 baseUrl={baseUrl}
-                mode={editorMode}
+                mode={!codeEditor && editorMode === 'code' ? 'edit' : editorMode}
+                codeEditor={codeEditor}
                 onModeChange={setEditorMode}
                 viewport={viewport}
                 onViewportChange={setViewport}
-                onBack={() => setEditing(null)}
                 onSaveAll={saveAll}
+                onCodeSaved={(result) => {
+                  setLastSave(result)
+                  refreshPending()
+                }}
+                others={sync?.people.filter((person) => person.page === editing.path) ?? []}
               />
             ) : (
               <PagesView
@@ -231,6 +327,7 @@ function App(): React.JSX.Element {
                 onEditPage={editPage}
                 unsaved={draftPaths}
                 onOpenBlog={FEATURES.blog ? () => navigate('blog') : undefined}
+                people={sync?.people ?? []}
               />
             ))}
           {FEATURES.blog && view === 'blog' && (
@@ -249,13 +346,21 @@ function App(): React.JSX.Element {
           {view === 'search' && <SearchView key={workspace?.root} workspace={workspace} />}
           {view === 'ai' && <AiView mcp={mcp} onOpenSettings={() => navigate('settings')} />}
           {view === 'publish' && (
-            <PublishView workspace={workspace} onOpenSettings={() => navigate('project')} />
+            <PublishView
+              workspace={workspace}
+              drafts={drafts}
+              saving={saving}
+              onSaveAll={saveAll}
+              onOpenPage={(path) => editPage(path)}
+              onOpenSettings={() => navigate('project')}
+            />
           )}
           {view === 'project' && (
             <ProjectSettingsView
               key={workspace?.root}
               workspace={workspace}
               onOpenAppSettings={() => navigate('settings')}
+              sync={sync}
             />
           )}
           {view === 'settings' && (

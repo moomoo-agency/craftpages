@@ -48,6 +48,10 @@ chmod +x CraftPages-*.AppImage
 On Ubuntu 22.04 and later you may need FUSE: `sudo apt install libfuse2`
 (on 24.04: `sudo apt install libfuse2t64`).
 
+On Ubuntu 24.04 and desktops based on it (Zorin OS 18, Linux Mint 22, Pop!_OS), the system
+doesn't let apps use Chromium's sandbox. The AppImage notices and starts without it. If it
+still doesn't open, start it from a terminal to see why, or use the `.deb` package below.
+
 **Debian / Ubuntu package**:
 
 ```bash

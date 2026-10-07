@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { Notice } from '../components/Field'
+import { Explainer, Notice } from '../components/Field'
 import SearchIconForm from '../components/SearchIconForm'
 import { useT, type Key } from '../i18n'
 import { errorMessage } from '../lib/api'
@@ -356,7 +356,7 @@ export default function SearchSetup({
               </>
             )}
             {!state.enabled && (
-              <p className="muted small">
+              <Explainer>
                 {t.rich('search.ownTrigger', {
                   link: (chunk) => (
                     <button className="link" disabled={busy} onClick={skipIcon}>
@@ -365,7 +365,7 @@ export default function SearchSetup({
                   ),
                   attr: <code>data-craftpages-search</code>
                 })}
-              </p>
+              </Explainer>
             )}
           </>
         ) : (

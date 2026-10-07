@@ -91,7 +91,13 @@ const messages: Translation['post'] = {
   columnsPanel: 'Colonne',
   columnsCount: 'Numero di colonne',
   columnsOption: { one: '{count} colonna', other: '{count} colonne' },
-  columnsHelp: 'Sui telefoni il testo diventa una sola colonna.'
+  columnsHelp: 'Sui telefoni il testo diventa una sola colonna.',
+  categoryLabel: 'Categoria',
+  categoryHint:
+    'Una per articolo, mostrata dove il layout ha un badge di categoria. Ognuna ha una pagina con i suoi articoli.',
+  categoryHintExample: 'La sua pagina: {path}',
+  authorLabel: 'Autore',
+  authorHint: 'Lascia vuoto per mantenere il nome già presente nel layout.'
 }
 
 export default messages

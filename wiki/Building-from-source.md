@@ -108,7 +108,10 @@ src/
     search/            the site-search box that gets added to sites
     scheduler.ts       scheduled releases, background mode
     publish.ts         publishing, overwrite check, rollback
-    deploy/            Cloudflare Workers static assets (and Pages direct upload)
+    deploy/            Cloudflare Workers static assets (and Pages direct upload), FTP / SFTP
+    sync/              publish history (snapshots) and sync between computers;
+                       worker/ is the Worker uploaded to the user's Cloudflare account
+    code.ts            code mode: a page's own files, written through the history
     updates.ts         update check (electron-updater, GitHub releases)
     mcp/               WebSocket MCP server, tools, proposals (accept / reject / revert)
   preload/           contextBridge: a typed window.api (see src/shared/types.ts)
@@ -127,12 +130,13 @@ touches the disk or the network goes through `window.api` → IPC → main.
 [`src/shared/features.ts`](https://github.com/moomoo-agency/craftpages/blob/main/src/shared/features.ts) turns off features that are built but
 not part of this release:
 
-- `blog`: Gutenberg post editor, post and list pages generated in your own design, tags,
-  RSS. Off while it is finished.
 - `pages`: publishing to Cloudflare Pages. Off so new projects only see Workers; projects
   already set to Pages keep working.
 - `scheduling`: scheduled page edits (go live / come down at a set time), the Publish
-  screen's list of them and background mode. Off for 1.0; the scheduler itself still runs.
+  screen's list of them and background mode. Off for 1.1; the scheduler itself still runs,
+  and scheduled posts work.
+
+The blog, off in 1.0, is on since 1.1.
 
 ## Editing these docs
 

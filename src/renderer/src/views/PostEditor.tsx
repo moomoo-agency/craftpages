@@ -50,6 +50,9 @@ interface Props {
   previewOrigin: string
   /** Tags used by other posts, offered as suggestions. */
   knownTags: string[]
+  /** Categories and authors of other posts, offered as suggestions. */
+  knownCategories: string[]
+  knownAuthors: string[]
   onSaved: (post: PostRecord, message: string) => void
   onDeleted: () => void
   onBack: () => void
@@ -61,6 +64,8 @@ export default function PostEditor({
   splitRegions,
   previewOrigin,
   knownTags,
+  knownCategories,
+  knownAuthors,
   onSaved,
   onDeleted,
   onBack
@@ -535,6 +540,41 @@ export default function PostEditor({
                           : t('post.tagsHint')}
                       </span>
                     </div>
+
+                    <Field
+                      label={t('post.categoryLabel')}
+                      hint={
+                        post.category?.trim()
+                          ? t('post.categoryHintExample', {
+                              path: `${listPath(site.blog.listPath)}category/${slugify(post.category)}/`
+                            })
+                          : t('post.categoryHint')
+                      }
+                    >
+                      <input
+                        list={`${uid}-categories`}
+                        value={post.category ?? ''}
+                        onChange={(e) => set('category', e.target.value)}
+                      />
+                    </Field>
+                    <datalist id={`${uid}-categories`}>
+                      {knownCategories.map((name) => (
+                        <option key={name} value={name} />
+                      ))}
+                    </datalist>
+
+                    <Field label={t('post.authorLabel')} hint={t('post.authorHint')}>
+                      <input
+                        list={`${uid}-authors`}
+                        value={post.author ?? ''}
+                        onChange={(e) => set('author', e.target.value)}
+                      />
+                    </Field>
+                    <datalist id={`${uid}-authors`}>
+                      {knownAuthors.map((name) => (
+                        <option key={name} value={name} />
+                      ))}
+                    </datalist>
 
                     <div className="field" role="group" aria-labelledby={coverLabelId}>
                       <span className="field__label" id={coverLabelId}>

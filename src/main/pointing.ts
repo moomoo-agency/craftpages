@@ -14,6 +14,7 @@ import {
 } from './html/dom'
 import { bodyOf, locatorOf, pathFrom, resolveLocator } from './html/locator'
 import { POINTER_SCRIPT_PATH } from './preview/server'
+import { badgesIn } from './blog-render'
 import { requireRoot } from './state'
 import { resolveInWorkspace } from './workspace'
 import type { ElementLocator, PickedElement, PointSession } from '../shared/types'
@@ -99,7 +100,8 @@ export function pointAt(key: string, n: number): PickedElement {
     tag: element.tagName,
     text: textContent(element).replace(/\s+/g, ' ').trim().slice(0, 200),
     parent: numberOf.get(parent) ?? null,
-    hasImage: element.tagName === 'img' || Boolean(find(element, (e) => e.tagName === 'img'))
+    hasImage: element.tagName === 'img' || Boolean(find(element, (e) => e.tagName === 'img')),
+    badges: badgesIn(element)?.length ?? 1
   }
 }
 

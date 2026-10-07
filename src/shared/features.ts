@@ -4,7 +4,7 @@
  */
 export const FEATURES = {
   /** Blog setup, posts (Gutenberg) and blog generation. */
-  blog: false,
+  blog: true,
   /**
    * Publishing to Cloudflare Pages. Off: new projects publish as Workers (Cloudflare's
    * default) and Pages isn't offered; a project already set to Pages keeps working and

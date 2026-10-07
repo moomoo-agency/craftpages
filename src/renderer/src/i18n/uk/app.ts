@@ -3,7 +3,7 @@ import type { Translation } from '../types'
 const messages: Translation['app'] = {
   viewPages: 'Сторінки',
   viewBlog: 'Блог',
-  viewComponents: 'Спільні компоненти',
+  viewComponents: 'Спільні частини',
   viewMedia: 'Медіа',
   viewSeo: 'SEO',
   viewSearch: 'Пошук на сайті',
@@ -32,10 +32,10 @@ const messages: Translation['app'] = {
   scheduledOtherProject: '{project}: {message}',
 
   savedPages: {
-    one: 'Збережено {count} сторінку',
-    few: 'Збережено {count} сторінки',
-    many: 'Збережено {count} сторінок',
-    other: 'Збережено {count} сторінки'
+    one: '{count} сторінку збережено в теці сайту · ще не онлайн',
+    few: '{count} сторінки збережено в теці сайту · ще не онлайн',
+    many: '{count} сторінок збережено в теці сайту · ще не онлайн',
+    other: '{count} сторінки збережено в теці сайту · ще не онлайн'
   },
   nothingToSave: 'Нічого зберігати',
   skippedShared: {
@@ -59,16 +59,15 @@ const messages: Translation['app'] = {
     other: '{count} зміни'
   },
   fromShared: {
-    one: '{count} зі спільних блоків',
-    few: '{count} зі спільних блоків',
-    many: '{count} зі спільних блоків',
-    other: '{count} зі спільних блоків'
+    one: '{count} зі спільних частин',
+    few: '{count} зі спільних частин',
+    many: '{count} зі спільних частин',
+    other: '{count} зі спільних частин'
   },
   seoChanges: 'SEO',
   discardPage: 'Відкинути зміни на {page}',
   staleNote: 'Файли змінилися на диску, тому ці зміни буде відкинуто: {pages}',
   confirmDiscardAll: 'Відкинути всі незбережені зміни?',
-  discardAll: 'Відкинути все',
   schedule: 'Запланувати…',
   scheduleHint: 'Зберегти ці зміни у визначений час, а не зараз',
   saveAll: 'Зберегти все',
@@ -95,12 +94,63 @@ const messages: Translation['app'] = {
   openProjectButton: 'Відкрити проєкт…',
   noPages: 'У цій теці ще немає HTML-сторінок.',
   colTitle: 'Назва',
-  colFile: 'Файл',
-  colSize: 'Розмір',
   badgeBlog: 'блог',
-  generatedHint: 'Створено блогом: редагуйте допис у розділі «Блог»',
+  generatedHint: 'Створено блогом: відкрийте, як її бачать відвідувачі',
+  badgeTemplate: 'шаблон блогу',
+  badgePostTemplate: 'шаблон статті',
+  postTemplateHint:
+    'Кожен допис будується з цієї сторінки: змініть її, щоб змінити вигляд усіх дописів. Щойно блог опубліковано, вона не потрапляє на сайт, а посилання на неї ведуть до блогу.',
+  templateHint:
+    'Блог будується з цієї сторінки: змініть її, щоб змінити вигляд списку дописів. Щойно блог опубліковано, вона не потрапляє на сайт, а посилання на неї ведуть до блогу.',
   editPageHint: 'Редагувати {title}',
-  untitled: 'Без назви'
+  untitled: 'Без назви',
+  publishUnsaved: {
+    one: '{count} сторінка має незбережені зміни: збережіть їх, щоб опублікувати',
+    few: '{count} сторінки мають незбережені зміни: збережіть їх, щоб опублікувати',
+    many: '{count} сторінок мають незбережені зміни: збережіть їх, щоб опублікувати',
+    other: '{count} сторінки має незбережені зміни: збережіть їх, щоб опублікувати'
+  },
+  saveFailed: 'Не вдалося зберегти: {error}',
+  skippedExplain:
+    'Ці сторінки мають власну версію спільної частини, тож зміну там не застосовано. Відкрийте сторінку, щоб змінити її вручну.',
+  colAddress: 'Адреса',
+  discardAllAction: 'Відкинути всі зміни…',
+  navContent: 'Вміст',
+  navSite: 'Сайт',
+  allLive: 'Усе збережено · робочий сайт актуальний',
+  navSettings: 'Налаштування',
+  unsavedShort: {
+    one: '{count} незбережена',
+    few: '{count} незбережені',
+    many: '{count} незбережених',
+    other: '{count} незбереженої'
+  },
+  savedFiles: {
+    one: 'Записано {count} файл · ще не онлайн',
+    few: 'Записано {count} файли · ще не онлайн',
+    many: 'Записано {count} файлів · ще не онлайн',
+    other: 'Записано {count} файлу · ще не онлайн'
+  },
+  readyToPublish: 'Зміни готові до публікації',
+  changesHere: {
+    one: '{count} зміна на цій сторінці',
+    few: '{count} зміни на цій сторінці',
+    many: '{count} змін на цій сторінці',
+    other: '{count} зміни на цій сторінці'
+  },
+  pagesUnsaved: {
+    one: '{count} сторінка не збережена',
+    few: '{count} сторінки не збережені',
+    many: '{count} сторінок не збережено',
+    other: '{count} сторінки не збережено'
+  },
+  confirmDiscardPage: 'Відкинути зміни на {page}?',
+  pagesReady: {
+    one: '{count} сторінка готова до публікації',
+    few: '{count} сторінки готові до публікації',
+    many: '{count} сторінок готові до публікації',
+    other: '{count} сторінки готові до публікації'
+  }
 }
 
 export default messages

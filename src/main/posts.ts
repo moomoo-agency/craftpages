@@ -16,6 +16,7 @@ import type { PostRecord, PostSummary, SiteSettings } from '../shared/types'
  *
  * - `og:title` (title), `<title>` (SEO title when it differs), `meta description`
  *   (excerpt), `article:published_time` / `article:modified_time`, `article:tag`,
+ *   `article:section` (category), `article:author`,
  *   `og:image` + `og:image:alt` (cover), the canonical URL (slug)
  * - the body between `<!-- craftpages:body -->` markers, with Gutenberg's block
  *   comments kept so the editor reopens it as blocks
@@ -114,7 +115,9 @@ export function parsePostPage(html: string, site: SiteSettings): PostRecord | nu
         : null,
     content: parts.join(`\n${BREAK_BLOCK}\n`),
     seoTitle: content(meta(head, 'name', TITLE_META)[0]) === 'custom' ? pageTitle : '',
-    tags: meta(head, 'property', 'article:tag').map(content).filter(Boolean)
+    tags: meta(head, 'property', 'article:tag').map(content).filter(Boolean),
+    category: content(meta(head, 'property', 'article:section')[0]),
+    author: content(meta(head, 'property', 'article:author')[0])
   }
 }
 
@@ -229,7 +232,9 @@ export async function listPosts(root: string): Promise<PostSummary[]> {
     modified: post.modified,
     excerpt: post.excerpt,
     url: postPath(site.blog.permalink, post.slug),
-    tags: post.tags ?? []
+    tags: post.tags ?? [],
+    category: post.category ?? '',
+    author: post.author ?? ''
   }))
 }
 
@@ -252,7 +257,9 @@ export function newPost(): PostRecord {
     cover: null,
     content: '',
     seoTitle: '',
-    tags: []
+    tags: [],
+    category: '',
+    author: ''
   }
 }
 
@@ -303,9 +310,9 @@ export async function validatePost(root: string, post: PostRecord): Promise<Post
   }
   // /blog/page/2/ and /blog/tag/x/ belong to the list when posts and the list share a folder.
   const sharesFolder = postPrefix(site.blog.permalink) === listPath(site.blog.listPath)
-  if (sharesFolder && (slug === 'page' || slug === 'tag')) {
+  if (sharesFolder && (slug === 'page' || slug === 'tag' || slug === 'category')) {
     throw new Error(
-      `“${slug}” is used by the post list (pagination and tag pages). Pick another slug.`
+      `“${slug}” is used by the post list (pagination, tag and category pages). Pick another slug.`
     )
   }
   if (postPath(site.blog.permalink, slug) === listPath(site.blog.listPath)) {
@@ -321,6 +328,8 @@ export async function validatePost(root: string, post: PostRecord): Promise<Post
     slug,
     date,
     tags: cleanTags(post.tags),
+    category: (post.category ?? '').replace(/\s+/g, ' ').trim(),
+    author: (post.author ?? '').replace(/\s+/g, ' ').trim(),
     modified: new Date().toISOString()
   }
 }

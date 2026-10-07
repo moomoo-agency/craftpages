@@ -43,6 +43,10 @@ export function listPath(list: string, page = 1): string {
 /** Site path → file in the site folder: /blog/x/ → blog/x/index.html */
 export const fileOfPath = (path: string): string => path.replace(/^\/+/, '') + 'index.html'
 
+/** The address visitors use for a page file: index.html → /, about/index.html → /about/. */
+export const addressOfFile = (file: string): string =>
+  '/' + file.replace(/^\/+/, '').replace(/(^|\/)index\.html?$/i, '$1')
+
 /** "Hello, World! Ça va?" → "hello-world-ca-va" */
 export function slugify(text: string): string {
   return (

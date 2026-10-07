@@ -36,7 +36,9 @@ It looks like `0123456789abcdef0123456789abcdef`. It isn't secret.
    to [dash.cloudflare.com/profile/api-tokens](https://dash.cloudflare.com/profile/api-tokens).
 2. Click **Create Token**, then **Create Custom Token → Get started**.
 3. **Token name:** something you'll recognise, e.g. `CraftPages`.
-4. **Permissions:** one row: **Account** · **Workers Scripts** · **Edit**.
+4. **Permissions:** one row: **Account** · **Workers Scripts** · **Edit**. To also use
+   [[Sync between computers]] (beta), add a second row: **Account** · **Workers R2 Storage** ·
+   **Edit**.
 5. **Account Resources:** **Include** · your account (the one from step 2).
 6. Leave **Zone Resources**, **Client IP Address Filtering** and **TTL** as they are.
 7. Click **Continue to summary**, then **Create Token**.

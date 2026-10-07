@@ -1,10 +1,12 @@
 import { blake3 } from '@noble/hashes/blake3.js'
 import { bytesToHex, utf8ToBytes } from '@noble/hashes/utils.js'
+import { createHash } from 'crypto'
 import { readFile, writeFile, mkdir } from 'fs/promises'
 import { extname, join } from 'path'
 import { APP_DIR } from '../settings'
 import { contentType } from '../preview/server'
-import { listFiles } from '../workspace'
+import { listFiles, type FileEntry } from '../workspace'
+import { excluder } from './exclude'
 import type {
   CloudflareProject,
   DeployProgress,
@@ -45,6 +47,21 @@ interface ApiResponse<T> {
   }
 }
 
+/**
+ * Whether the token reaches R2 storage, which sync between computers needs (publishing
+ * doesn't): 'disabled' = the account hasn't turned R2 on yet.
+ */
+export async function r2Access(creds: Credentials): Promise<'ok' | 'missing' | 'disabled'> {
+  try {
+    await call(creds.token, `/accounts/${encodeURIComponent(creds.accountId)}/r2/buckets`)
+    return 'ok'
+  } catch (error) {
+    const message = (error as Error).message
+    if (/10042|enable R2|not enabled|purchase/i.test(message)) return 'disabled'
+    return 'missing'
+  }
+}
+
 export async function call<T>(auth: string, url: string, init: RequestInit = {}): Promise<T> {
   return (await request<T>(auth, url, init)).result
 }
@@ -82,7 +99,11 @@ export async function request<T>(
       )
     const hint = denied
       ? ` The API token is missing a permission for this: it needs Account · ${
-          url.includes('/workers/') ? 'Workers Scripts' : 'Cloudflare Pages'
+          url.includes('/r2/')
+            ? 'Workers R2 Storage'
+            : url.includes('/workers/')
+              ? 'Workers Scripts'
+              : 'Cloudflare Pages'
         } · Edit on this account (Cloudflare → My Profile → API Tokens).`
       : ''
     throw new Error(`Cloudflare API: ${errors || `HTTP ${response.status}`}.${hint}`)
@@ -234,33 +255,6 @@ export interface SiteFile {
   bytes: number
 }
 
-function globToRegExp(glob: string): RegExp {
-  const pattern = glob
-    .split('**')
-    .map((part) =>
-      part
-        .replace(/[.+^${}()|[\]\\]/g, '\\$&')
-        .replace(/\*/g, '[^/]*')
-        .replace(/\?/g, '[^/]')
-    )
-    .join('.*')
-  return new RegExp(`^${pattern}$`)
-}
-
-function excluder(patterns: string[]): (path: string) => boolean {
-  const rules = patterns
-    .map((pattern) => pattern.trim())
-    .filter(Boolean)
-    .map((pattern) => ({
-      byName: !pattern.includes('/'),
-      regexp: globToRegExp(pattern.replace(/^\/+/, ''))
-    }))
-  return (path) =>
-    rules.some(({ byName, regexp }) =>
-      regexp.test(byName ? path.slice(path.lastIndexOf('/') + 1) : path)
-    )
-}
-
 /** The hash Pages uses to dedupe assets (same as wrangler): blake3(base64 + extension), 32 hex chars. */
 function assetHash(content: Buffer, path: string): string {
   return bytesToHex(blake3(utf8ToBytes(content.toString('base64') + extname(path).slice(1)))).slice(
@@ -269,21 +263,49 @@ function assetHash(content: Buffer, path: string): string {
   )
 }
 
-export async function collect(root: string, site: SiteSettings): Promise<SiteFile[]> {
+/**
+ * The files a publish sends. On a server (`server: true`) Apache's .htaccess files go too
+ * and Cloudflare's _headers / _redirects stay behind.
+ */
+export async function publishedFiles(
+  root: string,
+  site: SiteSettings,
+  { server = false }: { server?: boolean } = {}
+): Promise<FileEntry[]> {
   const excluded = excluder(site.deploy.exclude)
-  const files = (await listFiles(root)).filter((file) => {
-    if (excluded(file.path) || UNSUPPORTED.has(file.path)) return false
-    // Dot-files are private unless they are under .well-known.
-    return !file.path.split('/').some((part) => part.startsWith('.') && part !== '.well-known')
+  return (await listFiles(root)).filter((file) => {
+    if (excluded(file.path)) return false
+    // Cloudflare's config files mean nothing to a server (it uses .htaccess); left out there.
+    if (server ? CONFIG_FILES.has(file.path) : UNSUPPORTED.has(file.path)) return false
+    // Dot-files are private unless they are under .well-known (or .htaccess on a server).
+    return !file.path
+      .split('/')
+      .some(
+        (part) =>
+          part.startsWith('.') && part !== '.well-known' && !(server && part === '.htaccess')
+      )
   })
+}
+
+/** The files a publish sends, with their hashes (and, on Cloudflare, its 25 MiB cap). */
+export async function collect(
+  root: string,
+  site: SiteSettings,
+  { server = false }: { server?: boolean } = {}
+): Promise<SiteFile[]> {
+  const files = await publishedFiles(root, site, { server })
   const out: SiteFile[] = []
   for (const file of files) {
-    if (file.bytes > MAX_FILE_BYTES)
+    if (!server && file.bytes > MAX_FILE_BYTES)
       throw new Error(`${file.path} is over Cloudflare's 25 MiB file limit`)
+    const content = await readFile(join(root, file.path))
     out.push({
       path: file.path,
       bytes: file.bytes,
-      hash: assetHash(await readFile(join(root, file.path)), file.path)
+      // A server only needs to tell versions apart: native SHA-256 is far faster than BLAKE3.
+      hash: server
+        ? createHash('sha256').update(content).digest('hex').slice(0, 32)
+        : assetHash(content, file.path)
     })
   }
   return out
@@ -341,12 +363,25 @@ export function publishedHere(state: DeployState, id: string): boolean {
 }
 
 export async function deployStatus(root: string, site: SiteSettings): Promise<DeployStatus> {
-  const [files, state] = await Promise.all([collect(root, site), readState(root)])
+  const [files, state] = await Promise.all([
+    collect(root, site, { server: site.deploy.target === 'server' }),
+    readState(root)
+  ])
   const current = new Map(files.map((file) => [file.path, file.hash]))
-  const changed =
-    files.filter((file) => state.files[file.path] !== file.hash).length +
-    Object.keys(state.files).filter((path) => !current.has(path)).length
-  return { files: files.length, changed, lastDeploy: state.lastDeploy }
+  const changedPaths = [
+    ...files.filter((file) => state.files[file.path] !== file.hash).map((file) => file.path),
+    ...Object.keys(state.files).filter((path) => !current.has(path))
+  ]
+  const changedPages = changedPaths
+    .map((path) => path.replace(/^\/+/, ''))
+    .filter((path) => /\.html?$/i.test(path))
+    .sort()
+  return {
+    files: files.length,
+    changed: changedPaths.length,
+    changedPages,
+    lastDeploy: state.lastDeploy
+  }
 }
 
 // ---------- Deploy ----------

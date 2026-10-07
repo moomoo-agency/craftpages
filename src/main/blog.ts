@@ -204,6 +204,13 @@ function samplePosts(site: SiteSettings, image: string | null): PostData[] {
 }
 
 let previewServer: StaticServer | null = null
+let viewServer: StaticServer | null = null
+
+/** A page as visitors see it, from a plain server (no editor), e.g. a generated blog page. */
+export async function viewUrl(path: string): Promise<string> {
+  viewServer ??= await startStaticServer({ getRoot: () => getWorkspace()?.root ?? null })
+  return viewServer.origin + '/' + path.replace(/(^|\/)index\.html$/, '$1')
+}
 
 /** Renders a sample post and list page into a throwaway server; nothing is written to the site. */
 export async function previewBlog(): Promise<BlogPreview> {

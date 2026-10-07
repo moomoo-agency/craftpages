@@ -7,7 +7,15 @@ import { writeFiles } from './history'
 import { POST_META } from './posts'
 import { getSiteSettings } from './settings'
 import { listFiles } from './workspace'
-import type { SeoIssue, SeoReport, SiteIdentity, SiteSettings } from '../shared/types'
+import { isPublished } from './deploy/exclude'
+import { identityScript } from '../shared/identity'
+import type {
+  SeoIssue,
+  SeoReport,
+  SiteIdentity,
+  SiteSettings,
+  SitemapStatus
+} from '../shared/types'
 
 /**
  * Site-wide SEO: the check panel (every page scanned for the usual problems),
@@ -395,7 +403,7 @@ export async function buildSitemap(root: string): Promise<{ xml: string; urls: n
   const entries: string[] = []
   for (const page of await readPages(root)) {
     if (page.path === '404.html' || /noindex/i.test(page.robots)) continue
-    if (excluded(page.path, site.seo.sitemapExclude)) continue
+    if (excluded(page.path, site.seo.sitemapExclude) || !isPublished(site, page.path)) continue
     const modified = (await stat(join(root, page.path))).mtime.toISOString().slice(0, 10)
     const loc = (site.baseUrl || '') + page.url
     entries.push(
@@ -411,6 +419,23 @@ ${entries.join('\n')}
   return { xml, urls: entries.length }
 }
 
+/** Whether sitemap.xml exists, what it lists, and whether it matches the pages now. */
+export async function sitemapStatus(root: string): Promise<SitemapStatus> {
+  const file = join(root, 'sitemap.xml')
+  const [current, info, built] = await Promise.all([
+    readFile(file, 'utf8').catch(() => null),
+    stat(file).catch(() => null),
+    buildSitemap(root)
+  ])
+  return {
+    exists: current !== null,
+    urls: current === null ? 0 : (current.match(/<loc>/g) ?? []).length,
+    modified: info ? info.mtime.toISOString() : null,
+    pages: built.urls,
+    upToDate: current === built.xml
+  }
+}
+
 export async function writeSitemap(root: string): Promise<{ urls: number; changed: boolean }> {
   const { xml, urls } = await buildSitemap(root)
   const current = await readFile(join(root, 'sitemap.xml'), 'utf8').catch(() => null)
@@ -421,8 +446,9 @@ export async function writeSitemap(root: string): Promise<{ urls: number; change
 
 // ---------- robots.txt ----------
 
-export async function readRobots(root: string): Promise<string> {
-  return readFile(join(root, 'robots.txt'), 'utf8').catch(() => '')
+/** robots.txt as it is, or null when the site has none. */
+export async function readRobots(root: string): Promise<string | null> {
+  return readFile(join(root, 'robots.txt'), 'utf8').catch(() => null)
 }
 
 export async function saveRobots(root: string, text: string): Promise<void> {
@@ -435,6 +461,12 @@ export async function saveRobots(root: string, text: string): Promise<void> {
 export async function siteIdentity(root: string): Promise<SiteIdentity> {
   const home = await readFile(join(root, 'index.html'), 'utf8').catch(() => '')
   const nodes = pageSiteNodes(home)
+  // The JSON-LD scripts that describe the site, as they are in the file.
+  const code = [
+    ...home.matchAll(/<script[^>]+type=["']application\/ld\+json["'][^>]*>[\s\S]*?<\/script>/gi)
+  ]
+    .map((match) => match[0])
+    .filter((tag) => pageSiteNodes(tag).length > 0)
   const pick = (type: string): Record<string, unknown> | undefined =>
     nodes.find((node) => [node['@type']].flat().includes(type))
   const organization = pick('Organization') ?? pick('LocalBusiness') ?? pick('Corporation')
@@ -450,7 +482,8 @@ export async function siteIdentity(root: string): Promise<SiteIdentity> {
               : String((organization.logo as { url?: string })?.url ?? '')
         }
       : null,
-    website: website ? { name: String(website.name ?? ''), url: String(website.url ?? '') } : null
+    website: website ? { name: String(website.name ?? ''), url: String(website.url ?? '') } : null,
+    code: code.length ? code.join('\n') : null
   }
 }
 
@@ -461,40 +494,17 @@ export async function siteIdentity(root: string): Promise<SiteIdentity> {
 export async function addSiteIdentity(
   root: string,
   identity: { name: string; url: string; logo: string }
-): Promise<void> {
+): Promise<string> {
   const current = await siteIdentity(root)
   if (current.organization) throw new Error('The home page already describes the organisation.')
   const home = await readFile(join(root, 'index.html'), 'utf8')
   const headEnd = home.search(/<\/head>/i)
   if (headEnd < 0) throw new Error('index.html has no </head>.')
-  const url = identity.url.replace(/\/+$/, '') + '/'
-  const graph = {
-    '@context': 'https://schema.org',
-    '@graph': [
-      {
-        '@type': 'Organization',
-        '@id': `${url}#org`,
-        name: identity.name,
-        url,
-        ...(identity.logo ? { logo: identity.logo } : {})
-      },
-      ...(current.website
-        ? []
-        : [
-            {
-              '@type': 'WebSite',
-              '@id': `${url}#website`,
-              name: identity.name,
-              url,
-              publisher: { '@id': `${url}#org` }
-            }
-          ])
-    ]
-  }
-  const tag = `<script type="application/ld+json">${JSON.stringify(graph).replace(/</g, '\\u003c')}</script>\n`
+  const tag = identityScript(identity, !current.website)
   await writeFiles(
     root,
-    [{ path: 'index.html', content: home.slice(0, headEnd) + tag + home.slice(headEnd) }],
+    [{ path: 'index.html', content: home.slice(0, headEnd) + tag + '\n' + home.slice(headEnd) }],
     'SEO: site identity'
   )
+  return tag
 }

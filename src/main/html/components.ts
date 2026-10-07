@@ -80,6 +80,23 @@ function candidates(body: Element): Element[] {
   return found
 }
 
+const HEADINGS = new Set(['h1', 'h2', 'h3', 'h4'])
+
+/** The first heading inside a block, to name it for people ("Section “About me”"). */
+export function componentHeading(element: Element): string | undefined {
+  const find = (node: Element): Element | undefined => {
+    for (const child of children(node)) {
+      if (HEADINGS.has(child.tagName)) return child
+      const found = find(child)
+      if (found) return found
+    }
+    return undefined
+  }
+  const heading = find(element)
+  const text = heading && textContent(heading).replace(/\s+/g, ' ').trim()
+  return text ? (text.length > 40 ? text.slice(0, 39) + '…' : text) : undefined
+}
+
 const hash = (text: string): string => createHash('sha1').update(text).digest('hex').slice(0, 12)
 
 export const componentId = (signature: string): string => hash(signature)
@@ -110,7 +127,7 @@ export function pageComponents(document: Document): Map<string, Element> {
 interface PageScan {
   mtimeMs: number
   size: number
-  entries: Map<string, { tag: string; fingerprint: string; preview: string }>
+  entries: Map<string, { tag: string; fingerprint: string; preview: string; heading?: string }>
 }
 
 const scanCache = new Map<string, PageScan>()
@@ -126,6 +143,7 @@ async function scanPage(root: string, page: string): Promise<PageScan> {
     entries.set(sig, {
       tag: element.tagName,
       fingerprint: hash(normalize(element)),
+      heading: componentHeading(element),
       preview: textContent(element).replace(/\s+/g, ' ').trim().slice(0, 120)
     })
   }
@@ -142,7 +160,7 @@ async function scanPage(root: string, page: string): Promise<PageScan> {
 export async function scanComponents(root: string, pages: string[]): Promise<ComponentGroup[]> {
   const groups = new Map<
     string,
-    { tag: string; preview: string; variants: Map<string, Set<string>> }
+    { tag: string; preview: string; heading?: string; variants: Map<string, Set<string>> }
   >()
 
   for (const page of pages) {
@@ -150,6 +168,7 @@ export async function scanComponents(root: string, pages: string[]): Promise<Com
       const group = groups.get(label) ?? {
         tag: entry.tag,
         preview: entry.preview,
+        heading: entry.heading,
         variants: new Map()
       }
       group.variants.set(
@@ -172,6 +191,7 @@ export async function scanComponents(root: string, pages: string[]): Promise<Com
       id: componentId(label),
       label,
       tag: group.tag,
+      heading: group.heading,
       pages: [...pagesWith].sort(),
       variants: [...group.variants]
         .map(([fingerprint, set]) => ({ hash: fingerprint, pages: [...set].sort() }))

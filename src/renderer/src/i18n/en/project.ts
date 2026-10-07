@@ -35,6 +35,17 @@ export default {
   noToken: 'This connection has no API token yet.',
   choose: '— Choose —',
   unknownConnection: 'Unknown connection (set up on another computer?)',
+  servers: 'Servers (FTP / SFTP)',
+  noPassword: 'This connection has no password yet.',
+  remoteDir: 'Folder on the server',
+  remoteDirHint:
+    'Where the site’s files go, usually public_html, www or htdocs. Empty = the folder the login starts in. CraftPages only ever deletes files it uploaded itself.',
+  browse: 'Browse…',
+  browseLabel: 'Folders on the server',
+  browsePath: 'Current folder',
+  browseSuggested: 'Hosts usually serve sites from a folder with this name',
+  browseEmpty: 'No folders here.',
+  browseUse: 'Use {dir}',
   publishAs: 'Publish as',
   targetWorkers: 'Worker (recommended)',
   targetPages: 'Pages project',
@@ -43,8 +54,9 @@ export default {
   pagesHint:
     'For projects that already live on Cloudflare Pages. Adds preview deploys on their own URL.',
   worker: 'Worker',
-  workerHint:
-    'Pick one or type a new name. A new Worker is created on the first publish, at name.your-subdomain.workers.dev. Add a custom domain in Cloudflare.',
+  workerHint: 'Pick one or type a new name.',
+  workerExplain:
+    'A new Worker is created on the first publish, at name.your-subdomain.workers.dev. To use your own domain, add it to the Worker in Cloudflare.',
   workersHidden: 'Not listed because publishing would replace their code: {names}.',
   workerPlaceholder: 'my-site',
   pagesProject: 'Pages project',
@@ -54,7 +66,7 @@ export default {
   previewBranchHint: 'Preview deploys get their own URL.',
   neverUpload: 'Never upload',
   neverUploadHint:
-    'One pattern per line. * matches within a folder, ** across folders. .sitecms and dot-files are always skipped.',
+    'One pattern per line. * matches within a folder, ** across folders. .sitecms and dot-files are always skipped (except .htaccess when publishing to a server).',
   newProjectName: 'New Pages project name',
   newProjectPlaceholder: 'new-project-name',
   createProject: 'Create Pages project',
@@ -79,5 +91,10 @@ export default {
     other:
       '{count} Workers in this account; CraftPages can publish to {usable}. Pick one or type a new name.'
   } satisfies Msg,
-  noWorkers: 'No Workers yet. Type a name: the Worker is created on the first publish.'
+  noWorkers: 'No Workers yet. Type a name: the Worker is created on the first publish.',
+  editing: 'Editing',
+  codeEditor: 'Show the code editor',
+  codeEditorHint:
+    'Adds Code next to Edit and Preview, to change the page’s HTML, CSS and JavaScript. Leave it off for people who only edit content.',
+  unsavedChanges: 'Unsaved changes'
 } satisfies Record<string, Msg>

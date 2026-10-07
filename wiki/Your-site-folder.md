@@ -6,7 +6,7 @@ you open in CraftPages.
 
 **The folder is the master copy.** Whatever is in it is what gets published, and each
 publish replaces the whole site on Cloudflare with it. Cloudflare can't give the files back,
-so keep the folder backed up.
+so keep the folder backed up (every publish is also kept in [publish history](Publishing#publish-history)).
 
 ## Where to keep it
 
@@ -25,7 +25,8 @@ Everything in the folder, except:
 
 - anything whose name starts with a dot: `.git/`, `.gitignore`, `.github/`, `.DS_Store` and
   CraftPages' own `.sitecms/` folder (drafts, backups and this site's settings).
-  `.well-known/` is the one dot-folder that is published;
+  `.well-known/` is the one dot-folder that is published, and `.htaccess` is uploaded when
+  you publish to a web host;
 - `node_modules/`;
 - the patterns in **Project settings → Deploy → Never upload** (by default `.DS_Store`,
   `Thumbs.db` and `*.bak*`). One pattern per line: `*` matches within a folder, `**` across
@@ -51,7 +52,8 @@ videos are better on YouTube, Vimeo or Cloudflare Stream, embedded in your page.
 ## The `.sitecms` folder
 
 CraftPages creates `.sitecms/` inside your site folder. It holds unsaved drafts, backups for
-undo, scheduled changes, this site's settings and a record of what was published. It is
+undo, blog drafts, this site's settings, the [publish history](Publishing#publish-history)
+and, with [[Sync between computers]] on, sync settings for this computer. It is
 never published. Keep it with the folder (commit it to git if you use git) so drafts,
 history and the [overwrite check](Working-with-others) travel with the site. If you also
 deploy with `wrangler`, add `.sitecms` to a `.assetsignore` file in the site folder.

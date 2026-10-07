@@ -1,0 +1,24 @@
+# Builds the Linux app and checks that the AppImage and the .deb actually start on an
+# Ubuntu 24.04 desktop setup (what Zorin OS 18, Linux Mint 22 and Pop!_OS are based on).
+# Run it from the Actions tab.
+name: Linux smoke test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run build:linux
+
+      - run: bash scripts/linux-smoke.sh

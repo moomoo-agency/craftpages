@@ -1,4 +1,5 @@
 import { cloneElement, isValidElement, useId } from 'react'
+import { Icon, info } from '@wordpress/icons'
 
 interface FieldProps {
   label: string
@@ -86,8 +87,30 @@ export function Notice({
   kind = 'info',
   children
 }: {
-  kind?: 'info' | 'error' | 'success'
+  kind?: 'info' | 'error' | 'success' | 'warning'
   children: React.ReactNode
 }): React.JSX.Element {
   return <div className={`notice notice--${kind}`}>{children}</div>
+}
+
+/**
+ * A broader explanation: what a feature does, what it sets up or what happens next.
+ * Field hints describe one field; notices report results; this explains.
+ */
+export function Explainer({
+  title,
+  children
+}: {
+  title?: React.ReactNode
+  children: React.ReactNode
+}): React.JSX.Element {
+  return (
+    <div className="explainer">
+      <Icon icon={info} size={20} className="explainer__icon" aria-hidden="true" />
+      <div className="explainer__body">
+        {title && <strong className="explainer__title">{title}</strong>}
+        {children}
+      </div>
+    </div>
+  )
 }

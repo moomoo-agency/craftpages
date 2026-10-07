@@ -1,6 +1,7 @@
 import { randomBytes } from 'crypto'
 import { draftView, renderWithDrafts } from './drafts'
 import { serveCopy } from './html/instrument'
+import { componentHeading } from './html/components'
 import { EDITOR_SCRIPT_PATH, startStaticServer, type StaticServer } from './preview/server'
 import { getWorkspace } from './state'
 import type { EditSession } from '../shared/types'
@@ -40,10 +41,13 @@ export async function interactUrl(path: string): Promise<string> {
 /** Serves an instrumented copy of a page (editor or pointing mode) and returns its URL. */
 export async function serveCopyOf(
   path: string,
-  served: string
+  served: string,
+  /** Reuse a key (code mode's live preview) instead of taking another session slot. */
+  reuse?: string
 ): Promise<{ key: string; url: string }> {
   const { origin } = await previewServer()
-  const key = randomBytes(12).toString('hex')
+  const key = reuse ?? randomBytes(12).toString('hex')
+  sessions.delete(key)
   sessions.set(key, served)
   while (sessions.size > MAX_SESSIONS) sessions.delete(sessions.keys().next().value!)
   return { key, url: `${pageUrl(origin, path)}?__cms=${key}` }
@@ -74,6 +78,8 @@ export async function startEditing(path: string): Promise<EditSession> {
     components: [...view.model.components].map(([id, component]) => ({
       id,
       label: component.label,
+      tag: component.element.tagName,
+      heading: componentHeading(component.element),
       pages: view.groups.get(id)?.pages ?? [path],
       scope: view.scopes[id] ?? 'all'
     })),

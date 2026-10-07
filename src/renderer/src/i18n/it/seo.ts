@@ -58,15 +58,42 @@ const messages: Translation['seo'] = {
     one: 'sitemap.xml è già aggiornata ({count} pagina).',
     other: 'sitemap.xml è già aggiornata ({count} pagine).'
   },
-
-  robotsDescription: 'Indica ai motori di ricerca quali parti del sito possono scansionare.',
+  sitemapCreated: {
+    one: 'sitemap.xml creata con {count} pagina.',
+    other: 'sitemap.xml creata con {count} pagine.'
+  },
+  sitemapSettingsSaved: 'Salvato.',
+  sitemapDescription:
+    'Un file nella radice del sito (/sitemap.xml) che elenca le pagine, così i motori di ricerca le trovano tutte.',
+  sitemapCurrent: 'Aggiornata',
+  sitemapStale: 'Non aggiornata',
+  sitemapStatus: {
+    one: 'Il sito ha sitemap.xml: elenca {count} pagina, ultima modifica {date}.',
+    other: 'Il sito ha sitemap.xml: elenca {count} pagine, ultima modifica {date}.'
+  },
+  sitemapWouldList: {
+    one: 'Ricostruendola elencherebbe {count} pagina.',
+    other: 'Ricostruendola elencherebbe {count} pagine.'
+  },
+  sitemapMissing: 'Il sito non ha ancora sitemap.xml.',
+  createSitemap: 'Crea sitemap.xml',
+  fileMissing: 'Nessun file',
+  fileExists: 'Il file esiste',
+  viewFile: 'Vedi file',
+  robotsDescription:
+    'Un file nella radice del sito (/robots.txt) che dice ai motori di ricerca quali parti possono esplorare.',
   robotsSaved: 'robots.txt salvato.',
+  robotsCreated: 'robots.txt creato. Va online con la prossima pubblicazione.',
+  robotsMissing:
+    'Il sito non ha robots.txt. I motori di ricerca esplorano allora tutto, di solito va bene, ma è il posto standard per indicare la sitemap.',
+  robotsCreate: 'Crea robots.txt predefinito',
+  robotsDefaultLabel: 'robots.txt predefinito',
   robotsNoSitemap:
     'Manca la riga Sitemap, quindi i motori di ricerca devono trovare sitemap.xml da soli. <link>Aggiungi la riga</link>',
 
-  identityTitle: 'Identità del sito',
+  identityTitle: 'Identità del sito (codice in index.html)',
   identityDescription:
-    'Dati strutturati nella home page che comunicano ai motori di ricerca il nome e il logo del sito.',
+    'Non è un file a parte: un blocco di dati strutturati (JSON-LD) nel <head> della home page che dice ai motori di ricerca nome e logo del sito.',
   identityLogo: 'logo {logo}',
   identityFound: 'Trovati in index.html. Gli articoli del blog li indicano come editore.',
   identityFoundWithWebsite:
@@ -76,7 +103,12 @@ const messages: Translation['seo'] = {
   identityUrl: 'URL del sito',
   identityLogoLabel: 'Logo',
   identityAdd: 'Aggiungi alla home page',
-  identityAdded: 'Aggiunto a index.html.'
+  identityAdded: 'Aggiunto a index.html.',
+  identityCode: 'Questo codice in {file} la descrive (i visitatori non lo vedono):',
+  identityAddedCode:
+    'Questo codice è stato aggiunto a {file}, subito prima di {head}. I visitatori non lo vedono:',
+  identityPreview:
+    'Questo codice verrà aggiunto a {file}, subito prima di {head}. I visitatori non lo vedono:'
 }
 
 export default messages

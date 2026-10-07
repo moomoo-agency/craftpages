@@ -1,13 +1,17 @@
 import { useEffect, useId, useState } from 'react'
-import { Field, Notice, Section } from '../components/Field'
+import { Explainer, Field, Notice, Section } from '../components/Field'
 import PostEditor from './PostEditor'
+import PageViewer from '../components/PageViewer'
 import LayoutPointer from './LayoutPointer'
 import StatusPill from '../components/StatusPill'
+import { ListSearch, NoMatches, Pagination } from '../components/ListControls'
+import { useFilteredList } from '../lib/list'
 import { copyText, errorMessage, formatDate } from '../lib/api'
 import { useT, type Key, type Translator } from '../i18n'
-import { listPath, postPath, postPrefix } from '../../../shared/blog-urls'
+import { fileOfPath, listPath, postPath, postPrefix } from '../../../shared/blog-urls'
 import type {
   LatestLayout,
+  LayoutLinks,
   PostRecord,
   PostSummary,
   SiteSettings,
@@ -165,8 +169,21 @@ export default function BlogView({
   const [post, setPost] = useState('')
   const [list, setList] = useState('')
   const [mode, setMode] = useState<
-    'overview' | 'choose' | 'point-post' | 'point-list' | 'point-latest' | 'preview' | 'editor'
+    | 'overview'
+    | 'choose'
+    | 'point-post'
+    | 'point-list'
+    | 'point-latest'
+    | 'preview'
+    | 'editor'
+    | 'view'
   >('overview')
+  /** The generated page shown as visitors see it (mode 'view'). */
+  const [viewing, setViewing] = useState<string | null>(null)
+  /** Links that creating the blog would leave pointing at the templates. */
+  const [plannedLinks, setPlannedLinks] = useState<LayoutLinks | null>(null)
+  const [fixLinks, setFixLinks] = useState(true)
+  const [creating, setCreating] = useState(false)
   const [preview, setPreview] = useState<BlogPreview | null>(null)
   const [previewTab, setPreviewTab] = useState<'post' | 'list'>('post')
   const [copied, setCopied] = useState(false)
@@ -181,13 +198,27 @@ export default function BlogView({
   const [latestPage, setLatestPage] = useState('')
   /** Pages the blog writes; never offered as layouts or latest-posts pages. */
   const [generated, setGenerated] = useState<Set<string>>(new Set())
+  const postList = useFilteredList(`posts:${workspace?.folder}`, posts ?? [], (item) => [
+    item.title,
+    item.url,
+    ...item.tags
+  ])
 
+  // Saving a post rewrites the blog's pages, so the generated list is reloaded with posts.
   const loadPosts = (): Promise<void> =>
-    window.api.listPosts().then(setPosts, (e) => setError(errorMessage(e)))
+    Promise.all([
+      window.api.listPosts().then(setPosts, (e) => setError(errorMessage(e))),
+      loadGenerated()
+    ]).then(() => {})
+  const loadGenerated = (): Promise<void> =>
+    window.api.generatedPages().then(
+      (paths) => setGenerated(new Set(paths)),
+      () => {}
+    )
 
   useEffect(() => {
     if (!workspace) return
-    loadPosts()
+    window.api.listPosts().then(setPosts, (e) => setError(errorMessage(e)))
     window.api.generatedPages().then(
       (paths) => setGenerated(new Set(paths)),
       () => {}
@@ -203,6 +234,11 @@ export default function BlogView({
       (e) => setError(errorMessage(e))
     )
   }, [workspace])
+
+  useEffect(() => {
+    if (!workspace || !setup?.templates?.postLayout || !setup.templates.listLayout) return
+    window.api.getLayoutLinks(true).then(setPlannedLinks, () => setPlannedLinks(null))
+  }, [workspace, setup, generated])
 
   if (!workspace) {
     return (
@@ -228,6 +264,9 @@ export default function BlogView({
   const templates: BlogTemplates = setup.templates ?? {}
   const pagesChosen = Boolean(templates.post && templates.list)
   const layoutsDone = Boolean(templates.postLayout && templates.listLayout)
+  const blogHome = site ? listPath(site.blog.listPath) : '/blog/'
+  /** The blog exists once its list page does, with or without posts. */
+  const created = generated.has(fileOfPath(blogHome))
 
   /** Resolves to whether it saved; a failure shows in the error notice. */
   const save = async (update: BlogTemplates): Promise<boolean> => {
@@ -270,6 +309,37 @@ export default function BlogView({
     } catch (e) {
       setError(errorMessage(e))
     }
+  }
+
+  const plannedCount = plannedLinks?.pages.reduce((sum, page) => sum + page.links, 0) ?? 0
+
+  const createBlog = async (): Promise<void> => {
+    setError(null)
+    setCreating(true)
+    try {
+      const result = await window.api.createBlog(fixLinks && plannedCount > 0)
+      await loadGenerated()
+      const links = result.links
+      setFlash(
+        [
+          t('blog.createdNotice', { blog: blogHome }),
+          links?.links ? t('blog.layoutLinksDone', { count: links.links }) : '',
+          links?.skipped.length
+            ? t('blog.layoutLinksSkipped', { list: links.skipped.join(', ') })
+            : ''
+        ]
+          .filter(Boolean)
+          .join(' ')
+      )
+    } catch (e) {
+      setError(errorMessage(e))
+    }
+    setCreating(false)
+  }
+
+  const view = (path: string): void => {
+    setViewing(path)
+    setMode('view')
   }
 
   // ---------- Pointing ----------
@@ -363,6 +433,18 @@ export default function BlogView({
     )
   }
 
+  if (mode === 'view' && viewing) {
+    return (
+      <PageViewer
+        path={viewing}
+        onBack={() => {
+          setViewing(null)
+          setMode('overview')
+        }}
+      />
+    )
+  }
+
   if (mode === 'editor' && editing && site) {
     return (
       <PostEditor
@@ -372,6 +454,8 @@ export default function BlogView({
         splitRegions={(templates.postLayout?.regions.length ?? 1) > 1}
         previewOrigin={origin}
         knownTags={[...new Set((posts ?? []).flatMap((p) => p.tags))].sort()}
+        knownCategories={[...new Set((posts ?? []).map((p) => p.category).filter(Boolean))].sort()}
+        knownAuthors={[...new Set((posts ?? []).map((p) => p.author).filter(Boolean))].sort()}
         onSaved={() => loadPosts()}
         onDeleted={() => {
           setFlash(t('blog.postDeleted'))
@@ -418,7 +502,7 @@ export default function BlogView({
     return (
       <div className="blog">
         <Section title={t('blog.chooseTitle')} description={t('blog.chooseDescription')}>
-          <Notice kind="info">{status}</Notice>
+          <Explainer>{status}</Explainer>
           <div className="grid-2 template-grid">
             <CandidatePicker
               label={t('blog.postLayout')}
@@ -477,7 +561,7 @@ export default function BlogView({
               <span className={`dot ${aiConnected ? 'dot--on' : ''}`} aria-hidden="true" />
               {aiConnected
                 ? t('blog.aiConnected', { clients: mcp!.clients.join(', ') })
-                : t('blog.aiNotConnected', { view: t('app.viewAi') })}
+                : t('blog.aiNotConnected')}
             </p>
             <pre className="prompt">{prompt}</pre>
             <button
@@ -526,8 +610,8 @@ export default function BlogView({
 
   const setupSection = (
     <Section
-      title={layoutsDone ? t('blog.setupTitle') : t('blog.setupTitleTodo')}
-      description={layoutsDone ? t('blog.setupDone') : t('blog.setupTodo')}
+      title={layoutsDone && created ? t('blog.setupTitle') : t('blog.setupTitleTodo')}
+      description={layoutsDone && created ? t('blog.setupDone') : t('blog.setupTodo')}
     >
       <ol className="steps">
         <li className="is-done">
@@ -600,6 +684,80 @@ export default function BlogView({
             </button>
           </span>
         </li>
+        <li className={created ? 'is-done' : ''}>
+          <strong>
+            {t('blog.stepCreate')}
+            {created && <span className="visually-hidden"> ({t('blog.stepDone')})</span>}
+          </strong>
+          {created ? (
+            <span className="muted small">
+              {t.rich('blog.createdSummary', {
+                blog: <span className="mono">{blogHome}</span>
+              })}
+            </span>
+          ) : (
+            <>
+              <span className="muted small">{t('blog.stepCreateHint')}</span>
+              <ul className="create-plan small">
+                <li>
+                  {t.rich('blog.createList', {
+                    blog: <span className="mono">{blogHome}</span>,
+                    list: <span className="mono">{templates.list}</span>
+                  })}
+                </li>
+                <li>
+                  {t.rich('blog.createPosts', {
+                    post: <span className="mono">{templates.post}</span>
+                  })}
+                </li>
+                {plannedLinks && plannedLinks.layouts.length > 0 && (
+                  <li>
+                    {t.rich('blog.createRetire', {
+                      pages: <span className="mono">{plannedLinks.layouts.join(', ')}</span>
+                    })}
+                  </li>
+                )}
+              </ul>
+              {plannedCount > 0 && (
+                <label className="check">
+                  <input
+                    type="checkbox"
+                    checked={fixLinks}
+                    onChange={(e) => setFixLinks(e.target.checked)}
+                  />
+                  <span>
+                    {t('blog.createLinks', { count: plannedCount, blog: blogHome })}
+                    <span className="check__hint">
+                      {plannedLinks!.pages
+                        .map((page) =>
+                          page.unsaved
+                            ? `${page.path} (${t('blog.layoutLinksUnsaved')})`
+                            : page.path
+                        )
+                        .join(', ')}
+                    </span>
+                  </span>
+                </label>
+              )}
+            </>
+          )}
+          <span>
+            {created ? (
+              <button className="btn btn--small" onClick={() => view(fileOfPath(blogHome))}>
+                {t('blog.openBlog', { blog: blogHome })}
+              </button>
+            ) : (
+              <button
+                className="btn btn--small btn--primary"
+                disabled={!layoutsDone || creating}
+                title={layoutsDone ? undefined : t('blog.finishLayoutsFirst')}
+                onClick={createBlog}
+              >
+                {t('blog.createButton')}
+              </button>
+            )}
+          </span>
+        </li>
         <li className={latestBlocks.length ? 'is-done' : ''}>
           <strong>
             {t('blog.stepLatest')}
@@ -608,53 +766,34 @@ export default function BlogView({
             )}
           </strong>
           <span className="muted small">{t('blog.stepLatestHint')}</span>
-          {latestBlocks.map((block) => (
-            <span key={block.id} className="latest-row">
-              <span className="mono">{block.page}</span>
-              <label className="latest-row__count">
-                {t('blog.latestCount')}
-                <input
-                  aria-label={t('blog.latestCountOn', { page: block.page })}
-                  type="number"
-                  min={1}
-                  max={24}
-                  value={block.count}
-                  onChange={(e) =>
-                    saveLatest(
-                      latestBlocks.map((b) =>
-                        b.id === block.id
-                          ? { ...b, count: Math.max(1, Number(e.target.value) || 1) }
-                          : b
-                      )
-                    )
+          {latestBlocks.length > 0 && (
+            <ul className="latest-blocks">
+              {latestBlocks.map((block) => (
+                <LatestBlockRow
+                  key={block.id}
+                  block={block}
+                  title={workspace.pages.find((page) => page.path === block.page)?.title}
+                  onOpen={() => onOpenPage(block.page)}
+                  onCount={(count) =>
+                    saveLatest(latestBlocks.map((b) => (b.id === block.id ? { ...b, count } : b)))
                   }
+                  onAdjust={() => {
+                    setLatestEdit(block)
+                    setMode('point-latest')
+                  }}
+                  onRemove={() => saveLatest(latestBlocks.filter((b) => b.id !== block.id))}
                 />
-              </label>
-              <button
-                className="btn btn--small"
-                aria-label={t('blog.adjustLatest', { page: block.page })}
-                onClick={() => {
-                  setLatestEdit(block)
-                  setMode('point-latest')
-                }}
-              >
-                {t('blog.adjust')}
-              </button>
-              <button
-                className="btn btn--small btn--danger-outline"
-                aria-label={t('blog.removeLatest', { page: block.page })}
-                onClick={() => saveLatest(latestBlocks.filter((b) => b.id !== block.id))}
-                title={t('blog.removeLatestHint')}
-              >
-                {t('common.remove')}
-              </button>
-            </span>
-          ))}
-          <span className="latest-row">
+              ))}
+            </ul>
+          )}
+          <div className="latest-add">
+            <label className="latest-add__label" htmlFor="latest-add-page">
+              {t(latestBlocks.length ? 'blog.latestAddAnother' : 'blog.latestAdd')}
+            </label>
             <select
+              id="latest-add-page"
               value={latestPage}
               onChange={(e) => setLatestPage(e.target.value)}
-              aria-label={t('blog.latestPage')}
             >
               <option value="">{t('blog.choosePage')}</option>
               {pages.map((page) => (
@@ -681,7 +820,7 @@ export default function BlogView({
             >
               {t('blog.pointArea')}
             </button>
-          </span>
+          </div>
         </li>
       </ol>
       {error && (
@@ -719,41 +858,60 @@ export default function BlogView({
           <p>{layoutsDone ? t('blog.noPostsReady') : t('blog.noPostsSetup')}</p>
         </div>
       ) : (
-        <table className="list list--clickable">
-          <thead>
-            <tr>
-              <th>{t('blog.colTitle')}</th>
-              <th>{t('blog.colUrl')}</th>
-              <th>{t('blog.colTags')}</th>
-              <th>{t('blog.colStatus')}</th>
-              <th>{t('blog.colDate')}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {posts.map((item) => (
-              <tr key={item.id} onClick={() => openPost(item.id)}>
-                <td className="list__title">
-                  {/* The row is clickable with the mouse; this button makes it reachable by keyboard. */}
-                  <button
-                    className="link blog__post-link"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      openPost(item.id)
-                    }}
-                  >
-                    {item.title || t('blog.untitled')}
-                  </button>
-                </td>
-                <td className="muted mono">{item.url}</td>
-                <td className="muted small">{item.tags.join(', ')}</td>
-                <td>
-                  <StatusPill status={item.status} scheduled={item.scheduled} />
-                </td>
-                <td className="muted">{formatDate(item.date)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <>
+          {postList.searchable && (
+            <ListSearch
+              value={postList.query}
+              onChange={postList.setQuery}
+              label={t('blog.searchPosts')}
+            />
+          )}
+          {postList.matched === 0 ? (
+            <NoMatches query={postList.query} onClear={() => postList.setQuery('')} />
+          ) : (
+            <table className="list list--clickable">
+              <thead>
+                <tr>
+                  <th scope="col">{t('blog.colTitle')}</th>
+                  <th scope="col">{t('blog.colUrl')}</th>
+                  <th scope="col">{t('blog.colTags')}</th>
+                  <th scope="col">{t('blog.colStatus')}</th>
+                  <th scope="col">{t('blog.colDate')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {postList.rows.map((item) => (
+                  <tr key={item.id} onClick={() => openPost(item.id)}>
+                    <td className="list__title">
+                      {/* The row is clickable with the mouse; this button makes it reachable by keyboard. */}
+                      <button
+                        className="link blog__post-link"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          openPost(item.id)
+                        }}
+                      >
+                        {item.title || t('blog.untitled')}
+                      </button>
+                    </td>
+                    <td className="muted mono">{item.url}</td>
+                    <td className="muted small">{item.tags.join(', ')}</td>
+                    <td>
+                      <StatusPill status={item.status} scheduled={item.scheduled} />
+                    </td>
+                    <td className="muted">{formatDate(item.date)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          <Pagination
+            page={postList.page}
+            pages={postList.pages}
+            total={postList.matched}
+            onPage={postList.setPage}
+          />
+        </>
       )}
     </Section>
   )
@@ -761,7 +919,7 @@ export default function BlogView({
   const urlSection = site && (
     <UrlSettings
       site={site}
-      hasPublished={Boolean(posts?.some((p) => p.status === 'published'))}
+      hasPublished={created || Boolean(posts?.some((p) => p.status === 'published'))}
       onSaved={(next) => {
         setSite(next)
         loadPosts()
@@ -771,9 +929,10 @@ export default function BlogView({
 
   return (
     <div className="blog">
-      {layoutsDone ? (
+      {layoutsDone && created ? (
         <>
           {postsSection}
+          <LayoutLinksCard refresh={generated} onOpenPage={onOpenPage} />
           {urlSection}
           {setupSection}
         </>
@@ -784,6 +943,201 @@ export default function BlogView({
         </>
       )}
     </div>
+  )
+}
+
+/**
+ * Links on the site's pages to layout pages the blog took off the site (the site's
+ * "Blog" link to blog.html…), with one button to point them at the blog. Shown only
+ * while there are some.
+ */
+function LayoutLinksCard({
+  refresh,
+  onOpenPage
+}: {
+  /** Reloads when it changes (the blog's pages were just written). */
+  refresh: unknown
+  onOpenPage: (path: string) => void
+}): React.JSX.Element | null {
+  const t = useT()
+  const [links, setLinks] = useState<LayoutLinks | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [status, setStatus] = useState<{
+    kind: 'error' | 'success' | 'info'
+    text: string
+    undo?: string
+  } | null>(null)
+
+  const load = (): Promise<void> => window.api.getLayoutLinks().then(setLinks, () => setLinks(null))
+  useEffect(() => {
+    load()
+  }, [refresh])
+
+  const fix = async (): Promise<void> => {
+    setBusy(true)
+    setStatus(null)
+    try {
+      const result = await window.api.fixLayoutLinks()
+      const text = [
+        result.links ? t('blog.layoutLinksDone', { count: result.links }) : '',
+        result.skipped.length
+          ? t('blog.layoutLinksSkipped', { list: result.skipped.join(', ') })
+          : ''
+      ]
+        .filter(Boolean)
+        .join(' ')
+      setStatus({
+        kind: result.links ? 'success' : 'info',
+        text,
+        undo: result.historyId ?? undefined
+      })
+    } catch (e) {
+      setStatus({ kind: 'error', text: errorMessage(e) })
+    }
+    setBusy(false)
+    await load()
+  }
+
+  const undo = async (id: string): Promise<void> => {
+    try {
+      await window.api.revertHistory(id)
+      setStatus({ kind: 'info', text: t('blog.layoutLinksUndone') })
+    } catch (e) {
+      setStatus({ kind: 'error', text: errorMessage(e) })
+    }
+    await load()
+  }
+
+  if (!links && !status) return null
+  const count = links?.pages.reduce((sum, page) => sum + page.links, 0) ?? 0
+  return (
+    <Section
+      title={t('blog.layoutLinksTitle')}
+      actions={
+        links && (
+          <button
+            className="btn btn--primary"
+            disabled={busy || links.pages.every((page) => page.unsaved)}
+            onClick={fix}
+          >
+            {t('blog.layoutLinksFix')}
+          </button>
+        )
+      }
+    >
+      {links && (
+        <>
+          <p className="muted">
+            {t('blog.layoutLinksBody', {
+              count,
+              layouts: links.layouts.join(', '),
+              blog: links.blogHome
+            })}
+          </p>
+          <ul className="layout-links">
+            {links.pages.map((page) => (
+              <li key={page.path}>
+                <button className="link mono" onClick={() => onOpenPage(page.path)}>
+                  {page.path}
+                </button>{' '}
+                <span className="muted small">
+                  ({page.links}
+                  {page.unsaved && `, ${t('blog.layoutLinksUnsaved')}`})
+                </span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      <div role="status">
+        {status && status.kind !== 'error' && (
+          <Notice kind={status.kind}>
+            <span className="blog__flash">
+              {status.text}
+              {status.undo && (
+                <button className="link" onClick={() => undo(status.undo!)}>
+                  {t('common.undo')}
+                </button>
+              )}
+            </span>
+          </Notice>
+        )}
+      </div>
+      <div role="alert">
+        {status?.kind === 'error' && <Notice kind="error">{status.text}</Notice>}
+      </div>
+    </Section>
+  )
+}
+
+/** One "latest posts" block: where it is, how many posts it shows, adjust / remove. */
+function LatestBlockRow({
+  block,
+  title,
+  onOpen,
+  onCount,
+  onAdjust,
+  onRemove
+}: {
+  block: LatestLayout
+  title?: string
+  onOpen: () => void
+  onCount: (count: number) => void
+  onAdjust: () => void
+  onRemove: () => void
+}): React.JSX.Element {
+  const t = useT()
+  const id = useId()
+  // Saving re-publishes the blog: only when the number is done (blur or Enter), not per key.
+  const [count, setCount] = useState(String(block.count))
+  const commit = (): void => {
+    const next = Math.min(24, Math.max(1, Number(count) || 1))
+    setCount(String(next))
+    if (next !== block.count) onCount(next)
+  }
+  return (
+    <li className="latest-block">
+      <div className="latest-block__where">
+        <button className="link latest-block__page" onClick={onOpen}>
+          {title || block.page}
+        </button>
+        <span className="latest-block__meta">
+          {title && <span className="mono">{block.page}</span>}
+          <span>{t('blog.latestShows', { count: block.count })}</span>
+        </span>
+      </div>
+      <label className="latest-block__count" htmlFor={id}>
+        {t('blog.latestCount')}
+        <input
+          id={id}
+          aria-label={t('blog.latestCountOn', { page: block.page })}
+          type="number"
+          min={1}
+          max={24}
+          value={count}
+          onChange={(e) => setCount(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => e.key === 'Enter' && commit()}
+        />
+      </label>
+      <div className="latest-block__actions">
+        <button
+          className="btn btn--small"
+          aria-label={t('blog.adjustLatest', { page: block.page })}
+          onClick={onAdjust}
+        >
+          {t('blog.adjust')}
+        </button>
+        <button
+          className="btn btn--small btn--danger-outline"
+          aria-label={t('blog.removeLatest', { page: block.page })}
+          title={t('blog.removeLatestHint')}
+          onClick={onRemove}
+        >
+          {t('common.remove')}
+        </button>
+      </div>
+    </li>
   )
 }
 
@@ -809,19 +1163,21 @@ function UrlSettings({
   const [perPage, setPerPage] = useState(site.blog.postsPerPage)
   const [title, setTitle] = useState(site.blog.title)
   const [scheduleDeploy, setScheduleDeploy] = useState(site.blog.scheduleDeploy)
+  const [emptyText, setEmptyText] = useState(site.blog.emptyText)
   const [status, setStatus] = useState<{ kind: 'error' | 'success'; text: string } | null>(null)
   const changed =
     permalink !== site.blog.permalink ||
     list !== site.blog.listPath ||
     perPage !== site.blog.postsPerPage ||
     title !== site.blog.title ||
-    scheduleDeploy !== site.blog.scheduleDeploy
+    scheduleDeploy !== site.blog.scheduleDeploy ||
+    emptyText !== site.blog.emptyText
 
   const save = async (): Promise<void> => {
     setStatus(null)
     try {
       const next = await window.api.saveSiteSettings({
-        blog: { permalink, listPath: list, postsPerPage: perPage, title, scheduleDeploy }
+        blog: { permalink, listPath: list, postsPerPage: perPage, title, scheduleDeploy, emptyText }
       })
       setPermalink(next.blog.permalink)
       setList(next.blog.listPath)
@@ -912,6 +1268,9 @@ function UrlSettings({
         <Field label={t('blog.blogTitle')} hint={t('blog.blogTitleHint')}>
           <input value={title} onChange={(e) => setTitle(e.target.value)} />
         </Field>
+        <Field label={t('blog.emptyTextLabel')} hint={t('blog.emptyTextHint')}>
+          <input value={emptyText} onChange={(e) => setEmptyText(e.target.value)} />
+        </Field>
       </div>
       <label className="check">
         <input
@@ -921,10 +1280,14 @@ function UrlSettings({
         />
         <span>
           {t('blog.scheduleDeploy')}
-          <small className="muted field__hint"> {t('blog.scheduleDeployHint')}</small>
+          <span className="check__hint">{t('blog.scheduleDeployHint')}</span>
         </span>
       </label>
-      {hasPublished && changed && <Notice kind="info">{t('blog.urlsMove')}</Notice>}
+      {hasPublished && changed && (
+        <Explainer>
+          {t(site.deploy.target === 'server' ? 'blog.urlsMoveServer' : 'blog.urlsMove')}
+        </Explainer>
+      )}
       <div role={status?.kind === 'error' ? 'alert' : 'status'}>
         {status && <Notice kind={status.kind}>{status.text}</Notice>}
       </div>

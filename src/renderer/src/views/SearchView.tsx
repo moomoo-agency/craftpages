@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react'
-import { Field, Notice, Section } from '../components/Field'
+import { Explainer, Field, Notice, Section } from '../components/Field'
 import { ColorField } from '../components/SearchIconForm'
 import { translate, useT, type Key } from '../i18n'
 import { copyText, errorMessage, formatBytes } from '../lib/api'
@@ -336,9 +336,9 @@ export default function SearchView({ workspace }: Props): React.JSX.Element {
             />
           </div>
           <div className="search-icon-summary__text">
-            <p className="muted small">
+            <Explainer>
               {t.rich('search.iconOwn', { attr: <code>data-craftpages-search</code> })}
-            </p>
+            </Explainer>
             <button className="btn btn--small" disabled={!markup} onClick={() => copyText(markup)}>
               {t('search.copyMarkup')}
             </button>
@@ -515,9 +515,9 @@ export default function SearchView({ workspace }: Props): React.JSX.Element {
             ))}
           </tbody>
         </table>
-        <p className="muted small">
+        <Explainer>
           {t.rich('search.leaveOutHelp', { meta: <code>craftpages:search</code> })}
-        </p>
+        </Explainer>
         {show('pages')}
       </Section>
     </div>

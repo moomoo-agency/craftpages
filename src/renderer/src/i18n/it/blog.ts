@@ -53,7 +53,7 @@ const messages: Translation['blog'] = {
   aiDescription:
     'La tua IA connessa le crea con il design del sito. Rivedi la proposta (modifiche e anteprima) prima che venga scritto qualcosa, poi torna qui e sceglile.',
   aiConnected: 'Connessa: {clients}',
-  aiNotConnected: 'Nessuna IA ancora connessa. Configurala in {view}.',
+  aiNotConnected: 'Nessuna IA ancora connessa. Configurala in Impostazioni app → Connessione IA.',
   copyPrompt: 'Copia il prompt',
 
   backToBlog: 'Torna al blog',
@@ -73,7 +73,7 @@ const messages: Translation['blog'] = {
   setupTitle: 'Configurazione',
   setupTitleTodo: 'Configura il blog',
   setupDone: 'Fatto. Puoi modificare ogni parte in qualsiasi momento.',
-  setupTodo: 'Indica dove vanno gli articoli e le schede, poi controlla l’anteprima.',
+  setupTodo: 'Indica dove vanno gli articoli e le schede, controlla l’anteprima, poi crea il blog.',
   stepChoose: 'Scegli i layout',
   stepChooseSummary: 'Gli articoli sono come {post}; l’elenco è come {list}.',
   changeLayouts: 'Cambia i layout',
@@ -109,12 +109,19 @@ const messages: Translation['blog'] = {
   adjustLatest: 'Modifica gli ultimi articoli in {page}',
   removeLatest: 'Rimuovi gli ultimi articoli da {page}',
   removeLatestHint: 'L’area mantiene le schede attuali, che però non si aggiornano più.',
+  latestShows: {
+    one: 'Mostra l’articolo più recente',
+    other: 'Mostra i {count} articoli più recenti'
+  },
+  latestAdd: 'Aggiungi gli ultimi articoli a una pagina',
+  latestAddAnother: 'Aggiungi a un’altra pagina',
   latestPage: 'Pagina per gli ultimi articoli',
   pointArea: 'Indica l’area…',
   finishLayoutsFirst: 'Completa prima i layout degli articoli e dell’elenco.',
 
   posts: 'Articoli',
   newPost: 'Nuovo articolo',
+  searchPosts: 'Cerca per titolo, URL o tag',
   noPosts: 'Ancora nessun articolo',
   noPostsReady: 'Scegli Nuovo articolo per scrivere il primo.',
   noPostsSetup: 'Completa la configurazione per iniziare a scrivere.',
@@ -142,9 +149,11 @@ const messages: Translation['blog'] = {
     'Titolo e intestazione della pagina dell’elenco. Le pagine dei tag mostrano “Blog: tag”.',
   scheduleDeploy: 'Pubblica in produzione quando un articolo programmato va online',
   scheduleDeployHint:
-    'Usa le impostazioni Cloudflare di questo progetto. CraftPages deve essere aperto in quel momento; altrimenti la pubblicazione avviene al prossimo avvio.',
+    'Usa le impostazioni di pubblicazione di questo progetto. CraftPages deve essere aperto in quel momento; altrimenti la pubblicazione avviene al prossimo avvio.',
   urlsMove:
     'Gli articoli pubblicati passano ai nuovi URL. I vecchi URL ricevono reindirizzamenti 301 in _redirects, così link e risultati di ricerca continuano a funzionare.',
+  urlsMoveServer:
+    'Gli articoli pubblicati passano ai nuovi URL. I vecchi URL ricevono reindirizzamenti 301 in .htaccess, così link e risultati di ricerca continuano a funzionare su hosting Apache (la maggior parte degli hosting condivisi). I server che usano solo nginx ignorano .htaccess.',
 
   opening: 'Apertura di {page}…',
   layoutFrame: 'Layout di {page}',
@@ -182,9 +191,9 @@ const messages: Translation['blog'] = {
   imageHelp: 'Saltala se il layout non ha un’immagine principale.',
   imageSkip: 'Salta: nessuna immagine di copertina',
   tags: 'Tag',
-  tagsPrompt: 'Fai clic dove devono comparire i tag dell’articolo.',
+  tagsPrompt: 'Fai clic su un badge di tag, per esempio «Abitudini».',
   tagsHelp:
-    'Va bene una riga piccola vicino al titolo o sotto l’articolo. Mostra i tag come link alle loro pagine e resta vuota per gli articoli senza tag.',
+    'Viene copiato una volta per ogni tag dell’articolo, con lo stesso stile, e porta alla pagina del tag. Hai scelto l’elenco (Più ampio)? Viene copiato il primo badge; il resto rimane. Gli articoli senza tag non ne mostrano.',
   tagsSkip: 'Salta: non mostrare i tag',
   remove: 'Escludi',
   removePrompt: 'Fai clic su qualsiasi altra cosa che non deve comparire nelle pagine generate.',
@@ -229,7 +238,71 @@ const messages: Translation['blog'] = {
   latestArea: 'Area',
   latestAreaPrompt: 'Fai clic sull’area dove devono comparire gli ultimi articoli.',
   latestAreaHelp:
-    'Quando pubblichi cambia solo quest’area; il resto della pagina resta esattamente com’è. Se la pagina mostra già alcune schede, fai clic sulla loro griglia e poi su una scheda.'
+    'Quando pubblichi cambia solo quest’area; il resto della pagina resta esattamente com’è. Se la pagina mostra già alcune schede, fai clic sulla loro griglia e poi su una scheda.',
+  layoutLinksTitle: 'Link ai modelli del blog',
+  layoutLinksBody: {
+    one: '{count} link nelle tue pagine punta ancora a {layouts}, sostituita dal blog. I visitatori vengono reindirizzati a {blog}, ma puntare il link direttamente lì è più pulito e funziona anche nell’editor.',
+    other:
+      '{count} link nelle tue pagine puntano ancora a {layouts}, sostituite dal blog. I visitatori vengono reindirizzati a {blog}, ma puntare i link direttamente lì è più pulito e funziona anche nell’editor.'
+  },
+  layoutLinksUnsaved: 'modifiche non salvate: salva prima',
+  layoutLinksFix: 'Punta i link al blog',
+  layoutLinksDone: {
+    one: '{count} link ora punta al blog.',
+    other: '{count} link ora puntano al blog.'
+  },
+  layoutLinksSkipped: 'Lasciate invariate perché hanno modifiche non salvate: {list}.',
+  layoutLinksUndone: 'I link sono tornati com’erano.',
+  stepCreate: 'Crea il blog',
+  stepCreateHint:
+    'Costruisce il blog vero dai tuoi modelli, così puoi aprirlo subito, anche prima del primo articolo.',
+  createList: 'Crea {blog} da {list}. Resta vuoto finché non pubblichi un articolo.',
+  createPosts: 'Costruisce ogni articolo che pubblichi da {post}.',
+  createRetire:
+    'Toglie {pages} dal sito. Restano in Pagine come modelli: modificali per cambiare l’aspetto del blog.',
+  createLinks: {
+    one: 'Punta {count} link nelle tue pagine a {blog} invece che al modello',
+    other: 'Punta {count} link nelle tue pagine a {blog} invece che ai modelli'
+  },
+  createButton: 'Crea il blog',
+  createdSummary: 'Il tuo blog è su {blog}. Si aggiorna ogni volta che salvi un articolo.',
+  createdNotice: 'Blog creato su {blog}.',
+  openBlog: 'Apri {blog}',
+  viewerNote:
+    'Come lo vedono i visitatori. I link funzionano; questa pagina è ricostruita dal blog, quindi non si modifica qui.',
+  viewerFrame: 'Pagina come la vedono i visitatori',
+  emptyTextLabel: 'Testo quando non ci sono articoli',
+  emptyTextHint: 'Mostrato nell’elenco finché non pubblichi il primo articolo.',
+  category: 'Categoria',
+  categoryPrompt:
+    'Fai clic sul badge della categoria, se la pagina ne mostra uno (spesso sopra il titolo, per esempio «Scrittura»).',
+  categoryHelp:
+    'Fai clic sul badge, non sulla riga che lo contiene. Mostra la categoria dell’articolo con lo stesso stile e porta alla pagina della categoria. Gli articoli senza categoria non la mostrano.',
+  categorySkip: 'Salta: nessuna categoria nella pagina',
+  author: 'Autore',
+  authorPrompt:
+    'Fai clic sul nome dell’autore. Se compare in più punti (firma, box autore), fai clic su ognuno.',
+  authorHelp:
+    'Cambia solo il nome, e solo per gli articoli con un autore. Gli altri mantengono il nome già presente nella pagina, ideale per un blog personale.',
+  authorSkip: 'Salta: nessun autore nella pagina',
+  cardCategory: 'Scheda · categoria',
+  cardCategoryPrompt: 'Nella scheda, fai clic sul badge della categoria (se c’è).',
+  cardCategoryHelp:
+    'Mostra la categoria nello stile del badge; rimosso per gli articoli senza categoria.',
+  cardTags: 'Scheda · tag',
+  cardTagsPrompt: 'Nella scheda, fai clic su un badge di tag (se ci sono tag).',
+  cardTagsHelp:
+    'Copiato una volta per tag, con lo stesso stile; rimosso per gli articoli senza tag.',
+  cardAuthor: 'Scheda · autore',
+  cardAuthorPrompt: 'Nella scheda, fai clic sul nome dell’autore (se c’è).',
+  cardAuthorHelp: 'Sostituito dall’autore dell’articolo; senza autore resta questo nome.',
+  badgeOne: 'Un badge: copiato una volta per ogni tag.',
+  badgeOneCategory: 'Un badge: mostra la categoria.',
+  badgesGroup: {
+    one: 'Un gruppo con {count} badge: viene ripetuto per ogni tag; il resto del gruppo rimane.',
+    other:
+      'Un gruppo con {count} badge: il primo viene ripetuto per ogni tag; il resto del gruppo rimane.'
+  }
 }
 
 export default messages
