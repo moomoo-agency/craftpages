@@ -28,9 +28,9 @@ jobs:
             script: build:linux
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -39,9 +39,13 @@ jobs:
 
       - run: npm run lint
 
+      # The macOS arm64 runners have ~7 GB of RAM, so Node's default heap is small and
+      # electron-vite build aborts with exit code 134 (heap out of memory).
       - run: npm run ${{ matrix.script }}
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: craftpages-${{ matrix.os }}
           path: |
@@ -59,7 +63,7 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v5
         with:
           path: dist
           merge-multiple: true

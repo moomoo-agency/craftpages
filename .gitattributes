@@ -1,0 +1,2 @@
+# LF everywhere, so a Windows checkout does not trip Prettier ("Delete ␍") in npm run lint.
+* text=auto eol=lf
