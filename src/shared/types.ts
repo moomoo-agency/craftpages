@@ -973,7 +973,7 @@ export interface UpdateState {
   url?: string
   /** Download progress, 0–100. */
   percent?: number
-  /** The app downloads and installs it (Windows, AppImage); otherwise the user downloads it. */
+  /** The app downloads and installs it (macOS, Windows, AppImage); otherwise the user downloads it. */
   installs: boolean
   checkedAt?: string
   error?: string

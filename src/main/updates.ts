@@ -7,9 +7,9 @@ import type { UpdateState } from '../shared/types'
  * New versions come from the GitHub releases of moomoo-agency/craftpages (electron-updater
  * reads the latest*.yml files the release workflow attaches).
  *
- * Windows and the Linux AppImage download the update in the background and install it on
- * restart. macOS can't: an unsigned app isn't allowed to replace itself, so there (and for
- * the .deb) the app only says a version is out and links to its release page.
+ * macOS, Windows and the Linux AppImage download the update in the background and install it
+ * on restart (on macOS from the .zip, which works because the app is signed since 1.1.2). For
+ * the .deb the app only says a version is out and links to its release page.
  */
 export const RELEASES_URL = 'https://github.com/moomoo-agency/craftpages/releases'
 
@@ -17,7 +17,9 @@ const CHECK_EVERY_MS = 6 * 60 * 60 * 1000
 const FIRST_CHECK_MS = 15 * 1000
 
 const selfInstalls =
-  process.platform === 'win32' || (process.platform === 'linux' && !!process.env.APPIMAGE)
+  process.platform === 'darwin' ||
+  process.platform === 'win32' ||
+  (process.platform === 'linux' && !!process.env.APPIMAGE)
 
 let state: UpdateState = {
   current: app.getVersion(),
@@ -91,7 +93,7 @@ export async function checkForUpdate(): Promise<UpdateState> {
   return state
 }
 
-/** Restarts into the downloaded version (Windows, AppImage). */
+/** Restarts into the downloaded version (macOS, Windows, AppImage). */
 export function installUpdate(): void {
   if (state.status === 'ready') autoUpdater.quitAndInstall()
 }

@@ -7,15 +7,15 @@ check by hand in **App settings → Updates → Check now**.
 Your settings, connections, tokens and sites are kept across upgrades: they live outside
 the app.
 
-| System         | What happens                                                                                                                |
-| -------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| Windows        | The update downloads in the background. Click **Restart to update**, or it installs the next time you quit.                 |
-| Linux AppImage | Same as Windows.                                                                                                            |
-| macOS          | Click **Download**, open the new `.dmg` and drag CraftPages into Applications, choosing **Replace**. Quit CraftPages first. |
-| Linux .deb     | Click **Download**, then `sudo apt install ./craftpages_amd64.deb`.                                                         |
+| System         | What happens                                                                                                |
+| -------------- | ----------------------------------------------------------------------------------------------------------- |
+| macOS, Windows | The update downloads in the background. Click **Restart to update**, or it installs the next time you quit. |
+| Linux AppImage | Same as macOS and Windows.                                                                                  |
+| Linux .deb     | Click **Download**, then `sudo apt install ./craftpages_amd64.deb`.                                         |
 
-macOS can't update the app in place yet: that needs the app to be signed with an Apple
-developer certificate, which is planned.
+On macOS, versions before 1.1.3 can't update themselves: download the latest `.dmg` once,
+open it and drag CraftPages into Applications, choosing **Replace** (quit CraftPages first).
+After that, updates install on their own.
 
 Clicking **×** on the card hides it until the next version comes out.
 
