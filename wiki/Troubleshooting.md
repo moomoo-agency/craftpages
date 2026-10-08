@@ -1,8 +1,8 @@
 # Troubleshooting
 
-**macOS: "CraftPages can't be opened" / "is damaged".** The app isn't signed yet. See
-[Installing](Installing#macos): **System Settings → Privacy & Security → Open Anyway**, or
-`xattr -cr /Applications/CraftPages.app`.
+**macOS: "CraftPages can't be opened" / "is damaged".** Versions before 1.1.2 weren't
+signed. Install the [latest release](https://github.com/moomoo-agency/craftpages/releases/latest),
+or run `xattr -cr /Applications/CraftPages.app` (see [Installing](Installing#macos)).
 
 **Windows: "Windows protected your PC".** Click **More info → Run anyway**.
 

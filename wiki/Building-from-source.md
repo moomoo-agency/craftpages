@@ -76,15 +76,20 @@ installers are then kept as workflow artifacts, not a release.
 
 ## Signing
 
-Builds are unsigned for now: macOS and Windows warn on first launch, and the Mac app can't
-update itself. To sign, add repository secrets and pass them to the build step as
-environment variables; electron-builder picks them up:
+The Mac builds are signed with a Developer ID certificate and notarized by Apple. The
+Release workflow passes these repository secrets to the macOS build only:
 
-- **macOS:** `CSC_LINK` (Developer ID Application certificate, base64 `.p12`),
-  `CSC_KEY_PASSWORD`, and for notarization `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`,
-  `APPLE_TEAM_ID`; then set `mac.notarize: true` in `electron-builder.yml`.
-- **Windows:** `CSC_LINK` / `CSC_KEY_PASSWORD` for a code-signing certificate, or Azure
-  Trusted Signing. See the [electron-builder docs](https://www.electron.build/code-signing).
+- `CSC_LINK`: the Developer ID Application certificate, a base64 `.p12`
+  (`base64 -i cert.p12 | pbcopy`)
+- `CSC_KEY_PASSWORD`: the `.p12` password
+- `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID`: for notarization
+
+A local `npm run build:mac` without them still works, unsigned (electron-builder skips
+signing and notarization when there is no certificate).
+
+Windows builds are unsigned, so SmartScreen warns on first launch. To sign them, use a
+code-signing certificate (`WIN_CSC_LINK` / `WIN_CSC_KEY_PASSWORD`) or Azure Trusted Signing;
+see the [electron-builder docs](https://www.electron.build/code-signing).
 
 ## Project layout
 

@@ -17,13 +17,12 @@ Silicon, "Processor: Intel…" means Intel. macOS 12 Monterey or later is requir
 ## macOS
 
 1. Open the `.dmg` and drag **CraftPages** into **Applications**.
-2. Open CraftPages from Applications. The first time, macOS says it can't verify the app,
-   because the builds aren't signed with an Apple developer certificate yet.
-3. Go to **System Settings → Privacy & Security**, scroll down and click **Open Anyway**
-   next to CraftPages. Confirm once more. From then on it opens normally.
+2. Open CraftPages from Applications. The first time, macOS asks whether to open an app
+   downloaded from the internet; click **Open**.
 
-If macOS says the app "is damaged and can't be opened", that is the same check. Run this
-in Terminal, then open the app again:
+The app is signed and notarized by Apple from version 1.1.2. If an older version says it
+"is damaged and can't be opened", run this in Terminal, then open the app again (or install
+the latest version):
 
 ```bash
 xattr -cr /Applications/CraftPages.app

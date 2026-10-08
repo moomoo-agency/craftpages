@@ -31,8 +31,9 @@ mac:
   extendInfo:
     - NSDocumentsFolderUsageDescription: CraftPages opens the site folders you choose, which may be in Documents.
     - NSDownloadsFolderUsageDescription: CraftPages opens the site folders you choose, which may be in Downloads.
-  # Signing and notarizing need an Apple Developer ID; see README → "Signing".
-  notarize: false
+  # Signed with the Developer ID certificate and notarized by Apple in the Release workflow
+  # (CSC_LINK, APPLE_ID, … secrets); see wiki/Building-from-source.md → "Signing".
+  notarize: true
 
 win:
   executableName: CraftPages

@@ -44,6 +44,13 @@ jobs:
       - run: npm run ${{ matrix.script }}
         env:
           NODE_OPTIONS: --max-old-space-size=6144
+          # Developer ID signing and notarization, Mac only: on Windows electron-builder
+          # would try to sign the installer with CSC_LINK too.
+          CSC_LINK: ${{ runner.os == 'macOS' && secrets.CSC_LINK || '' }}
+          CSC_KEY_PASSWORD: ${{ runner.os == 'macOS' && secrets.CSC_KEY_PASSWORD || '' }}
+          APPLE_ID: ${{ runner.os == 'macOS' && secrets.APPLE_ID || '' }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ runner.os == 'macOS' && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
+          APPLE_TEAM_ID: ${{ runner.os == 'macOS' && secrets.APPLE_TEAM_ID || '' }}
 
       - uses: actions/upload-artifact@v5
         with:
