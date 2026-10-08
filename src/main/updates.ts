@@ -8,7 +8,7 @@ import type { UpdateState } from '../shared/types'
  * reads the latest*.yml files the release workflow attaches).
  *
  * macOS, Windows and the Linux AppImage download the update in the background and install it
- * on restart (on macOS from the .zip, which works because the app is signed since 1.1.2). For
+ * on restart (on macOS from the .zip, which works because the app is signed since 1.1.4). For
  * the .deb the app only says a version is out and links to its release page.
  */
 export const RELEASES_URL = 'https://github.com/moomoo-agency/craftpages/releases'

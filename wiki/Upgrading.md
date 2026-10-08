@@ -13,7 +13,7 @@ the app.
 | Linux AppImage | Same as macOS and Windows.                                                                                  |
 | Linux .deb     | Click **Download**, then `sudo apt install ./craftpages_amd64.deb`.                                         |
 
-On macOS, versions before 1.1.3 can't update themselves: download the latest `.dmg` once,
+On macOS, versions before 1.1.4 can't update themselves: download the latest `.dmg` once,
 open it and drag CraftPages into Applications, choosing **Replace** (quit CraftPages first).
 After that, updates install on their own.
 

@@ -52,6 +52,18 @@ jobs:
           APPLE_APP_SPECIFIC_PASSWORD: ${{ runner.os == 'macOS' && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
           APPLE_TEAM_ID: ${{ runner.os == 'macOS' && secrets.APPLE_TEAM_ID || '' }}
 
+      # electron-builder only warns when it finds no certificate and ships an unsigned app;
+      # stop here instead, so an app macOS calls "damaged" is never released.
+      - name: Check the Mac apps are signed and notarized
+        if: runner.os == 'macOS'
+        run: |
+          for app in dist/mac-arm64/CraftPages.app dist/mac/CraftPages.app; do
+            codesign -dv "$app" 2>&1 | grep -q '^Authority=Developer ID Application' \
+              || { echo "::error::$app is not signed with a Developer ID certificate"; exit 1; }
+            codesign --verify --deep --strict "$app"
+            xcrun stapler validate "$app"
+          done
+
       - uses: actions/upload-artifact@v5
         with:
           name: craftpages-${{ matrix.os }}

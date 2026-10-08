@@ -20,7 +20,7 @@ Silicon, "Processor: Intel…" means Intel. macOS 12 Monterey or later is requir
 2. Open CraftPages from Applications. The first time, macOS asks whether to open an app
    downloaded from the internet; click **Open**.
 
-The app is signed and notarized by Apple from version 1.1.2. If an older version says it
+The app is signed and notarized by Apple from version 1.1.4. If an older version says it
 "is damaged and can't be opened", run this in Terminal, then open the app again (or install
 the latest version):
 
