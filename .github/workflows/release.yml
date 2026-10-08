@@ -58,7 +58,10 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           for app in dist/mac-arm64/CraftPages.app dist/mac/CraftPages.app; do
-            codesign -dv "$app" 2>&1 | grep -q '^Authority=Developer ID Application' \
+            # Saved first: piping codesign into grep -q fails under pipefail (SIGPIPE).
+            info=$(codesign -dv "$app" 2>&1)
+            echo "$app: $(grep -m1 '^Authority=' <<<"$info" || echo 'no signing authority')"
+            grep -q '^Authority=Developer ID Application' <<<"$info" \
               || { echo "::error::$app is not signed with a Developer ID certificate"; exit 1; }
             codesign --verify --deep --strict "$app"
             xcrun stapler validate "$app"
