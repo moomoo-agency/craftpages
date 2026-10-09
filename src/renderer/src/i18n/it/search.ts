@@ -50,6 +50,8 @@ const messages: Translation['search'] = {
     one: '{count} pagina non ha ancora la ricerca (una pagina nuova?). <link>Aggiungila</link>',
     other: '{count} pagine non hanno ancora la ricerca (pagine nuove?). <link>Aggiungila</link>'
   },
+  indexLarge:
+    'L’indice pesa {size} e i visitatori lo scaricano alla prima ricerca. Con una connessione veloce resta rapido, ma su mobile rallenta. Escludi le pagine lunghe o d’archivio (“Cosa si può cercare”, qui sotto) o segna i blocchi ripetuti con data-craftpages-search-ignore.',
   tryHelp:
     'La tua home page con i suoi script attivi. Premi Esc per chiudere la casella; fai clic sull’icona o premi ⌘K / Ctrl+K nell’anteprima per riaprirla. Nell’editor di pagina la ricerca funziona in modalità Interagisci (la modalità Modifica disattiva gli script del sito).',
   closePreview: 'Chiudi anteprima',

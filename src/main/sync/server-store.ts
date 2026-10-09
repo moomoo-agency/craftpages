@@ -2,6 +2,7 @@ import { randomBytes } from 'crypto'
 import { posix } from 'path'
 import { baseOf, openRemote, type Remote, type ServerConnection } from '../deploy/server'
 import { decrypt, deriveKey, encrypt } from './crypto'
+import { log } from '../log'
 import { checkSnapshot, type Snapshot } from './snapshots'
 import type { LiveChannel, LiveEvent, RemoteHead, SyncProject, SyncStore } from './store'
 import type { SyncPresence } from '../../shared/types'
@@ -247,6 +248,8 @@ export function serverLive(
   let lastRev = -1
   let stopped = false
   let timer: ReturnType<typeof setTimeout> | null = null
+  // Logged once per outage, not on every poll.
+  let failing = false
 
   const poll = async (): Promise<void> => {
     if (stopped) return
@@ -269,6 +272,8 @@ export function serverLive(
           if (presence && Date.now() - Date.parse(presence.at) < PRESENT_FOR) people.push(presence)
         }
         onEvent({ type: 'presence', people })
+        if (failing) log.info('sync', 'Server sync folder reachable again')
+        failing = false
         const head = await readJson<RemoteHead>(opened, `projects/${project}/head`)
         if (head && head.rev !== lastRev) {
           if (lastRev !== -1) onEvent({ type: 'head', head })
@@ -277,8 +282,10 @@ export function serverLive(
       } finally {
         await opened.remote.close().catch(() => null)
       }
-    } catch {
+    } catch (error) {
       // Offline or the server is busy: try again at the next poll.
+      if (!failing) log.warn('sync', 'Checking the server sync folder failed, will retry', error)
+      failing = true
     }
     if (!stopped) timer = setTimeout(poll, POLL)
   }

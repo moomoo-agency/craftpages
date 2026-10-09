@@ -223,8 +223,10 @@ const messages: Translation['blog'] = {
   cardImagePrompt: 'Nella scheda, fai clic sull’immagine.',
   cardImageHelp: 'Sostituita dall’immagine di copertina dell’articolo.',
   cardLink: 'Scheda · link',
-  cardLinkPrompt: 'Nella scheda, fai clic sul link o sul pulsante che apre l’articolo.',
-  cardLinkHelp: 'Ogni link della scheda che porta alla stessa destinazione punterà all’articolo.',
+  cardLinkPrompt:
+    'Nella scheda, fai clic su ogni link che apre l’articolo: il titolo, “Leggi tutto”…',
+  cardLinkHelp:
+    'Fai clic su tutti quelli presenti. Se l’intera scheda è un link, fai clic in un punto qualsiasi. Anche gli altri link della scheda che portano alla stessa destinazione punteranno all’articolo.',
   pagination: 'Paginazione',
   paginationPrompt: 'Fai clic sulla paginazione (Precedente / Successiva), se la pagina ne ha una.',
   paginationHelp:
@@ -257,6 +259,8 @@ const messages: Translation['blog'] = {
   stepCreateHint:
     'Costruisce il blog vero dai tuoi modelli, così puoi aprirlo subito, anche prima del primo articolo.',
   createList: 'Crea {blog} da {list}. Resta vuoto finché non pubblichi un articolo.',
+  createMoveList:
+    '{list} è dove va {blog}, quindi il layout si sposta accanto, come {to}. I tuoi indirizzi restano gli stessi.',
   createPosts: 'Costruisce ogni articolo che pubblichi da {post}.',
   createRetire:
     'Toglie {pages} dal sito. Restano in Pagine come modelli: modificali per cambiare l’aspetto del blog.',
@@ -267,6 +271,8 @@ const messages: Translation['blog'] = {
   createButton: 'Crea il blog',
   createdSummary: 'Il tuo blog è su {blog}. Si aggiorna ogni volta che salvi un articolo.',
   createdNotice: 'Blog creato su {blog}.',
+  layoutMoved:
+    'Il layout {from} ora è {to}: la pagina del blog ha preso il suo indirizzo. Modifica {to} per cambiare l’aspetto del blog.',
   openBlog: 'Apri {blog}',
   viewerNote:
     'Come lo vedono i visitatori. I link funzionano; questa pagina è ricostruita dal blog, quindi non si modifica qui.',

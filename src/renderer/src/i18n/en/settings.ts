@@ -46,5 +46,14 @@ export default {
   addToClaudeHint: 'Includes the access token, so keep it private.',
   addToClaudeSteps:
     'Run the command once in Terminal, then start Claude Code by typing “claude”. If Claude Code was already open, restart it: it connects when it starts, and “/mcp” in it shows whether craftpages is connected. What it changes arrives in Template editing as proposals for you to review.',
-  copyCommand: 'Copy command'
+  copyCommand: 'Copy command',
+  diagnostics: 'Diagnostics',
+  diagnosticsHint:
+    'If something goes wrong, the log helps us find out why. Send it with your report.',
+  showLog: 'Show log file',
+  copyLog: 'Copy log',
+  logCopied: 'Log copied. Paste it into your report or email.',
+  logEmpty: 'The log is empty so far.',
+  logPrivacy:
+    'The log lists what CraftPages did and the errors it hit, with times. Passwords, tokens and passphrases are never written to it.'
 } satisfies Record<string, Msg>

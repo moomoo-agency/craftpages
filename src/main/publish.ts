@@ -7,6 +7,7 @@ import { listFiles } from './workspace'
 import { refreshSearch } from './search-site'
 import { writeSitemap } from './seo-site'
 import { connectionById, getSiteSettings, trustHostKey } from './settings'
+import { log } from './log'
 import { broadcast, getWorkspace } from './state'
 import type {
   AppEvent,
@@ -134,6 +135,12 @@ export async function deployProject(
         )
     }
     let result: DeployResult
+    const started = Date.now()
+    log.info('publish', `Publishing (${target})`, {
+      target: site.deploy.target,
+      ...(site.deploy.target === 'server' ? { remoteDir: site.deploy.remoteDir || '/' } : {}),
+      force
+    })
     if (site.deploy.target === 'server') {
       const connection = await serverConnection(root)
       result = await server.deployServer(root, site, connection, onProgress, trust(connection))
@@ -142,14 +149,23 @@ export async function deployProject(
         site.deploy.target === 'workers'
           ? await workers.deployWorker(root, site, await credentialsFor(root), onProgress)
           : await cloudflare.deployPages(root, site, await credentialsFor(root), target, onProgress)
+    log.info('publish', 'Published', {
+      uploaded: result.uploaded,
+      total: result.total,
+      seconds: Math.round((Date.now() - started) / 1000)
+    })
     if (target === 'production') {
       await cloudflare.rememberPublished(root, result.id)
       await recordVersion(root, site, result)
       // The other computers learn about this publish right away.
-      if (synced) await syncNow(root).catch(() => null)
+      if (synced)
+        await syncNow(root).catch((error) =>
+          log.warn('publish', 'Sync after publishing failed', error)
+        )
     }
     return result
   } catch (error) {
+    log.error('publish', 'Publish failed', error)
     report({ type: 'deploy', progress: { phase: 'error', message: (error as Error).message } })
     throw error
   } finally {
@@ -189,6 +205,7 @@ async function recordVersion(
     })
   } catch (error) {
     console.error('Could not record the published version:', error)
+    log.warn('publish', 'Could not record the published version', error)
   }
 }
 

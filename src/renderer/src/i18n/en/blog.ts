@@ -235,8 +235,9 @@ export default {
   cardImagePrompt: 'In the card, click the image.',
   cardImageHelp: 'Replaced by the post’s cover image.',
   cardLink: 'Card · link',
-  cardLinkPrompt: 'In the card, click the link or button that opens the post.',
-  cardLinkHelp: 'Every link in the card that goes to the same place will point to the post.',
+  cardLinkPrompt: 'In the card, click each link that opens the post: the title, “Read more”…',
+  cardLinkHelp:
+    'Click as many as the card has. If the whole card is a link, click any part of it. Other links in the card that go to the same place point to the post too.',
   pagination: 'Pagination',
   paginationPrompt: 'Click the pagination (Previous / Next), if the page has one.',
   paginationHelp:
@@ -269,6 +270,8 @@ export default {
   stepCreateHint:
     'Builds the real blog from your templates, so you can open it right away, even before your first post.',
   createList: 'Creates {blog} from {list}. It stays empty until you publish a post.',
+  createMoveList:
+    '{list} is where {blog} goes, so the layout moves next to it, as {to}. Your addresses stay the same.',
   createPosts: 'Builds every post you publish from {post}.',
   createRetire:
     'Takes {pages} off the site. They stay in Pages as templates: edit them to change how the blog looks.',
@@ -279,6 +282,8 @@ export default {
   createButton: 'Create the blog',
   createdSummary: 'Your blog is at {blog}. It updates every time you save a post.',
   createdNotice: 'Blog created at {blog}.',
+  layoutMoved:
+    'The layout {from} is now {to}: the blog’s page took its address. Edit {to} to change how the blog looks.',
   openBlog: 'Open {blog}',
   viewerNote:
     'As visitors see it. Links work; this page is rebuilt by the blog, so it isn’t edited here.',

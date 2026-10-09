@@ -46,7 +46,16 @@ const messages: Translation['settings'] = {
   addToClaudeHint: 'Contiene il token di accesso, quindi tienilo riservato.',
   addToClaudeSteps:
     'Esegui il comando una volta nel Terminale, poi avvia Claude Code scrivendo «claude». Se Claude Code era già aperto, riavvialo: si collega all’avvio, e «/mcp» mostra se craftpages è collegato. Le sue modifiche arrivano in Modifica template come proposte da rivedere.',
-  copyCommand: 'Copia comando'
+  copyCommand: 'Copia comando',
+  diagnostics: 'Diagnostica',
+  diagnosticsHint:
+    'Se qualcosa non va, il log ci aiuta a capire perché. Allegalo alla tua segnalazione.',
+  showLog: 'Mostra file di log',
+  copyLog: 'Copia log',
+  logCopied: 'Log copiato. Incollalo nella segnalazione o in un’email.',
+  logEmpty: 'Il log è ancora vuoto.',
+  logPrivacy:
+    'Il log elenca cosa ha fatto CraftPages e gli errori incontrati, con l’ora. Password, token e passphrase non vi vengono mai scritti.'
 }
 
 export default messages

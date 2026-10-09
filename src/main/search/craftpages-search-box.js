@@ -31,12 +31,20 @@
    * Lowercase without accents, keeping the length: offsets into the folded
    * text are offsets into the original, which makes highlighting simple.
    */
+  var PLAIN = /^[ -~\s]*$/
+  var folded = Object.create(null)
+
   function fold(text) {
+    if (PLAIN.test(text)) return text.toLowerCase()
     var out = ''
     for (var i = 0; i < text.length; i++) {
       var ch = text[i]
-      var base = ch.normalize('NFD')[0].toLowerCase()
-      out += base.length === 1 ? base : ch
+      var base = folded[ch]
+      if (base === undefined) {
+        base = ch.normalize('NFD')[0].toLowerCase()
+        base = folded[ch] = base.length === 1 ? base : ch
+      }
+      out += base
     }
     return out
   }
@@ -211,7 +219,6 @@
     }
 
     _prepare(data) {
-      var vocabulary = new Set()
       var pages = (data && data.pages ? data.pages : []).map(function (page) {
         var sections = (page.s || []).map(function (section) {
           return {
@@ -231,20 +238,31 @@
           ftitle: fold(page.t || ''),
           fdesc: fold(page.d || '')
         }
-        ;[entry.ftitle, entry.fdesc]
+        // Everything at once, to rule a page out with one lookup per word.
+        entry.all = [entry.ftitle, entry.fdesc]
           .concat(
             sections.map(function (s) {
-              return s.fh + ' ' + s.ft
+              return s.fh + '\n' + s.ft
             })
           )
-          .forEach(function (text) {
-            text.split(/[^\p{L}\p{N}]+/u).forEach(function (word) {
-              if (word.length > 3) vocabulary.add(word)
-            })
-          })
+          .join('\n')
         return entry
       })
-      return { pages: pages, vocabulary: Array.from(vocabulary) }
+      return { pages: pages, vocabulary: null }
+    }
+
+    /** Words for near spellings, gathered on the first query that finds nothing. */
+    _vocabulary() {
+      var index = this._index
+      if (index.vocabulary) return index.vocabulary
+      var words = new Set()
+      index.pages.forEach(function (page) {
+        page.all.split(/[^\p{L}\p{N}]+/u).forEach(function (word) {
+          if (word.length > 3) words.add(word)
+        })
+      })
+      index.vocabulary = Array.from(words)
+      return index.vocabulary
     }
 
     open(trigger) {
@@ -365,15 +383,10 @@
       var pages = this._index.pages
       if (term.length < 4) return [term]
       var found = pages.some(function (page) {
-        return (
-          hits(page.ftitle, term, 1).length ||
-          page.sections.some(function (s) {
-            return hits(s.fh, term, 1).length || hits(s.ft, term, 1).length
-          })
-        )
+        return hits(page.all, term, 1).length > 0
       })
       if (found) return [term]
-      var near = this._index.vocabulary.filter(function (word) {
+      var near = this._vocabulary().filter(function (word) {
         return (
           nearlyEqual(term, word) ||
           (word.length > term.length && nearlyEqual(term, word.slice(0, term.length)))
@@ -383,6 +396,12 @@
     }
 
     _score(page, variants) {
+      for (var w = 0; w < variants.length; w++) {
+        var anywhere = variants[w].some(function (term) {
+          return page.all.indexOf(term) !== -1
+        })
+        if (!anywhere) return null // every word must match somewhere
+      }
       var score = 0
       var best = null
       for (var i = 0; i < variants.length; i++) {

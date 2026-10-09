@@ -26,6 +26,8 @@ const EXCLUDED: Record<Exclude<SearchPageState['excluded'], ''>, Key | null> = {
   meta: 'search.excludedMeta'
 }
 
+/** Past this, visitors wait for the download on their first search, on mobile most of all. */
+const LARGE_INDEX = 1024 * 1024
 /** The notice after a change: what was done, how many pages, what was skipped (and why). */
 function summary(change: SearchChange, done: string): Status {
   // Skip reasons come from the main process, in English.
@@ -263,6 +265,11 @@ export default function SearchView({ workspace }: Props): React.JSX.Element {
           </>
         }
       >
+        {state.index && state.index.bytes > LARGE_INDEX && (
+          <Notice kind="warning">
+            {t('search.indexLarge', { size: formatBytes(state.index.bytes) })}
+          </Notice>
+        )}
         {missing > 0 && (
           <Notice kind="info">
             {t.rich('search.missing', {

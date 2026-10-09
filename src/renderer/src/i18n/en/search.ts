@@ -51,6 +51,8 @@ export default {
     one: '{count} page doesn’t have search yet (a new page?). <link>Add search to it</link>',
     other: '{count} pages don’t have search yet (new pages?). <link>Add search to them</link>'
   } satisfies Msg,
+  indexLarge:
+    'The index is {size}, which visitors download the first time they search. That stays quick on a fast connection but slows down on mobile. Leave long or archive pages out (“What’s searchable” below) or mark repeated blocks with data-craftpages-search-ignore.',
   tryHelp:
     'Your home page with its scripts running. Press Esc to close the box; click the icon or press ⌘K / Ctrl+K in the preview to open it again. In the page editor, search works in Interact mode (Edit mode switches the site’s scripts off).',
   closePreview: 'Close preview',

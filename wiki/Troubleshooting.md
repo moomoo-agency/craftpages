@@ -47,5 +47,21 @@ Pick another one in **App settings**.
 **Files I didn't expect are online.** Everything in the folder is published except
 dot-files, `node_modules` and **Never upload** patterns. See [[Your site folder]].
 
+## Sending a log
+
+CraftPages keeps a log of what it did and the errors it hit: syncing, publishing, update
+checks, crashes. It helps most with errors that went away on their own. Passwords, API
+tokens and passphrases are never written to it, and your home folder shows as `~`.
+
+In **App settings → Diagnostics**, **Copy log** copies the recent part, ready to paste into
+an issue or email; **Show log file** opens its folder. The file is `craftpages.log` (with an
+older `craftpages.log.1` next to it once it grows past 1 MB):
+
+- macOS: `~/Library/Logs/CraftPages/`
+- Windows: `%APPDATA%\CraftPages\logs\`
+- Linux: `~/.config/CraftPages/logs/`
+
+It's plain text: read it before you send it if you like.
+
 Still stuck? [Open an issue](https://github.com/moomoo-agency/craftpages/issues) with what
-you did, what happened and your system.
+you did, what happened, your system and the log.

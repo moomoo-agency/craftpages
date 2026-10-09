@@ -31,6 +31,11 @@ export const EXCERPT_META = 'craftpages:excerpt'
 export const COVER_META = 'craftpages:cover'
 /** "custom": <title> is the post's own SEO title (otherwise it comes from the title pattern). */
 export const TITLE_META = 'craftpages:title'
+/**
+ * "custom": the meta description is the post's own, not its excerpt. The excerpt is then kept
+ * in `craftpages:excerpt` (which otherwise only says "auto").
+ */
+export const DESCRIPTION_META = 'craftpages:description'
 /** In a draft: an address the post had while it was on the site (redirected to it when it's back). */
 export const FORMER_URL_META = 'craftpages:former-url'
 export const BODY_START = '<!-- craftpages:body -->'
@@ -96,6 +101,8 @@ export function parsePostPage(html: string, site: SiteSettings): PostRecord | nu
   }
 
   const status = content(meta(head, 'name', STATUS_META)[0])
+  const description = content(meta(head, 'name', 'description')[0])
+  const customDescription = content(meta(head, 'name', DESCRIPTION_META)[0]) === 'custom'
   return {
     id,
     title,
@@ -105,20 +112,31 @@ export function parsePostPage(html: string, site: SiteSettings): PostRecord | nu
     modified:
       content(meta(head, 'property', 'article:modified_time')[0]) || new Date().toISOString(),
     // "auto": the description was made from the body, so it follows the body on the next publish.
-    excerpt:
-      content(meta(head, 'name', EXCERPT_META)[0]) === 'auto'
-        ? ''
-        : content(meta(head, 'name', 'description')[0]),
+    excerpt: storedExcerpt(
+      content(meta(head, 'name', EXCERPT_META)[0]),
+      customDescription,
+      description
+    ),
     cover:
       localImage && content(meta(head, 'name', COVER_META)[0]) !== 'none'
         ? { src: localImage, alt: content(meta(head, 'property', 'og:image:alt')[0]) }
         : null,
     content: parts.join(`\n${BREAK_BLOCK}\n`),
     seoTitle: content(meta(head, 'name', TITLE_META)[0]) === 'custom' ? pageTitle : '',
+    seoDescription: customDescription ? description : '',
     tags: meta(head, 'property', 'article:tag').map(content).filter(Boolean),
     category: content(meta(head, 'property', 'article:section')[0]),
     author: content(meta(head, 'property', 'article:author')[0])
   }
+}
+
+/**
+ * The excerpt from a post page's metas: "auto" (made from the body) is empty; with a custom
+ * description the excerpt is the marker's own text; otherwise it's the meta description.
+ */
+function storedExcerpt(marker: string, customDescription: boolean, description: string): string {
+  if (marker === 'auto') return ''
+  return customDescription ? marker : description
 }
 
 async function readLegacy(root: string): Promise<StoredPost[]> {
@@ -132,13 +150,9 @@ async function readLegacy(root: string): Promise<StoredPost[]> {
   const posts = await Promise.all(
     names.map(async (name): Promise<StoredPost | null> => {
       try {
-        const record = JSON.parse(await readFile(join(dir, name), 'utf8')) as PostRecord & {
-          seoDescription?: string
-        }
-        const excerpt = record.seoDescription?.trim() || record.excerpt
-        delete record.seoDescription
+        const record = JSON.parse(await readFile(join(dir, name), 'utf8')) as PostRecord
         return {
-          record: { ...record, excerpt },
+          record,
           file: `${APP_DIR}/posts/${name}`,
           live: false,
           legacy: true,
@@ -257,6 +271,7 @@ export function newPost(): PostRecord {
     cover: null,
     content: '',
     seoTitle: '',
+    seoDescription: '',
     tags: [],
     category: '',
     author: ''

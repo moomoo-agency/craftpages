@@ -66,9 +66,9 @@ const messages: Translation['post'] = {
   altHint: 'Viene letto a chi non può vedere l’immagine.',
   excerptLabel: 'Estratto',
   excerptHint: {
-    one: '{count} carattere (ideale 70–160). Appare nella scheda, nel feed e come meta description. Se è vuoto, si usano le prime parole dell’articolo.',
+    one: '{count} carattere (ideale 70–160). Appare nella scheda e nel feed, e come meta description se non ne imposti una qui sotto. Se è vuoto, si usano le prime parole dell’articolo.',
     other:
-      '{count} caratteri (ideale 70–160). Appare nella scheda, nel feed e come meta description. Se è vuoto, si usano le prime parole dell’articolo.'
+      '{count} caratteri (ideale 70–160). Appare nella scheda e nel feed, e come meta description se non ne imposti una qui sotto. Se è vuoto, si usano le prime parole dell’articolo.'
   },
   seoHeading: 'Ricerca e social',
   noDescription: 'Nessuna descrizione.',
@@ -76,6 +76,12 @@ const messages: Translation['post'] = {
   seoTitleHint: {
     one: '{count} carattere. Se è vuoto, si usa il titolo dell’articolo.',
     other: '{count} caratteri. Se è vuoto, si usa il titolo dell’articolo.'
+  },
+  seoDescriptionLabel: 'Meta description',
+  seoDescriptionHint: {
+    one: '{count} carattere (ideale 70–160). Appare nei risultati di ricerca e quando l’articolo viene condiviso. Se è vuoto, si usa l’estratto.',
+    other:
+      '{count} caratteri (ideale 70–160). Appare nei risultati di ricerca e quando l’articolo viene condiviso. Se è vuoto, si usa l’estratto.'
   },
 
   statusDraft: 'Bozza',

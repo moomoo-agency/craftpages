@@ -193,13 +193,23 @@ function samplePosts(site: SiteSettings, image: string | null): PostData[] {
     'Five small fixes that doubled sign-ups',
     'Notes from our first year'
   ]
+  // Tags and a category, so the preview shows the badges (posts without them lose them).
+  const blog = listPath(site.blog.listPath)
+  const term = (kind: 'tag' | 'category', name: string): { name: string; url: string } => ({
+    name,
+    url: `${blog}${kind}/${name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}/`
+  })
+  const tags = [['Planning', 'Design'], ['Growth'], ['News', 'Team', 'Design']]
+  const categories = ['Guides', 'Case studies', 'News']
   return titles.map((title, i) => ({
     title,
     html: SAMPLE_BODY,
     excerpt: 'A short summary of the post, as it will appear on cards and in search results.',
     date: new Date(Date.now() - i * 9 * 86400000).toISOString(),
     image: image ? { src: image, alt: '' } : null,
-    url: postUrl(site, `sample-post-${i + 1}`)
+    url: postUrl(site, `sample-post-${i + 1}`),
+    tags: tags[i].map((name) => term('tag', name)),
+    category: term('category', categories[i])
   }))
 }
 

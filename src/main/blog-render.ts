@@ -37,6 +37,8 @@ export interface PostData {
   /** Body HTML (Gutenberg output). */
   html: string
   excerpt: string
+  /** Meta description, when it differs from the excerpt. */
+  description?: string
   /** ISO date. */
   date: string
   image?: { src: string; alt: string } | null
@@ -159,8 +161,16 @@ export function badgesIn(element: Element): Element[] | null {
  * one badge (a link, a list item, or a text element: it's copied once per term) or the
  * group holding badges (its first badge is copied for the run of badges; anything else
  * in the group, such as a date, stays). No terms: the badges are removed.
+ *
+ * `other` is the other kind of badges (category for tags, tags for category): when both
+ * share a row of look-alike badges, each run stops at the other's badge.
  */
-function termsPatch(source: string, pointed: Element, terms: Term[]): Patch {
+function termsPatch(
+  source: string,
+  pointed: Element,
+  terms: Term[],
+  other: Element | null = null
+): Patch {
   const items = badgesIn(pointed)
   const single = items === null
   // A badge alone in its list item: the item is what repeats.
@@ -171,14 +181,42 @@ function termsPatch(source: string, pointed: Element, terms: Term[]): Patch {
     children(parent).filter((child) => textContent(child).trim()).length === 1
       ? parent
       : pointed
+  const blocked = (e: Element): boolean =>
+    Boolean(other) && (contains(e, other!) || contains(other!, e))
   // One badge among look-alike siblings (the layout's sample tags): they all go, and the
-  // clicked one repeats in their place.
+  // clicked one repeats in their place. Only the unbroken run around it: a label ("Tags")
+  // or another kind of badge in between ends it.
   const shape = (e: Element): string => `${e.tagName}.${attr(e, 'class') ?? ''}`
-  const run = single
-    ? children(element.parentNode as Element).filter((e) => shape(e) === shape(element))
-    : items
-  const first = single ? run[0] : items[0]
-  const last = single ? run[run.length - 1] : items[items.length - 1]
+  let run: Element[]
+  if (single) {
+    const siblings = children(element.parentNode as Element)
+    const at = siblings.indexOf(element)
+    const fits = (e: Element | undefined): e is Element =>
+      Boolean(e) && shape(e!) === shape(element) && !blocked(e!)
+    let from = at
+    let to = at
+    while (fits(siblings[from - 1])) from--
+    while (fits(siblings[to + 1])) to++
+    run = siblings.slice(from, to + 1)
+  } else {
+    // A group: the longest stretch of its badges that doesn't hold the other kind.
+    const stretches: Element[][] = [[]]
+    for (const item of items) {
+      if (blocked(item)) stretches.push([])
+      else stretches[stretches.length - 1].push(item)
+    }
+    run = stretches.reduce((a, b) => (b.length > a.length ? b : a))
+    if (!run.length) run = [items[0]]
+    // Labels around the badges ("Tags") stay: the run is the badges of the most common look.
+    const counts = new Map<string, number>()
+    for (const item of run) counts.set(shape(item), (counts.get(shape(item)) ?? 0) + 1)
+    const common = [...counts].reduce((a, b) => (b[1] > a[1] ? b : a))[0]
+    const firstAt = run.findIndex((item) => shape(item) === common)
+    const lastAt = run.map(shape).lastIndexOf(common)
+    run = run.slice(firstAt, lastAt + 1)
+  }
+  const first = run[0]
+  const last = run[run.length - 1]
   const start = first.sourceCodeLocation!.startOffset
   const end = last.sourceCodeLocation!.endOffset
   // Badges are joined the way the template separates them, else one per line.
@@ -192,8 +230,26 @@ function termsPatch(source: string, pointed: Element, terms: Term[]): Patch {
       : /^\s*$/.test(indent)
         ? '\n' + indent
         : ' '
-  const template = outerOf(source, single ? element : items[0])
+  const template = outerOf(source, single ? element : run[0])
   return { start, end, text: terms.map((term) => fillTerm(template, term)).join(separator) }
+}
+
+/**
+ * The element whose content a text field (title, excerpt, date) replaces: the pointed-at
+ * one, or the element it only wraps, so a link inside a heading (<h3><a>Title</a></h3>)
+ * keeps its link.
+ */
+function textHolder(element: Element): Element {
+  let node = element
+  for (;;) {
+    const kids = children(node)
+    const ownText = node.childNodes.some(
+      (child) => child.nodeName === '#text' && (child as { value: string }).value.trim()
+    )
+    if (kids.length !== 1 || ownText || /^(br|img|svg|picture|video)$/.test(kids[0].tagName))
+      return node
+    node = kids[0]
+  }
 }
 
 function contains(ancestor: Element, element: Element): boolean {
@@ -422,12 +478,15 @@ export function renderPost(
     regions.some((region) => contains(region, element))
 
   if (titleElement && !insideRegion(titleElement)) {
-    patches.push({ ...innerRange(titleElement, 'title'), text: escapeText(post.title) })
+    patches.push({
+      ...innerRange(textHolder(titleElement), 'title'),
+      text: escapeText(post.title)
+    })
   }
   const dateElement = layout.date ? resolveLocator(document, layout.date) : null
   if (dateElement && !insideRegion(dateElement)) {
     patches.push({
-      ...innerRange(dateElement, 'date'),
+      ...innerRange(textHolder(dateElement), 'date'),
       text: escapeText(formatDate(post.date, context.locale))
     })
     if (dateElement.tagName === 'time')
@@ -450,12 +509,14 @@ export function renderPost(
 
   // Tags and category in the layout's own badge design; removed when the post has none.
   const tagsElement = layout.tags ? resolveLocator(document, layout.tags) : null
-  if (tagsElement && !insideRegion(tagsElement)) {
-    patches.push(termsPatch(source, tagsElement, post.tags ?? []))
-  }
   const categoryElement = layout.category ? resolveLocator(document, layout.category) : null
+  if (tagsElement && !insideRegion(tagsElement)) {
+    patches.push(termsPatch(source, tagsElement, post.tags ?? [], categoryElement))
+  }
   if (categoryElement && !insideRegion(categoryElement)) {
-    patches.push(termsPatch(source, categoryElement, post.category ? [post.category] : []))
+    patches.push(
+      termsPatch(source, categoryElement, post.category ? [post.category] : [], tagsElement)
+    )
   }
   const authorElements = (layout.author ?? [])
     .map((locator) => resolveLocator(document, locator))
@@ -483,10 +544,10 @@ export function renderPost(
   return writeSeo(body, {
     ...seo,
     title: post.title,
-    description: post.excerpt,
+    description: post.description || post.excerpt,
     canonical: absolute(post.url),
     ogTitle: post.title,
-    ogDescription: post.excerpt,
+    ogDescription: post.description || post.excerpt,
     ogImage: post.image ? absolute(post.image.src) : seo.ogImage
   })
 }
@@ -511,6 +572,12 @@ function defaultCard(post: PostData, context: PageContext): string {
   return `<article class="cp-card"><a href="${escapeAttr(post.url)}">${image}<h2>${escapeText(post.title)}</h2></a><time datetime="${post.date.slice(0, 10)}">${escapeText(formatDate(post.date, context.locale))}</time><p>${escapeText(post.excerpt)}</p></article>`
 }
 
+/** A card's links (title, "Read more", the whole card…); older layouts saved just one. */
+export function cardLinks(fields: CardFields): number[][] {
+  if (fields.links?.length) return fields.links
+  return fields.link ? [fields.link] : []
+}
+
 function fillCard(
   cardHtml: string,
   fields: CardFields,
@@ -522,7 +589,7 @@ function fillCard(
   const at = (path?: number[] | null): Element | null => (path ? follow(card, path) : null)
   const patches: Patch[] = []
   const setText = (element: Element | null, text: string): void => {
-    const location = element?.sourceCodeLocation
+    const location = element && textHolder(element).sourceCodeLocation
     if (location?.startTag && location.endTag) {
       patches.push({
         start: location.startTag.endOffset,
@@ -553,31 +620,55 @@ function fillCard(
   }
 
   const tagsHolder = at(fields.tags)
-  if (tagsHolder) patches.push(termsPatch(cardHtml, tagsHolder, post.tags ?? []))
   const categoryHolder = at(fields.category)
+  if (tagsHolder) patches.push(termsPatch(cardHtml, tagsHolder, post.tags ?? [], categoryHolder))
   if (categoryHolder)
-    patches.push(termsPatch(cardHtml, categoryHolder, post.category ? [post.category] : []))
+    patches.push(
+      termsPatch(cardHtml, categoryHolder, post.category ? [post.category] : [], tagsHolder)
+    )
   const authorHolder = at(fields.author)
   if (authorHolder && post.author?.trim()) setText(labelOf(authorHolder), post.author)
   const inTerms = (anchor: Element): boolean =>
     [tagsHolder, categoryHolder].some((holder) => holder && contains(holder, anchor))
 
-  // Every link in the card that pointed where the mapped link pointed now points to the post.
-  const linkHolder =
-    at(fields.link) ?? (card.tagName === 'a' ? card : find(card, (e) => e.tagName === 'a'))
-  const link =
-    linkHolder &&
-    (linkHolder.tagName === 'a' ? linkHolder : find(linkHolder, (e) => e.tagName === 'a'))
-  const original = link && attr(link, 'href')
-  if (original !== undefined && original !== null) {
-    const anchors: Element[] = card.tagName === 'a' ? [card] : []
-    walk(card, (e) => {
-      if (e.tagName === 'a') anchors.push(e)
-    })
-    for (const anchor of anchors) {
-      if (attr(anchor, 'href') === original && !inTerms(anchor))
-        patches.push(...attrPatches(cardHtml, anchor, { href: post.url }))
+  // The pointed-at links (title, "Read more", the whole card…) point to the post, and so does
+  // every other link in the card that pointed where one of them pointed.
+  const anchorOf = (holder: Element): Element | null => {
+    if (holder.tagName === 'a') return holder
+    const inside = find(holder, (e) => e.tagName === 'a')
+    if (inside) return inside
+    // A part inside a link (a heading in a card-wide <a>): that link.
+    for (
+      let node: unknown = holder.parentNode;
+      node && typeof node === 'object' && 'tagName' in node;
+    ) {
+      if ((node as Element).tagName === 'a') return node as Element
+      if (node === card) break
+      node = (node as Element).parentNode
     }
+    return null
+  }
+  const picked = cardLinks(fields)
+    .map((path) => at(path))
+    .filter((holder): holder is Element => Boolean(holder))
+    .map(anchorOf)
+    .filter((anchor): anchor is Element => Boolean(anchor))
+  if (!picked.length) {
+    const fallback = card.tagName === 'a' ? card : find(card, (e) => e.tagName === 'a')
+    if (fallback) picked.push(fallback)
+  }
+  const originals = new Set(
+    picked.map((anchor) => attr(anchor, 'href')).filter((href): href is string => href != null)
+  )
+  const anchors: Element[] = card.tagName === 'a' ? [card] : []
+  walk(card, (e) => {
+    if (e.tagName === 'a') anchors.push(e)
+  })
+  for (const anchor of anchors) {
+    const href = attr(anchor, 'href')
+    const linked =
+      picked.includes(anchor) || (href !== undefined && originals.has(href) && !inTerms(anchor))
+    if (linked) patches.push(...attrPatches(cardHtml, anchor, { href: post.url }))
   }
   return applyPatches(cardHtml, patches)
 }

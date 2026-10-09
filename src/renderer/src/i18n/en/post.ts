@@ -71,9 +71,9 @@ export default {
   altHint: 'Read aloud to people who can’t see the image.',
   excerptLabel: 'Excerpt',
   excerptHint: {
-    one: '{count} character (aim for 70–160). Shown on the post card, in the feed and as the meta description. Leave empty to use the first words of the post.',
+    one: '{count} character (aim for 70–160). Shown on the post card and in the feed, and as the meta description unless you set one below. Leave empty to use the first words of the post.',
     other:
-      '{count} characters (aim for 70–160). Shown on the post card, in the feed and as the meta description. Leave empty to use the first words of the post.'
+      '{count} characters (aim for 70–160). Shown on the post card and in the feed, and as the meta description unless you set one below. Leave empty to use the first words of the post.'
   } satisfies Msg,
   seoHeading: 'Search & social',
   noDescription: 'No description.',
@@ -81,6 +81,12 @@ export default {
   seoTitleHint: {
     one: '{count} character. Leave empty to use the post title.',
     other: '{count} characters. Leave empty to use the post title.'
+  } satisfies Msg,
+  seoDescriptionLabel: 'Meta description',
+  seoDescriptionHint: {
+    one: '{count} character (aim for 70–160). Shown in search results and when the post is shared. Leave empty to use the excerpt.',
+    other:
+      '{count} characters (aim for 70–160). Shown in search results and when the post is shared. Leave empty to use the excerpt.'
   } satisfies Msg,
 
   // Status pill

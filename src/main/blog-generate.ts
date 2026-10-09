@@ -18,6 +18,7 @@ import {
   COVER_META,
   EXCERPT_META,
   TITLE_META,
+  DESCRIPTION_META,
   FORMER_URL_META,
   POST_META,
   STATUS_META,
@@ -109,6 +110,72 @@ async function retireLayouts(
   return pages.filter((path) => !isPublished(site, path))
 }
 
+interface Moved {
+  from: string
+  to: string
+}
+
+/**
+ * A layout page sitting exactly where the blog writes (blog/index.html as the list layout
+ * with the blog at /blog/, or a sample post at a post's address) moves aside, next to where
+ * it was: the blog takes the address, and the layout stays a page in Pages (same folder, so
+ * its relative links still work). Its deploy exclusion and "taken off" record follow it.
+ */
+async function moveLayoutsAside(root: string, change: BlogChange, now: number): Promise<Moved[]> {
+  const templates = await readTemplates(root)
+  if (!templates?.post || !templates.list) return []
+  const site = await getSiteSettings(root)
+  const records = (await readPosts(root))
+    .map((post) => post.record)
+    .filter((post) => post.id !== change.remove && post.id !== change.upsert?.id)
+  if (change.upsert) records.push(change.upsert)
+  const taken = new Set([
+    fileOfPath(listPath(site.blog.listPath)),
+    ...records
+      .filter((post) => isLive(post, now))
+      .map((post) => fileOfPath(postPath(site.blog.permalink, post.slug)))
+  ])
+  const moved: Moved[] = []
+  const update: BlogTemplates = {}
+  for (const kind of ['list', 'post'] as const) {
+    const from = templates[kind]!
+    if (!taken.has(from) || moved.some((m) => m.from === from)) continue
+    const source = await readSite(root, from)
+    // Already the blog's own page (an earlier run moved the layout): nothing to move.
+    if (source === null || source.includes(GENERATOR)) continue
+    if (hasDraft(from)) {
+      throw new Error(
+        `The blog needs ${from} for its own page, so the layout moves next to it. Save or discard the edits open in ${from} first.`
+      )
+    }
+    const dir = from.includes('/') ? from.slice(0, from.lastIndexOf('/') + 1) : ''
+    let to = `${dir}${kind}-layout.html`
+    for (let n = 2; (await readSite(root, to)) !== null; n++) to = `${dir}${kind}-layout-${n}.html`
+    moved.push({ from, to })
+    // Same content at the new path: the pointed-at parts still apply.
+    if (kind === 'list') Object.assign(update, { list: to, listLayout: templates.listLayout })
+    else Object.assign(update, { post: to, postLayout: templates.postLayout })
+  }
+  if (!moved.length) return []
+
+  const writes: FileWrite[] = []
+  for (const { from, to } of moved) {
+    writes.push({ path: to, content: (await readSite(root, from))! }, { path: from, content: null })
+  }
+  await writeFiles(root, writes, 'Blog: move the layout pages aside')
+  const rename = (path: string): string => moved.find((m) => m.from === path)?.to ?? path
+  if (templates.unpublished?.length) update.unpublished = templates.unpublished.map(rename)
+  await saveTemplates(root, update)
+  // An exclusion added when the layout was taken off the site would now hide the blog's page.
+  const patterns = new Map(moved.map((m) => [pagePattern(m.from), pagePattern(m.to)]))
+  if (site.deploy.exclude.some((pattern) => patterns.has(pattern))) {
+    await saveSiteSettings(root, {
+      deploy: { exclude: site.deploy.exclude.map((pattern) => patterns.get(pattern) ?? pattern) }
+    })
+  }
+  return moved
+}
+
 /** Post data the renderer needs, from a post. Block comments stay in the body. */
 export function toPostData(post: PostRecord, site: SiteSettings): PostData {
   return {
@@ -122,7 +189,8 @@ export function toPostData(post: PostRecord, site: SiteSettings): PostData {
     category: post.category?.trim()
       ? { name: post.category.trim(), url: categoryUrl(site, post.category.trim()) }
       : null,
-    author: post.author?.trim() || undefined
+    author: post.author?.trim() || undefined,
+    description: post.seoDescription?.trim() || undefined
   }
 }
 
@@ -198,7 +266,12 @@ function postPage(
     ...(draft
       ? formerUrls.map((url) => `<meta name="${FORMER_URL_META}" content="${escapeAttr(url)}">`)
       : []),
-    ...(post.excerpt.trim() ? [] : [`<meta name="${EXCERPT_META}" content="auto">`]),
+    ...(!post.excerpt.trim()
+      ? [`<meta name="${EXCERPT_META}" content="auto">`]
+      : data.description
+        ? [`<meta name="${EXCERPT_META}" content="${escapeAttr(post.excerpt.trim())}">`]
+        : []),
+    ...(data.description ? [`<meta name="${DESCRIPTION_META}" content="custom">`] : []),
     ...(post.cover ? [] : [`<meta name="${COVER_META}" content="none">`]),
     ...(post.seoTitle?.trim() ? [`<meta name="${TITLE_META}" content="custom">`] : []),
     `<meta property="article:published_time" content="${escapeAttr(post.date)}">`,
@@ -220,12 +293,12 @@ function postPage(
     url: absolute(site, data.url),
     ogType: 'article',
     title,
-    description: data.excerpt,
+    description: data.description || data.excerpt,
     image,
     jsonLd: {
       '@type': 'BlogPosting',
       headline: post.title,
-      description: data.excerpt,
+      description: data.description || data.excerpt,
       datePublished: post.date,
       dateModified: post.modified,
       mainEntityOfPage: absolute(site, data.url),
@@ -442,6 +515,7 @@ export async function generateBlog(
   change: BlogChange = {},
   now = Date.now()
 ): Promise<GenerateResult> {
+  const moved = await moveLayoutsAside(root, change, now)
   const ctx = await renderContext(root)
   const { site, layouts, context } = ctx
   const templates = await readTemplates(root)
@@ -719,5 +793,12 @@ export async function generateBlog(
     ).catch(() => {})
   }
 
-  return { written, removed, redirects: Object.keys(redirects).length, historyId, kept }
+  return {
+    written,
+    removed,
+    redirects: Object.keys(redirects).length,
+    historyId,
+    kept,
+    ...(moved.length ? { moved } : {})
+  }
 }

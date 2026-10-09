@@ -224,7 +224,7 @@ export default function PostEditor({
     .slice(0, 32)
     .join(' ')
   const seoTitle = post.seoTitle || post.title
-  const seoDescription = post.excerpt || autoExcerpt
+  const seoDescription = post.seoDescription || post.excerpt || autoExcerpt
   const isNew = !saved.slug
 
   const tags = post.tags ?? []
@@ -611,7 +611,7 @@ export default function PostEditor({
 
                     <Field
                       label={t('post.excerptLabel')}
-                      hint={t('post.excerptHint', { count: seoDescription.length })}
+                      hint={t('post.excerptHint', { count: (post.excerpt || autoExcerpt).length })}
                     >
                       <textarea
                         rows={3}
@@ -639,6 +639,17 @@ export default function PostEditor({
                         value={post.seoTitle ?? ''}
                         placeholder={post.title}
                         onChange={(e) => set('seoTitle', e.target.value)}
+                      />
+                    </Field>
+                    <Field
+                      label={t('post.seoDescriptionLabel')}
+                      hint={t('post.seoDescriptionHint', { count: seoDescription.length })}
+                    >
+                      <textarea
+                        rows={3}
+                        value={post.seoDescription ?? ''}
+                        placeholder={post.excerpt || autoExcerpt}
+                        onChange={(e) => set('seoDescription', e.target.value)}
                       />
                     </Field>
                     {!isNew && (

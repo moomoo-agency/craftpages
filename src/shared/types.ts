@@ -468,7 +468,10 @@ export interface CardFields {
   excerpt?: number[] | null
   date?: number[] | null
   image?: number[] | null
+  /** The first of `links`, kept for layouts saved before cards had several links. */
   link?: number[] | null
+  /** Every link that opens the post: title, "Read more", the whole card… */
+  links?: number[][] | null
   tags?: number[] | null
   category?: number[] | null
   author?: number[] | null
@@ -569,13 +572,15 @@ export interface PostRecord {
   /** Publish date (ISO). */
   date: string
   modified: string
-  /** Card text, meta description and feed summary; made from the body when empty. */
+  /** Card text and feed summary (and meta description unless `seoDescription` is set); made from the body when empty. */
   excerpt: string
   cover: { src: string; alt: string } | null
   /** Body as Gutenberg block markup. */
   content: string
   /** `<title>` when it should differ from the post title. */
   seoTitle?: string
+  /** Meta description when it should differ from the excerpt. */
+  seoDescription?: string
   tags?: string[]
   /** One category per post, with its own archive page. */
   category?: string
@@ -609,6 +614,8 @@ export interface GenerateResult {
   historyId: string | null
   /** Generated files that were edited by hand and therefore left alone. */
   kept: string[]
+  /** Layout pages moved aside because the blog's own pages go where they were. */
+  moved?: { from: string; to: string }[]
 }
 
 export interface SavePostResult {
@@ -1129,6 +1136,8 @@ export interface Api {
   resolveLocators: (key: string, locators: ElementLocator[]) => Promise<(number | null)[]>
   /** Child-index path of `n` inside `ancestor`, or null when it isn't inside. */
   pathWithin: (key: string, ancestor: number, n: number) => Promise<number[] | null>
+  /** Element numbers of child-index paths inside `ancestor`; null where one can't be found. */
+  numbersWithin: (key: string, ancestor: number, paths: number[][]) => Promise<(number | null)[]>
   /** Renders a sample post and list page from the templates (not written to the site). */
   previewBlog: () => Promise<BlogPreview>
 
@@ -1202,6 +1211,9 @@ export interface Api {
   checkForUpdate: () => Promise<UpdateState>
   /** Restarts into a downloaded update. */
   installUpdate: () => Promise<void>
+  /** Diagnostics: reveals craftpages.log; copies its end (false when there's nothing yet). */
+  showLog: () => Promise<void>
+  copyLog: () => Promise<boolean>
   listDeployments: () => Promise<Deployment[]>
   rollback: (deploymentId: string) => Promise<void>
 

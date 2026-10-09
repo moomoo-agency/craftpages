@@ -19,7 +19,7 @@ import {
 } from './html/dom'
 import { pageComponents } from './html/components'
 import { follow, pathFrom, resolveLocator } from './html/locator'
-import { POST_META } from './posts'
+import { BODY_END, BODY_START, EXCERPT_META, POST_META } from './posts'
 import { urlOfPage } from './seo-site'
 import { isPublished } from './deploy/exclude'
 import { getSiteSettings } from './settings'
@@ -59,7 +59,9 @@ const TRIGGER_ATTR = 'data-craftpages-search'
 const ICON_CLASS = 'craftpages-search-icon'
 const EXCLUDE_META = 'craftpages:search'
 const LOADER_SRC = /(^|\/)craftpages-search\.js([?#]|$)/
-const MAX_TEXT = 60_000
+/** Body text kept per page: about 3,000 words. Past that, the index grows faster than results improve. */
+const MAX_TEXT = 20_000
+const GENERATOR = /<meta name="generator" content="CraftPages">/i
 
 export const DEFAULT_BOX: SearchBoxOptions = {
   accent: '',
@@ -183,8 +185,124 @@ function titleOf(page: Page, siteName: string): string {
   return (h1 && clean(textContent(h1))) || og || page.path
 }
 
+/** How a page is indexed: a blog post by its article, a generated list without its cards. */
+type Kind = 'page' | 'post' | 'list' | 'archive' | 'paged'
+
+function kindOf(page: Page, listPath: string): Kind {
+  if (page.source.includes(POST_META)) return 'post'
+  if (!GENERATOR.test(page.source)) return 'page'
+  const url = urlOfPage(page.path)
+  const rest = url.startsWith(listPath) ? url.slice(listPath.length) : url
+  if (/(^|\/)page\/\d+\/$/.test(rest)) return 'paged'
+  if (/^(tag|category)\/[^/]+\/$/.test(rest)) return 'archive'
+  return 'list'
+}
+
+/** What is left out across the site, worked out once from all the pages. */
+interface Noise {
+  /** Link text that repeats on many pages: "Contact us", "Download", "Back to top"… */
+  links: Set<string>
+  /** Post titles and excerpts: found through the posts themselves, not every card. */
+  posts: Set<string>
+  /** Post titles to their URLs, to find the cards that show them. */
+  titles: Map<string, string>
+  /** Where tag and category pages live, e.g. /blog/tag/: links there are badges, not content. */
+  archives: string[]
+}
+
+const key = (text: string): string => clean(text).toLowerCase()
+const NAV_REL = /\b(prev|next|tag|author|category|up)\b/i
+const NAV_CLASS = /(^|[\s_-])(breadcrumbs?|pagination|pager|post-nav|skip-link)([\s_-]|$)/i
+/** "← Blog", "Older posts →", "« Back"… */
+const ARROW_LINK = /^[←→‹›«»⟵⟶↩⤺<>]|[←→‹›«»⟵⟶>]$/
+
+function noiseOf(pages: { page: Page; kind: Kind }[], listPath: string): Noise {
+  const counts = new Map<string, number>()
+  const posts = new Set<string>()
+  const titles = new Map<string, string>()
+  for (const { page, kind } of pages) {
+    const seen = new Set<string>()
+    walk(page.document, (e) => {
+      if (e.tagName !== 'a') return
+      const text = key(spacedText(e))
+      if (text && text.length <= 80) seen.add(text)
+    })
+    for (const text of seen) counts.set(text, (counts.get(text) ?? 0) + 1)
+    if (kind === 'post') {
+      const title = key(metaContent(page.document, 'property', 'og:title'))
+      if (title) titles.set(title, urlOfPage(page.path))
+      for (const value of [
+        metaContent(page.document, 'property', 'og:title'),
+        metaContent(page.document, 'name', 'description'),
+        metaContent(page.document, 'name', EXCERPT_META)
+      ]) {
+        if (value && value !== 'auto') posts.add(key(value))
+      }
+    }
+  }
+  const many = Math.max(3, Math.ceil(pages.length * 0.05))
+  const links = new Set([...counts].filter(([, n]) => n >= many).map(([text]) => text))
+  return { links, posts, titles, archives: [`${listPath}tag/`, `${listPath}category/`] }
+}
+
+const pathOf = (href: string): string =>
+  href
+    .replace(/^https?:\/\/[^/]+/i, '')
+    .replace(/[?#].*$/, '')
+    .replace(/index\.html?$/, '')
+
+/**
+ * Post cards (on lists and "latest posts" blocks): from a post's title up to the largest
+ * block that still shows only that post and links to it. A heading of anything else stops it.
+ */
+function postCards(body: Element, noise: Noise): Set<Element> {
+  const cards = new Set<Element>()
+  if (!noise.titles.size) return cards
+  const belongsTo = (element: Element, title: string, url: string): boolean => {
+    let linked = false
+    let foreign = false
+    walk(element, (e) => {
+      if (foreign) return false
+      const text = HEADING.test(e.tagName) || e.tagName === 'a' ? key(spacedText(e)) : ''
+      if (HEADING.test(e.tagName) && text !== title) foreign = true
+      if (e.tagName === 'a') {
+        const href = pathOf(attr(e, 'href') ?? '')
+        if (href === url) linked = true
+        else if (noise.titles.has(text)) foreign = true
+      }
+      return undefined
+    })
+    return linked && !foreign
+  }
+  walk(body, (e) => {
+    if (!HEADING.test(e.tagName) && e.tagName !== 'a') return undefined
+    const title = key(spacedText(e))
+    const url = noise.titles.get(title)
+    if (!url) return undefined
+    let card: Element | null = null
+    let at: Element = e
+    while (at.parentNode && isElement(at.parentNode as Element)) {
+      const parent = at.parentNode as Element
+      if (parent === body || parent.tagName === 'main' || !belongsTo(parent, title, url)) break
+      card = at = parent
+    }
+    if (card) cards.add(card)
+    return false
+  })
+  return cards
+}
+
+function isNavLink(element: Element, noise: Noise): boolean {
+  if (NAV_REL.test(attr(element, 'rel') ?? '')) return true
+  const href = pathOf(attr(element, 'href') ?? '')
+  if (noise.archives.some((archive) => href.startsWith(archive))) return true
+  const text = clean(spacedText(element))
+  if (text.length <= 40 && ARROW_LINK.test(text)) return true
+  return noise.links.has(text.toLowerCase())
+}
+
 /** The page's text split at its headings, each section linkable by an id when there is one. */
-function sectionsOf(document: Document): Section[] {
+function sectionsOf(document: Document, kind: Kind, noise: Noise): Section[] {
   const body = find(document, (e) => e.tagName === 'body')
   if (!body) return []
   const main =
@@ -193,15 +311,24 @@ function sectionsOf(document: Document): Section[] {
     { id: '', heading: '', text: [] }
   ]
   let size = 0
+  // A post is its article: not the back link, byline, date, tags or call to action around it.
+  const articleOnly = kind === 'post' && hasBodyMarks(body)
+  let inArticle = !articleOnly
+  const cards = kind === 'post' ? new Set<Element>() : postCards(body, noise)
 
   const visit = (node: Element, anchor: string): void => {
     for (const child of node.childNodes) {
       if (size > MAX_TEXT) return
       if (!isElement(child)) {
         if (child.nodeName === '#text') {
+          if (!inArticle) continue
           const value = (child as { value: string }).value
           sections[sections.length - 1].text.push(value)
           size += value.length
+        } else if (articleOnly && child.nodeName === '#comment') {
+          const mark = `<!--${(child as { data: string }).data}-->`
+          if (mark === BODY_START) inArticle = true
+          else if (mark === BODY_END) inArticle = false
         }
         continue
       }
@@ -212,13 +339,21 @@ function sectionsOf(document: Document): Section[] {
         attr(child, 'hidden') !== undefined ||
         attr(child, 'aria-hidden') === 'true' ||
         attr(child, 'data-craftpages-search-ignore') !== undefined ||
-        attr(child, TRIGGER_ATTR) !== undefined
+        attr(child, TRIGGER_ATTR) !== undefined ||
+        NAV_CLASS.test(attr(child, 'class') ?? '') ||
+        (tag === 'a' && isNavLink(child, noise)) ||
+        (tag === 'time' && kind === 'list')
       ) {
         continue
       }
+      // Cards and "latest posts" blocks repeat what the posts themselves are found by.
+      if (cards.has(child)) continue
+      if (kind !== 'post' && noise.posts.size && noise.posts.has(key(spacedText(child)))) continue
       const id = attr(child, 'id') ?? ''
       if (HEADING.test(tag)) {
-        sections.push({ id: id || anchor, heading: clean(spacedText(child)), text: [] })
+        if (inArticle) {
+          sections.push({ id: id || anchor, heading: clean(spacedText(child)), text: [] })
+        }
         continue
       }
       const block = BLOCK.has(tag)
@@ -234,16 +369,42 @@ function sectionsOf(document: Document): Section[] {
     .filter(([, heading, text]) => heading || text)
 }
 
+function hasBodyMarks(body: Element): boolean {
+  let found = false
+  const look = (node: Element): void => {
+    for (const child of node.childNodes) {
+      if (found) return
+      if (child.nodeName === '#comment') {
+        found = `<!--${(child as { data: string }).data}-->` === BODY_START
+      } else if (isElement(child)) look(child)
+    }
+  }
+  look(body)
+  return found
+}
+
 export async function buildIndex(root: string): Promise<{ json: string; pages: number }> {
   const site = await getSiteSettings(root)
-  const pages = (await htmlPages(root)).filter((page) => !exclusion(page))
-  const entries: IndexPage[] = pages.map((page) => ({
-    u: urlOfPage(page.path),
-    t: titleOf(page, site.siteName),
-    d: clean(metaContent(page.document, 'name', 'description')),
-    c: '',
-    s: sectionsOf(page.document)
-  }))
+  const listPath = site.blog.listPath
+  const pages = (await htmlPages(root))
+    .filter((page) => !exclusion(page))
+    .map((page) => ({ page, kind: kindOf(page, listPath) }))
+    // Page 2, 3… of a list only repeat posts that are found on their own.
+    .filter(({ kind }) => kind !== 'paged')
+  const noise = noiseOf(pages, listPath)
+  const entries: IndexPage[] = pages.map(({ page, kind }) => {
+    let title = titleOf(page, site.siteName)
+    // A tag or category page is one link to its archive, by name: "Static sites", not "Blog: Static sites".
+    const prefix = `${site.blog.title}: `
+    if (kind === 'archive' && title.startsWith(prefix)) title = title.slice(prefix.length)
+    return {
+      u: urlOfPage(page.path),
+      t: title,
+      d: kind === 'archive' ? '' : clean(metaContent(page.document, 'name', 'description')),
+      c: '',
+      s: kind === 'archive' ? [] : sectionsOf(page.document, kind, noise)
+    }
+  })
   // Where a page sits: the titles of its parent pages, e.g. "Blog".
   const byUrl = new Map(entries.map((entry) => [entry.u, entry.t]))
   for (const entry of entries) {

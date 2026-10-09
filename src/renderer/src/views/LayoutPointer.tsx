@@ -177,6 +177,7 @@ const LIST_STEPS: Step[] = [
     prompt: 'blog.cardLinkPrompt',
     help: 'blog.cardLinkHelp',
     optional: true,
+    multiple: true,
     within: 'card'
   },
   {
@@ -357,6 +358,32 @@ export default function LayoutPointer({
         const picked = await window.api.pointAt(next.key, n)
         restored[saved[i][0]] = [...(restored[saved[i][0]] ?? []), picked]
       }
+      // The card's parts are saved as paths inside the card.
+      const card = restored.card?.[0]
+      const fields = cardLayout?.card?.fields
+      if (card && fields) {
+        const parts: [StepId, number[]][] = []
+        for (const [id, field] of Object.entries(CARD_FIELD) as [StepId, keyof CardFields][]) {
+          if (field === 'link') {
+            const links = fields.links?.length ? fields.links : fields.link ? [fields.link] : []
+            parts.push(...links.map((path): [StepId, number[]] => [id, path]))
+          } else {
+            const path = fields[field] as number[] | null | undefined
+            if (path) parts.push([id, path])
+          }
+        }
+        const within = await window.api.numbersWithin(
+          next.key,
+          card.n,
+          parts.map(([, path]) => path)
+        )
+        for (let i = 0; i < parts.length; i++) {
+          const n = within[i]
+          if (n === null) continue
+          const picked = await window.api.pointAt(next.key, n)
+          restored[parts[i][0]] = [...(restored[parts[i][0]] ?? []), picked]
+        }
+      }
       if (cancelled) return
       setPicks(restored)
       setSession(next)
@@ -464,15 +491,23 @@ export default function LayoutPointer({
         })
       } else {
         const card = picks.card?.[0]
-        let fields: CardFields = {}
+        const fields: CardFields = {}
         if (card) {
-          const cardUnchanged =
-            cardLayout?.card &&
-            JSON.stringify(cardLayout.card.element.path) === JSON.stringify(card.locator.path)
-          if (cardUnchanged) fields = { ...cardLayout!.card!.fields }
+          // The saved parts are brought back as picks when the pointer opens, so the picks
+          // are the whole card: a part taken off here is gone from the layout too.
           for (const [id, field] of Object.entries(CARD_FIELD) as [StepId, keyof CardFields][]) {
-            const pick = picks[id]?.[0]
-            if (pick) fields[field] = await window.api.pathWithin(session.key, card.n, pick.n)
+            const paths = (
+              await Promise.all(
+                (picks[id] ?? []).map((pick) => window.api.pathWithin(session.key, card.n, pick.n))
+              )
+            ).filter((path): path is number[] => Boolean(path))
+            if (!paths.length) continue
+            if (field === 'link') {
+              fields.links = paths
+              fields.link = paths[0]
+            } else {
+              ;(fields as Record<string, number[]>)[field] = paths[0]
+            }
           }
         }
         const parts = {

@@ -10,6 +10,7 @@ import { flushDraftsSync } from './drafts'
 import { blockRemoteScripts } from './preview/capture'
 import { getAppSettings } from './settings'
 import { setupUpdates } from './updates'
+import { log, startLog } from './log'
 
 // Development keeps its own settings folder ("CraftPages Dev"), so `npm run dev` and an
 // installed CraftPages can run side by side without sharing settings, tokens or recent
@@ -90,6 +91,7 @@ app.whenReady().then(() => {
   // Preview iframes run the site's CSS and images, but never remote scripts or beacons.
   blockRemoteScripts(session.defaultSession, allowExternalScripts)
 
+  startLog()
   registerIpc(icon)
   setupUpdates()
   setupBackground(icon, showApp)
@@ -99,12 +101,18 @@ app.whenReady().then(() => {
 
   getAppSettings()
     .then(async (settings) => {
-      if (settings.lastWorkspace) await openWorkspace(settings.lastWorkspace).catch(() => {})
+      if (settings.lastWorkspace)
+        await openWorkspace(settings.lastWorkspace).catch((error) =>
+          log.warn('app', 'Could not reopen the last project', error)
+        )
       await applyMcpSettings()
       startScheduler()
       await applyBackgroundSettings(icon)
     })
-    .catch((error) => console.error('Startup failed', error))
+    .catch((error) => {
+      console.error('Startup failed', error)
+      log.error('app', 'Startup failed', error)
+    })
 
   app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) showApp()

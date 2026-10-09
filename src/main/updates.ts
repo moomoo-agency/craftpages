@@ -1,5 +1,6 @@
 import { app } from 'electron'
 import { autoUpdater } from 'electron-updater'
+import { log } from './log'
 import { broadcast } from './state'
 import type { UpdateState } from '../shared/types'
 
@@ -77,6 +78,7 @@ export function setupUpdates(): void {
   )
   autoUpdater.on('update-downloaded', (info) => set({ status: 'ready', version: info.version }))
   autoUpdater.on('error', (error) => {
+    log.warn('updates', state.version ? 'Update download failed' : 'Update check failed', error)
     // A download that failed falls back to "download it yourself"; a failed check (offline,
     // GitHub down) is only reported in Settings.
     if (state.version) set({ status: 'available', installs: false })

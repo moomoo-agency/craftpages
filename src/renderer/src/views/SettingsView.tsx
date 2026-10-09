@@ -244,6 +244,33 @@ export default function SettingsView({
 
       {/* ---------- Updates ---------- */}
       <UpdatesSection update={update} />
+
+      {/* ---------- Diagnostics ---------- */}
+      <Section
+        title={t('settings.diagnostics')}
+        description={t('settings.diagnosticsHint')}
+        actions={
+          <>
+            <button className="btn" onClick={() => window.api.showLog()}>
+              {t('settings.showLog')}
+            </button>
+            <button
+              className="btn"
+              disabled={busy === 'log'}
+              onClick={() =>
+                run('log', async () =>
+                  (await window.api.copyLog()) ? t('settings.logCopied') : t('settings.logEmpty')
+                )
+              }
+            >
+              {t('settings.copyLog')}
+            </button>
+          </>
+        }
+      >
+        <Explainer>{t('settings.logPrivacy')}</Explainer>
+        {show('log')}
+      </Section>
     </div>
   )
 }

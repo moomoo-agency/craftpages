@@ -140,8 +140,10 @@ function fileFor(path: string, files: Set<string>): string | null {
 
 export async function auditSite(root: string): Promise<SeoReport> {
   const site = await getSiteSettings(root)
-  const pages = await readPages(root)
-  const files = await listFiles(root)
+  // Only what goes live: pages and files left out of publishing (layout pages, drafts) are
+  // neither checked nor link targets, since a link to them is broken on the published site.
+  const pages = (await readPages(root)).filter((page) => isPublished(site, page.path))
+  const files = (await listFiles(root)).filter((file) => isPublished(site, file.path))
   const fileSet = new Set(files.map((file) => file.path))
   const sizes = new Map(files.map((file) => [file.path, file.bytes]))
   const byPath = new Map(pages.map((page) => [page.path, page]))

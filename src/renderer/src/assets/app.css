@@ -2738,6 +2738,13 @@ input[type='checkbox'] {
   outline: none;
 }
 
+/* Focus in the block list sits on editable text (often the whole list while selecting), so
+   the app's focus ring would frame all the content. Gutenberg shows selection its own way. */
+.post-editor .block-editor-block-list__layout :focus-visible,
+.post-editor .block-editor-block-list__layout.is-root-container:focus-visible {
+  outline: none;
+}
+
 .post-editor__preview {
   flex: 1;
   width: 100%;

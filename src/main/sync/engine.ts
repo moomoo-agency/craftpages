@@ -20,6 +20,7 @@ import {
   syncDeviceId,
   trustHostKey
 } from '../settings'
+import { log } from '../log'
 import { broadcast, getWorkspace } from '../state'
 import {
   listCloudflareProjects,
@@ -137,10 +138,12 @@ async function ensureWorker(creds: Credentials): Promise<string> {
     throw new Error(
       'This connection’s API token can publish, but sync between computers also needs Account · Workers R2 Storage · Edit. Update the token in App settings → Deploy connections.'
     )
+  log.info('sync', 'Setting up the sync Worker', { workerVersion: SYNC_WORKER_VERSION })
   const url = await setupCloudflareSync(creds, {
     id: await syncDeviceId(),
     key: await cloudflareKey(creds)
   })
+  log.info('sync', 'Sync Worker ready', { url })
   workerUrls.set(creds.accountId, url)
   return url
 }
@@ -352,14 +355,26 @@ let lastSeen: RemoteHead | null = null
 export function syncNow(root: string): Promise<SyncResult> {
   if (running) return running
   report(root, { busy: true })
+  const started = Date.now()
   running = runSync(root)
     .then(
       (result) => {
+        if (lastError.get(root)) log.info('sync', 'Sync works again after an error')
         lastError.set(root, null)
+        log.info('sync', 'Synced', {
+          pulled: result.pulled,
+          pushed: result.pushed,
+          conflicts: result.conflicts.length,
+          from: result.from,
+          seconds: Math.round((Date.now() - started) / 1000)
+        })
+        if (result.conflicts.length)
+          log.warn('sync', 'Files changed on both computers', { files: result.conflicts })
         return result
       },
       (error: Error) => {
         lastError.set(root, error.message)
+        log.error('sync', 'Sync failed', error)
         throw error
       }
     )
@@ -383,8 +398,10 @@ async function updateWorker(root: string, config: SyncConfig): Promise<SyncConfi
     const url = await ensureWorker(connection)
     const next = { ...config, url, workerVersion: SYNC_WORKER_VERSION }
     await writeConfig(root, next)
+    log.info('sync', 'Sync Worker updated', { workerVersion: SYNC_WORKER_VERSION })
     return next
-  } catch {
+  } catch (error) {
+    log.warn('sync', 'Could not update the sync Worker; the current one keeps working', error)
     return config
   }
 }
@@ -463,7 +480,13 @@ async function runSync(root: string): Promise<SyncResult> {
 
       const moved = await store.moveHead(remote?.rev ?? 0, head!, device)
       lastSeen = moved.head
-      if (!moved.ok) continue // Someone synced in between: take theirs in first.
+      if (!moved.ok) {
+        // Someone synced in between: take theirs in first.
+        log.info('sync', 'Another computer synced at the same moment, retrying', {
+          attempt: attempt + 1
+        })
+        continue
+      }
       await writeConfig(root, {
         ...config,
         base: head,
@@ -482,6 +505,7 @@ async function runSync(root: string): Promise<SyncResult> {
 // ---------- Turning sync on and off ----------
 
 export async function enableSync(root: string, setup: SyncSetup): Promise<SyncResult> {
+  log.info('sync', 'Turning sync on', { mode: setup.mode, dir: setup.dir })
   const site = await getSiteSettings(root)
   const connection = await connectionById(setup.connection)
   let url = ''
@@ -512,6 +536,7 @@ export async function enableSync(root: string, setup: SyncSetup): Promise<SyncRe
 }
 
 export async function disableSync(root: string): Promise<void> {
+  log.info('sync', 'Turning sync off')
   stopLive()
   await writeConfig(root, null)
   report(root)
@@ -543,6 +568,7 @@ export async function getProject(
   project: string,
   folder: string
 ): Promise<void> {
+  log.info('sync', 'Getting a project from sync', { mode: source.mode, dir: source.dir })
   const full = await sourceWithUrl(source)
   const store = await openStoreFor(full, project)
   try {
@@ -578,6 +604,10 @@ export async function getProject(
     const pulled = await chain(folder, head.snapshot)
     for (const s of pulled.filter((s) => s.kind === 'publish' && s.deploy))
       await rememberPublished(folder, s.deploy!.id)
+    log.info('sync', 'Project downloaded', { files: Object.keys(snapshot.files).length })
+  } catch (error) {
+    log.error('sync', 'Getting the project failed', error)
+    throw error
   } finally {
     await store.close().catch(() => null)
   }
@@ -677,14 +707,21 @@ export async function startLive(root: string): Promise<void> {
     live = { root, channel }
     channel.announce(announced)
     // What the others did while this computer was away.
-    const store = await openStore(root, config).catch(() => null)
+    const store = await openStore(root, config).catch((error) => {
+      log.warn('sync', 'Could not open the sync store at project open', error)
+      return null
+    })
     if (store) {
-      lastSeen = await store.getHead().catch(() => null)
+      lastSeen = await store.getHead().catch((error) => {
+        log.warn('sync', 'Could not read the latest synced version', error)
+        return null
+      })
       await store.close().catch(() => null)
       report(root)
     }
-  } catch {
+  } catch (error) {
     // No connection now: the status shows it at the next sync.
+    log.warn('sync', 'Could not start the live connection', error)
   }
 }
 

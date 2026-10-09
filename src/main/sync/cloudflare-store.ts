@@ -1,6 +1,7 @@
 import WebSocket from 'ws'
 import { call, inBatches, type Credentials } from '../deploy/cloudflare'
 import { workerUrl } from '../deploy/workers'
+import { log } from '../log'
 import { checkSnapshot, type Snapshot } from './snapshots'
 import type { LiveChannel, LiveEvent, RemoteHead, SyncProject, SyncStore } from './store'
 import workerSource from './worker/craftpages-sync.js?raw'
@@ -116,15 +117,25 @@ async function fetchJson<T>(url: string, key: string, init: RequestInit = {}): P
         ...init.headers
       }
     })
-  } catch {
-    throw new Error('Can’t reach the sync Worker. Check the internet connection.')
+  } catch (error) {
+    throw new Error('Can’t reach the sync Worker. Check the internet connection.', {
+      cause: error
+    })
   }
   if (response.status === 401)
     throw new Error(
       'The sync Worker doesn’t know this computer’s key. Set up sync again in Project settings → Sync.'
     )
   if (response.status === 404 && init.method !== 'PUT') return null as T
-  if (!response.ok) throw new Error(`Sync Worker: HTTP ${response.status} ${await response.text()}`)
+  if (!response.ok) {
+    const body = await response.text()
+    log.warn('sync', `Sync Worker answered HTTP ${response.status}`, {
+      method: init.method ?? 'GET',
+      path: new URL(url).pathname,
+      body: body.slice(0, 500)
+    })
+    throw new Error(`Sync Worker: HTTP ${response.status} ${body}`)
+  }
   return (await response.json()) as T
 }
 
@@ -207,12 +218,16 @@ function cloudflareLive(
   let delay = 1000
   let timer: ReturnType<typeof setTimeout> | null = null
   let ping: ReturnType<typeof setInterval> | null = null
+  // Logged once per outage, not on every reconnect attempt.
+  let failing = false
 
   const connect = (): void => {
     if (stopped) return
     const ws = new WebSocket(`${url.replace(/^http/, 'ws')}?key=${encodeURIComponent(key)}`)
     socket = ws
     ws.on('open', () => {
+      if (failing) log.info('sync', 'Live connection restored')
+      failing = false
       delay = 1000
       if (mine) ws.send(mine)
       // Keeps the connection open through proxies; the Durable Object stays hibernated.
@@ -232,8 +247,20 @@ function cloudflareLive(
       timer = setTimeout(connect, delay)
       delay = Math.min(delay * 2, 60_000)
     }
-    ws.on('close', retry)
-    ws.on('error', () => ws.close())
+    ws.on('close', (code) => {
+      if (!stopped && !failing) {
+        failing = true
+        log.warn('sync', 'Live connection closed, reconnecting', { code })
+      }
+      retry()
+    })
+    ws.on('error', (error) => {
+      if (!failing) {
+        failing = true
+        log.warn('sync', 'Live connection error, reconnecting', error)
+      }
+      ws.close()
+    })
   }
   connect()
 

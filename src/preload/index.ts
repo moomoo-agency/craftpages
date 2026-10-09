@@ -91,6 +91,8 @@ const api: Api = {
   pointAt: (key, n) => ipcRenderer.invoke('point:at', key, n),
   resolveLocators: (key, locators) => ipcRenderer.invoke('point:resolve', key, locators),
   pathWithin: (key, ancestor, n) => ipcRenderer.invoke('point:within', key, ancestor, n),
+  numbersWithin: (key, ancestor, paths) =>
+    ipcRenderer.invoke('point:numbers-within', key, ancestor, paths),
   previewBlog: () => ipcRenderer.invoke('blog:preview'),
 
   listPosts: () => ipcRenderer.invoke('posts:list'),
@@ -119,6 +121,8 @@ const api: Api = {
   getUpdate: () => ipcRenderer.invoke('update:get'),
   checkForUpdate: () => ipcRenderer.invoke('update:check'),
   installUpdate: () => ipcRenderer.invoke('update:install'),
+  showLog: () => ipcRenderer.invoke('log:show'),
+  copyLog: () => ipcRenderer.invoke('log:copy'),
   listDeployments: () => ipcRenderer.invoke('cf:deployments'),
   rollback: (deploymentId) => ipcRenderer.invoke('cf:rollback', deploymentId),
 

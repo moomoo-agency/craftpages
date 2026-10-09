@@ -319,10 +319,17 @@ export default function BlogView({
     try {
       const result = await window.api.createBlog(fixLinks && plannedCount > 0)
       await loadGenerated()
+      if (result.generated.moved?.length) {
+        const next = await window.api.getBlogSetup()
+        setSetup(next)
+        setPost(next.templates?.post ?? '')
+        setList(next.templates?.list ?? '')
+      }
       const links = result.links
       setFlash(
         [
           t('blog.createdNotice', { blog: blogHome }),
+          ...(result.generated.moved ?? []).map((m) => t('blog.layoutMoved', m)),
           links?.links ? t('blog.layoutLinksDone', { count: links.links }) : '',
           links?.skipped.length
             ? t('blog.layoutLinksSkipped', { list: links.skipped.join(', ') })
@@ -705,6 +712,19 @@ export default function BlogView({
                     list: <span className="mono">{templates.list}</span>
                   })}
                 </li>
+                {templates.list === fileOfPath(blogHome) && (
+                  <li>
+                    {t.rich('blog.createMoveList', {
+                      list: <span className="mono">{templates.list}</span>,
+                      blog: <span className="mono">{blogHome}</span>,
+                      to: (
+                        <span className="mono">
+                          {templates.list.replace(/[^/]*$/, 'list-layout.html')}
+                        </span>
+                      )
+                    })}
+                  </li>
+                )}
                 <li>
                   {t.rich('blog.createPosts', {
                     post: <span className="mono">{templates.post}</span>

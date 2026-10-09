@@ -12,7 +12,7 @@ import {
   type Element,
   type Patch
 } from './html/dom'
-import { bodyOf, locatorOf, pathFrom, resolveLocator } from './html/locator'
+import { bodyOf, follow, locatorOf, pathFrom, resolveLocator } from './html/locator'
 import { POINTER_SCRIPT_PATH } from './preview/server'
 import { badgesIn } from './blog-render'
 import { requireRoot } from './state'
@@ -118,4 +118,13 @@ export function pathWithin(key: string, ancestor: number, n: number): number[] |
   const outer = elements.get(ancestor)
   const inner = elements.get(n)
   return outer && inner ? pathFrom(outer, inner) : null
+}
+
+export function numbersWithin(key: string, ancestor: number, paths: number[][]): (number | null)[] {
+  const { elements, numberOf } = session(key)
+  const outer = elements.get(ancestor)
+  return paths.map((path) => {
+    const inner = outer && follow(outer, path)
+    return (inner && numberOf.get(inner)) ?? null
+  })
 }

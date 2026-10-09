@@ -1,4 +1,4 @@
-import { BrowserWindow, dialog, ipcMain, shell, type IpcMainInvokeEvent } from 'electron'
+import { BrowserWindow, clipboard, dialog, ipcMain, shell, type IpcMainInvokeEvent } from 'electron'
 import { watch, type FSWatcher } from 'fs'
 import { mkdtemp, readdir, readFile, stat, writeFile } from 'fs/promises'
 import { homedir, tmpdir } from 'os'
@@ -42,6 +42,8 @@ import {
 import * as proposals from './mcp/proposals'
 import { proposalPreviewUrl } from './mcp/previews'
 import { setSelection } from './mcp/selection'
+import { log, logFile, readLogTail } from './log'
+import { isSecretField, registerSecrets } from './redact'
 import * as settings from './settings'
 import { getWorkspace, onWorkspaceSwitch, requireRoot, setWorkspace } from './state'
 import { scanWorkspace } from './workspace'
@@ -73,6 +75,11 @@ import type {
   SyncSetup,
   SyncSource
 } from '../shared/types'
+
+/** Registers the secret fields of a form sent from the window (connection, sync setup). */
+function registerFormSecrets(value: object): void {
+  for (const [name, field] of Object.entries(value)) if (isSecretField(name)) registerSecrets(field)
+}
 
 // ---------- Workspace ----------
 
@@ -205,6 +212,12 @@ export function registerIpc(appIcon: string): void {
       return getWorkspace()
     },
     'workspace:get': () => getWorkspace(),
+    'log:show': () => shell.showItemInFolder(logFile()),
+    'log:copy': () => {
+      const text = readLogTail()
+      clipboard.writeText(text)
+      return text.length > 0
+    },
     'settings:app:get': () => settings.getAppSettingsView(),
     'settings:app:save': async (_event, patch: DeepPartial<AppSettings>) => {
       const before = await settings.getAppSettings()
@@ -527,6 +540,8 @@ export function registerIpc(appIcon: string): void {
       pointing.resolveLocators(key, locators),
     'point:within': (_event, key: string, ancestor: number, n: number) =>
       pointing.pathWithin(key, ancestor, n),
+    'point:numbers-within': (_event, key: string, ancestor: number, paths: number[][]) =>
+      pointing.numbersWithin(key, ancestor, paths),
     'blog:preview': () => previewBlog(),
 
     'posts:list': () => posts.listPosts(requireRoot()),
@@ -652,5 +667,15 @@ export function registerIpc(appIcon: string): void {
     'proposals:preview-url': (_event, id: string, path: string) => proposalPreviewUrl(id, path)
   }
 
-  for (const [channel, handler] of Object.entries(handlers)) ipcMain.handle(channel, handler)
+  for (const [channel, handler] of Object.entries(handlers))
+    ipcMain.handle(channel, async (event, ...args: unknown[]) => {
+      // Passwords and passphrases typed into a form never reach the log, even unsaved.
+      for (const arg of args) if (arg && typeof arg === 'object') registerFormSecrets(arg)
+      try {
+        return await handler(event, ...args)
+      } catch (error) {
+        log.warn('ipc', `${channel} failed`, error)
+        throw error
+      }
+    })
 }

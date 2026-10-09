@@ -18,6 +18,7 @@ import type {
   SiteSettings
 } from '../shared/types'
 import { isServerConnection } from '../shared/types'
+import { registerSecrets } from './redact'
 
 export const DEFAULT_MCP_PORT = 7424
 
@@ -151,6 +152,7 @@ async function readSecrets(): Promise<Secrets> {
   }
   try {
     secrets = JSON.parse(safeStorage.decryptString(await readFile(secretsFile()))) as Secrets
+    registerSecrets(secrets)
   } catch {
     // Missing or unreadable (e.g. keychain reset): start empty.
   }
@@ -159,6 +161,7 @@ async function readSecrets(): Promise<Secrets> {
 
 async function writeSecrets(next: Secrets): Promise<void> {
   secrets = next
+  registerSecrets(next)
   // Without a keychain the values stay in memory only, never on disk in plain text.
   if (!keychainAvailable()) return
   await mkdir(app.getPath('userData'), { recursive: true })
