@@ -3106,6 +3106,66 @@ input[type='checkbox'] {
   break-inside: avoid;
 }
 
+/* Code block: a transparent textarea over the highlighted copy (shared/code-block.css),
+   in one grid cell so both take the size of the longer one and scroll together. */
+.editor-canvas .cp-code__edit {
+  display: grid;
+  overflow-x: auto;
+}
+
+.editor-canvas .cp-code__edit > * {
+  grid-area: 1 / 1;
+}
+
+.editor-canvas .cp-code__edit .cp-code__pre {
+  overflow: visible;
+  pointer-events: none;
+}
+
+.editor-canvas .cp-code__input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 1em;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: transparent;
+  caret-color: var(--cp-code-fg, #e1e4e8);
+  font: inherit;
+  tab-size: 2;
+  white-space: pre;
+  overflow: hidden;
+  resize: none;
+  outline: none;
+  box-shadow: none;
+}
+
+.editor-canvas .cp-code--numbers .cp-code__input {
+  padding-left: calc(2em + var(--cp-code-digits, 2) * 1ch);
+}
+
+.editor-canvas .cp-code__input::placeholder {
+  color: var(--cp-code-fg, #e1e4e8);
+  opacity: 0.45;
+}
+
+.editor-canvas .cp-gist__form {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
+.editor-canvas .cp-gist__error {
+  margin: 8px 0 0;
+  color: var(--danger);
+}
+
+.editor-canvas .cp-code__input::selection {
+  background: color-mix(in srgb, var(--cp-code-fg, #e1e4e8) 30%, transparent);
+}
+
 /* Wide / full blocks show a little wider than the text in the editor. */
 .editor-canvas .alignwide {
   margin-inline: -60px;

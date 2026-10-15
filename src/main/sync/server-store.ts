@@ -193,13 +193,10 @@ export async function openServerStore(
           at: new Date().toISOString(),
           device
         }
-        // Written aside and renamed, so a cut connection never leaves half a head.
-        const full = posix.join(opened.base, projectDir, 'head')
-        await opened.remote.writeBytes(
-          `${full}.tmp`,
+        await opened.remote.replace(
+          posix.join(opened.base, projectDir, 'head'),
           encrypt(opened.key, Buffer.from(JSON.stringify(next)))
         )
-        await opened.remote.rename(`${full}.tmp`, full)
         return { ok: true, head: next }
       }),
     missing: async (hashes) => {

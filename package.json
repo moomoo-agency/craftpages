@@ -1,7 +1,7 @@
 {
   "name": "craftpages",
   "productName": "CraftPages",
-  "version": "1.1.5",
+  "version": "1.1.6",
   "description": "Desktop CMS for plain-HTML static sites: edit text, images and SEO in place, publish to Cloudflare",
   "main": "./out/main/index.js",
   "author": "Vitalii Kiiko",
@@ -26,10 +26,12 @@
   },
   "dependencies": {
     "@electron-toolkit/utils": "^4.0.0",
+    "@wordpress/hooks": "^4.57.0",
     "basic-ftp": "^6.2.1",
     "electron-updater": "^6.8.9",
     "parse5": "^8.0.1",
     "sharp": "^0.35.4",
+    "shiki": "4.4.3",
     "ssh2-sftp-client": "^12.1.1",
     "ws": "^8.22.0"
   },

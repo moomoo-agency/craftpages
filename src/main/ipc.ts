@@ -30,6 +30,7 @@ import { clearSessions, interactUrl, previewServer, previewUrl, startEditing } f
 import { scanComponents } from './html/components'
 import { revert } from './history'
 import { importImage } from './images'
+import { fetchGist } from './gist'
 import * as media from './media'
 import {
   broadcastMcpStatus,
@@ -597,6 +598,7 @@ export function registerIpc(appIcon: string): void {
       })
       return postPreview.origin + url
     },
+    'gist:fetch': (_event, url: string) => fetchGist(url),
     'posts:regenerate': async () => {
       const root = requireRoot()
       const generated = await generateBlog(root)

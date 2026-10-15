@@ -1,0 +1,107 @@
+/* Code block (CraftPages): colours come from the block's theme, set on the block as
+   --cp-code-bg and --cp-code-fg; the tokens carry their own colours. The editor uses
+   this same file, so a block looks the same there and on the site. Inner rules are
+   scoped under .cp-code so a site's own pre/code/figcaption styles don't win. */
+.cp-code {
+  --cp-code-font: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+  position: relative;
+  margin: 1.5em 0;
+  border-radius: 8px;
+  background: var(--cp-code-bg, #24292e);
+  color: var(--cp-code-fg, #e1e4e8);
+  font: 0.875rem/1.6 var(--cp-code-font);
+  overflow: hidden;
+  /* A light theme on a light page still shows its edge. */
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 14%, transparent);
+}
+.cp-code .cp-code__title {
+  margin: 0;
+  padding: 0.6em 1em;
+  border: 0;
+  border-bottom: 1px solid color-mix(in srgb, currentColor 15%, transparent);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  opacity: 0.8;
+}
+.cp-code .cp-code__title a {
+  color: inherit;
+  text-decoration: none;
+}
+.cp-code .cp-code__title a:hover {
+  text-decoration: underline;
+}
+.cp-code .cp-code__pre {
+  max-width: none;
+  margin: 0;
+  padding: 1em 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  overflow-x: auto;
+  background: none;
+  color: inherit;
+  font: inherit;
+  white-space: pre;
+  tab-size: 2;
+}
+.cp-code .cp-code__pre code {
+  display: block;
+  width: max-content;
+  min-width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+}
+.cp-code .line {
+  display: inline-block;
+  box-sizing: border-box;
+  min-width: 100%;
+  padding: 0 1em;
+}
+.cp-code .hl {
+  background: color-mix(in srgb, currentColor 12%, transparent);
+  box-shadow: inset 3px 0 color-mix(in srgb, currentColor 45%, transparent);
+}
+.cp-code--numbers .cp-code__pre code {
+  counter-reset: line;
+}
+.cp-code--numbers .line::before {
+  counter-increment: line;
+  content: counter(line);
+  display: inline-block;
+  width: calc(var(--cp-code-digits, 2) * 1ch);
+  margin-right: 1em;
+  text-align: right;
+  opacity: 0.4;
+  user-select: none;
+}
+.cp-code .cp-code__copy {
+  position: absolute;
+  top: 0.5em;
+  right: 0.5em;
+  padding: 0.3em 0.7em;
+  border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+  border-radius: 6px;
+  background: var(--cp-code-bg, #24292e);
+  color: inherit;
+  font: 0.75rem/1.4 var(--cp-code-font);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.cp-code:hover .cp-code__copy,
+.cp-code .cp-code__copy:focus-visible,
+.cp-code .cp-code__copy[data-done] {
+  opacity: 1;
+}
+@media (hover: none) {
+  .cp-code .cp-code__copy {
+    opacity: 1;
+  }
+}

@@ -14,6 +14,8 @@ import { Field, Notice } from '../components/Field'
 import MediaPicker from '../components/MediaPicker'
 import StatusPill from '../components/StatusPill'
 import { BREAK_BLOCK, COLUMNS_BLOCK, CORE_BLOCKS, registerBlocks } from '../lib/blocks'
+import { CODE_BLOCK } from '../lib/code-block'
+import { GIST_BLOCK } from '../lib/gist-block'
 import { errorMessage, formatDate, toLocalInput } from '../lib/api'
 import { useT } from '../i18n'
 import { listPath, postPath, postPrefix, slugify } from '../../../shared/blog-urls'
@@ -108,7 +110,13 @@ export default function PostEditor({
 
   const settings = useMemo(
     () => ({
-      allowedBlockTypes: [...CORE_BLOCKS, COLUMNS_BLOCK, ...(splitRegions ? [BREAK_BLOCK] : [])],
+      allowedBlockTypes: [
+        ...CORE_BLOCKS,
+        COLUMNS_BLOCK,
+        CODE_BLOCK,
+        GIST_BLOCK,
+        ...(splitRegions ? [BREAK_BLOCK] : [])
+      ],
       // Images, galleries, tables, embeds and text columns may go wide or full width.
       alignWide: true,
       hasFixedToolbar: false,

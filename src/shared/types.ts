@@ -391,6 +391,19 @@ export interface MediaChangeResult {
   historyId: string
 }
 
+/** A GitHub Gist, as the Gist block needs it. */
+export interface Gist {
+  id: string
+  owner: string
+  /** The revision fetched: the one in the link, or the latest. */
+  revision: string
+  /** The link named a revision, so updating keeps to it. */
+  pinned: boolean
+  url: string
+  description: string
+  files: { name: string; language: string; content: string }[]
+}
+
 export interface ProcessedImage {
   src: string
   width: number
@@ -1169,6 +1182,8 @@ export interface Api {
   regenerateBlog: () => Promise<GenerateResult>
   /** Runs an image dropped / pasted into the editor through the import pipeline. */
   importImageData: (name: string, data: Uint8Array) => Promise<ProcessedImage>
+  /** A gist's files, for the Gist block. */
+  fetchGist: (url: string) => Promise<Gist>
 
   // Site search
   getSearch: () => Promise<SearchState>

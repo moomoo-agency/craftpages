@@ -55,14 +55,39 @@ export interface Remote {
   ensureDir: (dir: string) => Promise<void>
   remove: (path: string) => Promise<void>
   rename: (from: string, to: string) => Promise<void>
+  /** Writes aside and renames, so a cut connection never leaves half a file. */
+  replace: (path: string, data: Buffer) => Promise<void>
   close: () => Promise<void>
 }
 
-/** OpenSSH-style fingerprint of a server key: SHA256:base64. */
 const done = (): void => undefined
 
+/** OpenSSH-style fingerprint of a server key: SHA256:base64. */
 const fingerprint = (key: Buffer): string =>
   `SHA256:${createHash('sha256').update(key).digest('base64').replace(/=+$/, '')}`
+
+/**
+ * `replace` over a connection's own writes. Some hosts can't rename (Bunny Storage
+ * refuses it by design); there the file is written in place, and after the first
+ * refusal this connection stops trying.
+ */
+function replacer(remote: Pick<Remote, 'writeBytes' | 'rename' | 'remove'>): Remote['replace'] {
+  let canRename = true
+  return async (path, data) => {
+    if (canRename) {
+      const temp = `${path}.tmp`
+      await remote.writeBytes(temp, data)
+      try {
+        await remote.rename(temp, path)
+        return
+      } catch {
+        canRename = false
+        await remote.remove(temp).catch(() => null)
+      }
+    }
+    await remote.writeBytes(path, data)
+  }
+}
 
 async function openFtp(connection: ServerConnection): Promise<Remote> {
   const client = new FtpClient(TIMEOUT)
@@ -101,6 +126,11 @@ async function openFtp(connection: ServerConnection): Promise<Remote> {
     })
   const writeBytes = (path: string, data: Buffer): Promise<void> =>
     run(() => client.uploadFrom(Readable.from([data]), path)).then(done)
+  const remove = (path: string): Promise<void> => run(() => client.remove(path, true)).then(done)
+  const rename = (from: string, to: string): Promise<void> =>
+    run(() => client.rename(from, to)).then(done)
+  // Folders this connection made or found, so each one costs a single MKD.
+  const made = new Set<string>()
   return {
     home,
     list: (dir) =>
@@ -114,11 +144,21 @@ async function openFtp(connection: ServerConnection): Promise<Remote> {
     upload: (local, remote) => run(() => client.uploadFrom(local, remote)).then(done),
     ensureDir: (dir) =>
       run(async () => {
-        // ensureDir changes the working folder; paths stay absolute, so that's harmless.
-        await client.ensureDir(dir)
+        // MKD each level by its absolute path, never CWD: hosts with virtual folders
+        // (Bunny Storage) keep no empty folder and make it on upload, so entering a
+        // new one fails there. An MKD that fails because the folder exists is fine, and
+        // any real problem surfaces on the upload.
+        let path = ''
+        for (const name of dir.split('/').filter(Boolean)) {
+          path += `/${name}`
+          if (made.has(path)) continue
+          await client.sendIgnoringError(`MKD ${await client.protectWhitespace(path)}`)
+          made.add(path)
+        }
       }),
-    remove: (path) => run(() => client.remove(path, true)).then(done),
-    rename: (from, to) => run(() => client.rename(from, to)).then(done),
+    remove,
+    rename,
+    replace: replacer({ writeBytes, rename, remove }),
     close: async () => client.close()
   }
 }
@@ -159,6 +199,19 @@ async function openSftp(
   }
   if (seen && seen !== connection.hostKey) onHostKey?.(seen)
   const home = await client.cwd()
+  const writeBytes = async (path: string, data: Buffer): Promise<void> => {
+    await client.put(data, path)
+  }
+  const remove = async (path: string): Promise<void> => {
+    await client.delete(path, true)
+  }
+  const rename = async (from: string, to: string): Promise<void> => {
+    // posix-rename replaces the target; plain SFTP rename refuses to.
+    await client.posixRename(from, to).catch(async () => {
+      await client.delete(to, true)
+      await client.rename(from, to)
+    })
+  }
   return {
     home,
     list: async (dir) =>
@@ -167,9 +220,7 @@ async function openSftp(
       if (!(await client.exists(path))) return null
       return (await client.get(path)) as Buffer
     },
-    writeBytes: async (path, data) => {
-      await client.put(data, path)
-    },
+    writeBytes,
     readText: async (path) => {
       if (!(await client.exists(path))) return null
       return ((await client.get(path)) as Buffer).toString('utf8')
@@ -183,16 +234,9 @@ async function openSftp(
     ensureDir: async (dir) => {
       if (!(await client.exists(dir))) await client.mkdir(dir, true)
     },
-    remove: async (path) => {
-      await client.delete(path, true)
-    },
-    rename: async (from, to) => {
-      // posix-rename replaces the target; plain SFTP rename refuses to.
-      await client.posixRename(from, to).catch(async () => {
-        await client.delete(to, true)
-        await client.rename(from, to)
-      })
-    },
+    remove,
+    rename,
+    replace: replacer({ writeBytes, rename, remove }),
     close: async () => {
       await client.end()
     }
@@ -347,15 +391,23 @@ export async function deployServer(
     const step = (message: string): void => onProgress({ phase: 'upload', message, done, total })
     step(`Uploading ${changed.length} changed files…`)
 
-    const made = new Set<string>()
+    // Folders holding files of the last publish are there already (removals come
+    // last), so only new folders cost a round trip.
+    const made = new Set(Object.keys(previous).map((path) => posix.dirname(posix.join(base, path))))
     for (const file of changed) {
       const target = posix.join(base, file.path)
       const dir = posix.dirname(target)
       if (!made.has(dir)) {
         await remote.ensureDir(dir)
         made.add(dir)
+        await remote.upload(join(root, file.path), target)
+      } else {
+        // Someone may have deleted the folder on the server by hand since.
+        await remote.upload(join(root, file.path), target).catch(async () => {
+          await remote.ensureDir(dir)
+          await remote.upload(join(root, file.path), target)
+        })
       }
-      await remote.upload(join(root, file.path), target)
       done += 1
       step(`Uploaded ${done} of ${total}: ${file.path}`)
     }
@@ -374,10 +426,7 @@ export async function deployServer(
       files: Object.fromEntries(local)
     }
     await remote.ensureDir(posix.join(base, MANIFEST_DIR))
-    // Written aside and renamed, so a cut connection never leaves half a manifest.
-    const temp = posix.join(base, `${MANIFEST}.tmp`)
-    await remote.writeText(temp, JSON.stringify(manifest, null, 2))
-    await remote.rename(temp, posix.join(base, MANIFEST))
+    await remote.replace(posix.join(base, MANIFEST), Buffer.from(JSON.stringify(manifest, null, 2)))
 
     const url = site.baseUrl || ''
     await saveState(root, files, { id: manifest.id, url, branch: 'production' })

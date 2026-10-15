@@ -43,6 +43,8 @@ import type {
 } from '../shared/types'
 import blocksCss from './blog-blocks.css?raw'
 import lightboxJs from './blog-lightbox.js?raw'
+import codeJs from './blog-code.js?raw'
+import codeCss from '../shared/code-block.css?raw'
 
 /**
  * The blog is written from the pages themselves: every post is an HTML page
@@ -58,6 +60,7 @@ import lightboxJs from './blog-lightbox.js?raw'
 
 export const BLOCKS_CSS = 'assets/craftpages-blocks.css'
 export const LIGHTBOX_JS = 'assets/craftpages-lightbox.js'
+export const CODE_JS = 'assets/craftpages-code.js'
 const GENERATOR = '<meta name="generator" content="CraftPages">'
 const REDIRECTS_START = '# craftpages:blog start (managed by CraftPages, edits here are replaced)'
 const REDIRECTS_END = '# craftpages:blog end'
@@ -222,11 +225,15 @@ function absolute(site: SiteSettings, path: string): string {
   return site.baseUrl ? site.baseUrl + path : path
 }
 
-function sharedHead(site: SiteSettings, withLightbox: boolean): string[] {
+/** The head for a page with this body: scripts only for the blocks it uses. */
+function sharedHead(site: SiteSettings, body = ''): string[] {
   return [
     GENERATOR,
     `<link rel="stylesheet" href="/${BLOCKS_CSS}">`,
-    ...(withLightbox ? [`<script src="/${LIGHTBOX_JS}" defer></script>`] : []),
+    ...(/wp-block-gallery|cp-lightbox/.test(body)
+      ? [`<script src="/${LIGHTBOX_JS}" defer></script>`]
+      : []),
+    ...(body.includes('cp-code--copy') ? [`<script src="/${CODE_JS}" defer></script>`] : []),
     `<link rel="alternate" type="application/rss+xml" title="${escapeText(site.siteName)}" href="${listPath(site.blog.listPath)}feed.xml">`
   ]
 }
@@ -308,7 +315,7 @@ function postPage(
       ...(data.author ? { author: { '@type': 'Person', name: data.author } } : {}),
       publisher: { '@type': 'Organization', name: site.siteName }
     },
-    extraHead: [...sharedHead(site, /wp-block-gallery|cp-lightbox/.test(post.content)), ...metas],
+    extraHead: [...sharedHead(site, post.content), ...metas],
     currentPath: listPath(site.blog.listPath),
     linkAliases: ctx.linkAliases,
     baseUrl: site.baseUrl,
@@ -644,7 +651,7 @@ export async function generateBlog(
           image: site.seo.defaultImage ? absolute(site, site.seo.defaultImage) : null,
           description: `${site.siteName} · ${title}`,
           jsonLd: { '@type': 'CollectionPage', name: title, url: absolute(site, url) },
-          extraHead: sharedHead(site, false),
+          extraHead: sharedHead(site),
           currentPath: listPath(site.blog.listPath),
           linkAliases,
           baseUrl: site.baseUrl,
@@ -678,8 +685,9 @@ export async function generateBlog(
   }
   const feedUrl = `${listPath(site.blog.listPath)}feed.xml`
   outputs.set(feedUrl.replace(/^\//, ''), rss(site, datas))
-  outputs.set(BLOCKS_CSS, blocksCss)
+  outputs.set(BLOCKS_CSS, `${blocksCss}\n${codeCss}`)
   outputs.set(LIGHTBOX_JS, lightboxJs)
+  outputs.set(CODE_JS, codeJs)
 
   // Never overwrite a page someone else made (e.g. /privacy/ with a /%postname%/ permalink).
   const owned = await ownedPages(root)

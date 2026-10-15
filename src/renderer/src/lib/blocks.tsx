@@ -4,12 +4,16 @@ import { __experimentalGetCoreBlocks, registerCoreBlocks } from '@wordpress/bloc
 import { getBlockType, registerBlockType } from '@wordpress/blocks'
 import { PanelBody, SelectControl } from '@wordpress/components'
 import { translate, useT } from '../i18n'
+import { CODE_BLOCK, hideCoreCode, registerCodeBlock } from './code-block'
+import { GIST_BLOCK, registerGistBlock } from './gist-block'
 
 /**
  * The writer's block set: content blocks only (text, images, a gallery grid,
- * embeds, tables), no layout builders. Two blocks of our own:
+ * embeds, tables), no layout builders. Blocks of our own:
  * - Banner position: where an article is split around the layout's banner.
  * - Text columns: paragraphs flowed through 2 or 3 CSS columns.
+ * - Code: syntax-highlighted code (code-block.tsx), in place of core/code.
+ * - Gist: a file from a GitHub Gist, saved as a Code block's static HTML (gist-block.tsx).
  * Images, galleries, tables, embeds and text columns can go wide or full width.
  *
  * Block titles and descriptions are registered once, in the language active at startup;
@@ -107,6 +111,7 @@ export function registerBlocks(): void {
   // Register only what the writer may insert. Registering every core block also
   // registers formats such as core/footnote, which collide on a Vite reload.
   if (!getBlockType('core/paragraph')) {
+    hideCoreCode()
     registerCoreBlocks(
       __experimentalGetCoreBlocks().filter((block: { name: string }) =>
         CORE_BLOCKS.includes(block.name)
@@ -139,4 +144,6 @@ export function registerBlocks(): void {
       save: ColumnsSave
     } as never)
   }
+  if (!getBlockType(CODE_BLOCK)) registerCodeBlock()
+  if (!getBlockType(GIST_BLOCK)) registerGistBlock()
 }

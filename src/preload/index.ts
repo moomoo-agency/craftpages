@@ -109,6 +109,7 @@ const api: Api = {
   previewPost: (post) => ipcRenderer.invoke('posts:preview', post),
   regenerateBlog: () => ipcRenderer.invoke('posts:regenerate'),
   importImageData: (name, data) => ipcRenderer.invoke('image:import-data', name, data),
+  fetchGist: (url) => ipcRenderer.invoke('gist:fetch', url),
 
   scanComponents: () => ipcRenderer.invoke('components:scan'),
 
