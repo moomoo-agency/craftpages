@@ -1,6 +1,7 @@
 import { randomBytes } from 'crypto'
 import { readdir, readFile } from 'fs/promises'
 import { join } from 'path'
+import { pathToFileURL } from 'url'
 import { parse } from 'parse5'
 import { attr, find, textContent, walk, type Element } from './html/dom'
 import { APP_DIR, getSiteSettings } from './settings'
@@ -397,6 +398,23 @@ export function cleanTags(tags: string[] | undefined): string[] {
 }
 
 /** Checks and normalises a post before it's written. */
+/**
+ * Turns `file:///` links and images back into site paths. Text pasted from a page opened from
+ * disk (a Markdown preview, the app itself) carries `/blog/` as `file:///blog/`, which no
+ * visitor can open. A file inside the site folder becomes its site path.
+ */
+export function siteLinks(content: string, root: string): string {
+  const base = pathToFileURL(root).href.replace(/\/?$/, '/')
+  return content.replace(
+    /\b(href|src)="file:\/\/(\/[^"]*)"/gi,
+    (_match, name: string, path: string) => {
+      const url = `file://${path}`
+      const site = url.startsWith(base) ? `/${url.slice(base.length)}` : path
+      return `${name}="${site}"`
+    }
+  )
+}
+
 export async function validatePost(root: string, post: PostRecord): Promise<PostRecord> {
   const site = await getSiteSettings(root)
   const title = post.title.trim()
@@ -438,6 +456,7 @@ export async function validatePost(root: string, post: PostRecord): Promise<Post
     title,
     slug,
     date,
+    content: siteLinks(post.content, root),
     tags: cleanTags(post.tags),
     category: (post.category ?? '').replace(/\s+/g, ' ').trim(),
     author: (post.author ?? '').replace(/\s+/g, ' ').trim(),
