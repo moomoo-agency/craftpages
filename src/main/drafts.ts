@@ -3,7 +3,7 @@ import { mkdirSync, writeFileSync } from 'fs'
 import { mkdir, readFile, writeFile } from 'fs/promises'
 import { join } from 'path'
 import { applyPatches, attr, children, type Element } from './html/dom'
-import { componentId, pageComponents, scanComponents } from './html/components'
+import { pageComponents, scanComponents } from './html/components'
 import { analyze, editPatches, type Analysis } from './html/instrument'
 import { readSeo, writeSeo } from './html/seo'
 import { writeFiles } from './history'
@@ -160,9 +160,15 @@ export async function loadModel(
   if (cached && cached.hash === hash && cached.sharedKey === sharedKey) return cached
   const analysis = analyze(source)
   const components = new Map<string, { element: Element; label: string }>()
+  // The group this page's block belongs to (on a site with languages, its language's one).
+  const groupOf = new Map(
+    [...shared.values()]
+      .filter((group) => group.pages.includes(path))
+      .map((group) => [group.label, group.id])
+  )
   for (const [label, element] of pageComponents(analysis.document)) {
-    const id = componentId(label)
-    if (shared.get(id)?.pages.includes(path)) components.set(id, { element, label })
+    const id = groupOf.get(label)
+    if (id) components.set(id, { element, label })
   }
   const model = { path, source, hash, sharedKey, analysis, components }
   models.set(path, model)

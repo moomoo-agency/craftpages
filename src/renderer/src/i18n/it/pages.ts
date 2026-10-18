@@ -22,6 +22,10 @@ const messages: Translation['pages'] = {
   },
   scopeLabel: 'Applica le modifiche a',
   scopeAll: { one: '{count} pagina', other: 'Tutte le {count} pagine' },
+  scopeAllIn: {
+    one: '{count} pagina in {language}',
+    other: 'Tutte le {count} pagine in {language}'
+  },
   scopePage: 'Solo questa pagina',
   scopeHint: 'Le pagine in cui qualcuno ha cambiato la propria copia la mantengono.',
   interactBar:

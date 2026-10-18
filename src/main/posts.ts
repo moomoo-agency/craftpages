@@ -4,8 +4,16 @@ import { join } from 'path'
 import { parse } from 'parse5'
 import { attr, find, textContent, walk, type Element } from './html/dom'
 import { APP_DIR, getSiteSettings } from './settings'
+import { focusOf } from './social-image'
 import { DRAFTS_DIR, listFiles } from './workspace'
 import { isValidSlug, listPath, postPath, postPrefix, slugify } from '../shared/blog-urls'
+import {
+  folderLanguage,
+  postGroup,
+  sameLanguage,
+  siteForLanguage,
+  siteForPost
+} from '../shared/languages'
 import type { PostRecord, PostSummary, SiteSettings } from '../shared/types'
 
 /**
@@ -17,7 +25,9 @@ import type { PostRecord, PostSummary, SiteSettings } from '../shared/types'
  * - `og:title` (title), `<title>` (SEO title when it differs), `meta description`
  *   (excerpt), `article:published_time` / `article:modified_time`, `article:tag`,
  *   `article:section` (category), `article:author`,
- *   `og:image` + `og:image:alt` (cover), the canonical URL (slug)
+ *   `craftpages:cover` / `craftpages:social` (cover and social image; on older pages
+ *   the cover is `og:image`), `craftpages:share-focus` and `og:image:alt`, the canonical
+ *   URL (slug)
  * - the body between `<!-- craftpages:body -->` markers, with Gutenberg's block
  *   comments kept so the editor reopens it as blocks
  * - `<meta name="craftpages:post">` (a stable id, so a renamed post can be
@@ -27,8 +37,20 @@ import type { PostRecord, PostSummary, SiteSettings } from '../shared/types'
 export const POST_META = 'craftpages:post'
 export const STATUS_META = 'craftpages:status'
 export const EXCERPT_META = 'craftpages:excerpt'
-/** "none": the post has no cover; its og:image is the site's default, not the post's. */
+/**
+ * The cover's own path, or "none" when the post has none: og:image may be a social image,
+ * a 1200×630 crop or the site's default instead. Pages made before this have no path here,
+ * and their og:image is the cover.
+ */
 export const COVER_META = 'craftpages:cover'
+/** The post's own social image (a path), when it isn't the cover; og:image may be its crop. */
+export const SOCIAL_META = 'craftpages:social'
+/** Where the share crop sits, "x,y" (see `PostRecord.shareFocus`); missing when it's centred. */
+export const SHARE_FOCUS_META = 'craftpages:share-focus'
+/** The cover's alt text, when og:image:alt belongs to the social image. */
+export const COVER_ALT_META = 'craftpages:cover-alt'
+/** The id of the post this one translates (a post's language is its `<html lang>`). */
+export const TRANSLATION_META = 'craftpages:translation-of'
 /** "custom": <title> is the post's own SEO title (otherwise it comes from the title pattern). */
 export const TITLE_META = 'craftpages:title'
 /**
@@ -100,6 +122,22 @@ export function parsePostPage(html: string, site: SiteSettings): PostRecord | nu
     from = html.indexOf(BODY_START, end)
   }
 
+  // The language: one of the site's other languages by `<html lang>`, else the root one.
+  const htmlTag = find(document, (e) => e.tagName === 'html')
+  const pageLang = (htmlTag && attr(htmlTag, 'lang')) ?? ''
+  const lang =
+    site.languages.length > 1 && pageLang
+      ? site.languages.find((l) => l.path && sameLanguage(pageLang, l.code))?.code
+      : undefined
+  const translationOf = content(meta(head, 'name', TRANSLATION_META)[0])
+  const coverMeta = content(meta(head, 'name', COVER_META)[0])
+  const socialMeta = content(meta(head, 'name', SOCIAL_META)[0])
+  const imageAlt = content(meta(head, 'property', 'og:image:alt')[0])
+  const shareFocus = focusOf(
+    content(meta(head, 'name', SHARE_FOCUS_META)[0])
+      .split(',')
+      .map((n) => (n.trim() ? Number(n) : NaN)) as [number, number]
+  )
   const status = content(meta(head, 'name', STATUS_META)[0])
   const description = content(meta(head, 'name', 'description')[0])
   const customDescription = content(meta(head, 'name', DESCRIPTION_META)[0]) === 'custom'
@@ -118,15 +156,26 @@ export function parsePostPage(html: string, site: SiteSettings): PostRecord | nu
       description
     ),
     cover:
-      localImage && content(meta(head, 'name', COVER_META)[0]) !== 'none'
-        ? { src: localImage, alt: content(meta(head, 'property', 'og:image:alt')[0]) }
-        : null,
+      coverMeta === 'none'
+        ? null
+        : coverMeta
+          ? {
+              src: coverMeta,
+              alt: socialMeta ? content(meta(head, 'name', COVER_ALT_META)[0]) : imageAlt
+            }
+          : localImage
+            ? { src: localImage, alt: imageAlt }
+            : null,
+    socialImage: socialMeta ? { src: socialMeta, alt: imageAlt } : null,
+    ...(shareFocus ? { shareFocus } : {}),
     content: parts.join(`\n${BREAK_BLOCK}\n`),
     seoTitle: content(meta(head, 'name', TITLE_META)[0]) === 'custom' ? pageTitle : '',
     seoDescription: customDescription ? description : '',
     tags: meta(head, 'property', 'article:tag').map(content).filter(Boolean),
     category: content(meta(head, 'property', 'article:section')[0]),
-    author: content(meta(head, 'property', 'article:author')[0])
+    author: content(meta(head, 'property', 'article:author')[0]),
+    ...(lang ? { lang } : {}),
+    ...(/^[a-z0-9]+$/.test(translationOf) ? { translationOf } : {})
   }
 }
 
@@ -245,10 +294,12 @@ export async function listPosts(root: string): Promise<PostSummary[]> {
     date: post.date,
     modified: post.modified,
     excerpt: post.excerpt,
-    url: postPath(site.blog.permalink, post.slug),
+    url: postPath(siteForPost(site, post).blog.permalink, post.slug),
     tags: post.tags ?? [],
     category: post.category ?? '',
-    author: post.author ?? ''
+    author: post.author ?? '',
+    lang: post.lang ?? '',
+    group: postGroup(post)
   }))
 }
 
@@ -256,6 +307,42 @@ export async function getPost(root: string, id: string): Promise<PostRecord> {
   const post = (await readPosts(root)).find((stored) => stored.record.id === id)
   if (!post) throw new Error('This post no longer exists.')
   return post.record
+}
+
+/**
+ * A draft that translates a post into another language: the same content, slug and
+ * settings to translate, linked to the original (and its other translations).
+ */
+export async function translationDraft(
+  root: string,
+  id: string,
+  code: string
+): Promise<PostRecord> {
+  const site = await getSiteSettings(root)
+  const stored = await readPosts(root)
+  const source = stored.find((post) => post.record.id === id)?.record
+  if (!source) throw new Error('That post no longer exists.')
+  const language = site.languages.find((l) => l.code === code)
+  if (!language || site.languages.length < 2)
+    throw new Error(`“${code}” isn’t one of the site’s languages.`)
+  const group = postGroup(source)
+  const lang = language.path ? language.code : undefined
+  const existing = stored.find(
+    (post) => postGroup(post.record) === group && (post.record.lang ?? '') === (lang ?? '')
+  )
+  if (existing) return existing.record
+  const now = new Date().toISOString()
+  const rest: PostRecord = { ...source }
+  delete rest.lang
+  return {
+    ...rest,
+    ...(lang ? { lang } : {}),
+    id: newPost().id,
+    translationOf: group,
+    status: 'draft',
+    date: now,
+    modified: now
+  }
 }
 
 export function newPost(): PostRecord {
@@ -314,6 +401,9 @@ export async function validatePost(root: string, post: PostRecord): Promise<Post
   const site = await getSiteSettings(root)
   const title = post.title.trim()
   if (!title) throw new Error('Give the post a title.')
+  // Only the site's other languages; the root language is no language at all.
+  const lang = folderLanguage(site.languages, post.lang)?.code
+  const own = siteForLanguage(site, lang)
   const slug = (post.slug.trim() ? post.slug.trim().toLowerCase() : slugify(title)).replace(
     /^-+|-+$/g,
     ''
@@ -324,21 +414,27 @@ export async function validatePost(root: string, post: PostRecord): Promise<Post
     )
   }
   // /blog/page/2/ and /blog/tag/x/ belong to the list when posts and the list share a folder.
-  const sharesFolder = postPrefix(site.blog.permalink) === listPath(site.blog.listPath)
+  const sharesFolder = postPrefix(own.blog.permalink) === listPath(own.blog.listPath)
   if (sharesFolder && (slug === 'page' || slug === 'tag' || slug === 'category')) {
     throw new Error(
       `“${slug}” is used by the post list (pagination, tag and category pages). Pick another slug.`
     )
   }
-  if (postPath(site.blog.permalink, slug) === listPath(site.blog.listPath)) {
+  if (postPath(own.blog.permalink, slug) === listPath(own.blog.listPath)) {
     throw new Error('That URL is the post list’s own address. Pick another slug.')
   }
   const others = (await readPosts(root)).filter((other) => other.record.id !== post.id)
-  const clash = others.find((other) => other.record.slug === slug)
+  // Each language has its own addresses: the same slug in two languages is fine.
+  const clash = others.find(
+    (other) => other.record.slug === slug && (other.record.lang ?? '') === (lang ?? '')
+  )
   if (clash) throw new Error(`“${clash.record.title}” already uses the slug “${slug}”.`)
   const date = Number.isNaN(new Date(post.date).getTime()) ? new Date().toISOString() : post.date
+  const rest: PostRecord = { ...post }
+  delete rest.lang
   return {
-    ...post,
+    ...rest,
+    ...(lang ? { lang } : {}),
     title,
     slug,
     date,

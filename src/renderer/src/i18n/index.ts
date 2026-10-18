@@ -85,6 +85,8 @@ const pluralRules = new Map<Locale, Intl.PluralRules>()
 
 function pick(message: Msg, locale: Locale, count: unknown): string {
   if (typeof message === 'string') return message
+  // Intl has no "zero" form in most languages; a message that has one uses it for 0.
+  if (count === 0 && message.zero) return message.zero
   let rules = pluralRules.get(locale)
   if (!rules) pluralRules.set(locale, (rules = new Intl.PluralRules(locale)))
   const form = typeof count === 'number' ? rules.select(count) : 'other'

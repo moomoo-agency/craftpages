@@ -6,6 +6,7 @@ import { PanelBody, SelectControl } from '@wordpress/components'
 import { translate, useT } from '../i18n'
 import { CODE_BLOCK, hideCoreCode, registerCodeBlock } from './code-block'
 import { GIST_BLOCK, registerGistBlock } from './gist-block'
+import { FORM_BLOCK, registerFormBlock } from './form-block'
 
 /**
  * The writer's block set: content blocks only (text, images, a gallery grid,
@@ -14,6 +15,7 @@ import { GIST_BLOCK, registerGistBlock } from './gist-block'
  * - Text columns: paragraphs flowed through 2 or 3 CSS columns.
  * - Code: syntax-highlighted code (code-block.tsx), in place of core/code.
  * - Gist: a file from a GitHub Gist, saved as a Code block's static HTML (gist-block.tsx).
+ * - Form: a CraftForms form, saved as the dashboard's own snippet (form-block.tsx).
  * Images, galleries, tables, embeds and text columns can go wide or full width.
  *
  * Block titles and descriptions are registered once, in the language active at startup;
@@ -146,4 +148,5 @@ export function registerBlocks(): void {
   }
   if (!getBlockType(CODE_BLOCK)) registerCodeBlock()
   if (!getBlockType(GIST_BLOCK)) registerGistBlock()
+  if (!getBlockType(FORM_BLOCK)) registerFormBlock()
 }

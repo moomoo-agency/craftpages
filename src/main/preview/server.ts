@@ -47,7 +47,15 @@ export interface StaticServerOptions {
   /** Instrumented pages for the editor, by session key (`?__cms=<key>`). */
   getEditCopy?: (key: string) => string | undefined
   /** Replaces an HTML page's contents when it returns a string (e.g. unsaved drafts applied). */
-  transformHtml?: (path: string) => Promise<string | null>
+  transformHtml?: (path: string, origin: string) => Promise<string | null>
+  /**
+   * Answers app-owned routes before files are looked up (e.g. /__craftforms/ for form
+   * previews). null = not handled here.
+   */
+  route?: (
+    url: URL,
+    origin: string
+  ) => Promise<{ status: number; type: string; body: string } | null>
 }
 
 export interface StaticServer {
@@ -114,6 +122,18 @@ export async function startStaticServer(options: StaticServerOptions): Promise<S
       return
     }
 
+    const routed = await options.route?.(url, origin)
+    if (routed) {
+      // The preview iframes are sandboxed (opaque origin), so app routes answer any origin.
+      res.writeHead(routed.status, {
+        ...headers,
+        'Content-Type': routed.type,
+        'Access-Control-Allow-Origin': '*'
+      })
+      res.end(req.method === 'HEAD' ? undefined : routed.body)
+      return
+    }
+
     const root = options.getRoot()
     if (!root) {
       res.writeHead(404).end('No site open')
@@ -151,7 +171,7 @@ export async function startStaticServer(options: StaticServerOptions): Promise<S
       return
     }
     const [path, raw] = found
-    const transformed = path.endsWith('.html') ? await options.transformHtml?.(path) : null
+    const transformed = path.endsWith('.html') ? await options.transformHtml?.(path, origin) : null
     const body = transformed ?? raw
     if (path === `${pathname.replace(/^\/+/, '')}/index.html`) {
       // Directory without a trailing slash: redirect so relative URLs resolve.

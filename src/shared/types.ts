@@ -31,12 +31,139 @@ export interface AppSettings {
   recentProjects: RecentProject[]
   /** Deploy connections (accounts); each project picks one. */
   connections: DeployConnection[]
+  /** craftforms.app accounts connected through the browser; each project picks one. */
+  formsAccounts: FormsAccount[]
   background: {
     /** While anything is scheduled, closing the window leaves the app running in the menu bar / tray. */
     keepRunning: boolean
     /** Start hidden at login, so scheduled changes go out after a restart too. */
     openAtLogin: boolean
   }
+}
+
+/**
+ * A craftforms.app account, connected through the browser (CraftForms integration,
+ * unfinished/CRAFTFORMS.md). Its API token is in the keychain, by `id`. Kept apart
+ * from deploy connections: it's where forms come from, not where a site publishes.
+ */
+export interface FormsAccount {
+  id: string
+  /** The CraftForms app it belongs to, normally https://my.craftforms.app. */
+  service: string
+  email: string
+  name: string
+  plan: string
+  connectedAt: string
+}
+
+export interface FormsAccountView extends FormsAccount {
+  hasToken: boolean
+}
+
+export interface FormsUsage {
+  used: number
+  /** 0 means unlimited. */
+  limit: number
+}
+
+export interface FormsForm {
+  /** The embed id (rest name or UUID), not a post ID. */
+  id: string
+  title: string
+  published: boolean
+  /** Published and addressable: can be put on a page. */
+  embeddable: boolean
+  modified: string
+}
+
+export type FormsWebsiteStatus = 'authorised' | 'available' | 'over_limit'
+
+/** The project's forms setup, from this computer only (no network). */
+export interface FormsProject {
+  accounts: FormsAccountView[]
+  /** The project's account id, '' when none is chosen (or it was disconnected). */
+  account: string
+  /** The site address's host, '' when the project has none. */
+  siteDomain: string
+  /** The website forms are embedded for: the project's choice, else siteDomain. */
+  domain: string
+  /** Forms already on the site's pages, whoever put them there. */
+  embeds: FormsEmbed[]
+}
+
+/**
+ * Where an embed's form lives, read from its key (whose first part is that site's address):
+ * the project's connected account, another craftforms.app account, a self-hosted
+ * CraftForms (WordPress) site, or unknown (the key doesn't decode).
+ */
+export type FormsEmbedSource = 'account' | 'hosted' | 'self' | 'unknown'
+
+/** The snippet's own settings, as data-* attributes (all optional). */
+export interface FormsEmbedSettings {
+  /** data-lang: the form's language; '' = follow the page. */
+  lang: string
+  /** data-resource-id: a catalog item (bookings, products). */
+  resourceId: string
+  /** data-resource-sig: the item's signature; keys made since October 2026 need it. */
+  resourceSig: string
+  /** data-loader="off" hides the loading spinner. */
+  spinner: boolean
+  /** data-loading-label: what screen readers hear while it loads. */
+  loadingLabel: string
+}
+
+/** One embed found on a page, whoever put it there. */
+export interface FormsEmbed {
+  path: string
+  /** Its position among the page's embeds (0-based), to address it for editing. */
+  index: number
+  key: string
+  /** The site the key belongs to, e.g. https://abc.forms.craftforms.app; '' when unknown. */
+  site: string
+  source: FormsEmbedSource
+  /** Known for the connected account's embeds once its forms were listed. */
+  formId: string | null
+  title: string | null
+  /** The website the key works on, or null when unknown (another account, self-hosted). */
+  domain: string | null
+  /** False when the page has no CraftForms loader script, so the form can't appear. */
+  hasLoader: boolean
+  /** On a page the blog builds from a post: change it in the post, not here. */
+  inPost: boolean
+  settings: FormsEmbedSettings
+}
+
+/** GET /api/v1/forms: the live list for the project's account. */
+export interface FormsList {
+  forms: FormsForm[]
+  websites: { domain: string; keys: { formId: string; key: string; domain: string }[] }[]
+  quota: { forms: FormsUsage; websites: FormsUsage }
+  loaderUrl: string
+  siteUrl: string
+  urls: { newForm: string; forms: string; upgrade: string; dashboard: string }
+  requested?: { domain: string; status: FormsWebsiteStatus; keys: Record<string, string> }
+}
+
+export interface FormsEnsured {
+  key: string
+  domain: string
+  created: boolean
+  snippet: string
+}
+
+/** GET /api/v1/me: the account card. */
+export interface FormsAccountInfo {
+  email: string
+  name: string
+  plan: string
+  status: string
+  /** 'none' until the free forms site is created from the dashboard. */
+  hostingState: string
+  emailVerified: boolean
+  siteUrl: string | null
+  /** null when there is no forms site yet, or its server couldn't be asked. */
+  limits: { forms: FormsUsage; websites: FormsUsage | null } | null
+  urls: { dashboard: string; billing: string; connectedApps: string }
 }
 
 /** Cloudflare (the id predates Workers), or any web host reached over FTP / SFTP. */
@@ -128,7 +255,10 @@ export interface SiteSettings {
   siteName: string
   /** Canonical origin, e.g. https://example.com (no trailing slash). */
   baseUrl: string
+  /** The root language's code (blog dates…). With `languages` set, it follows the root one. */
   locale: string
+  /** The site's languages, one per folder; empty for a site in one language. */
+  languages: SiteLanguage[]
   deploy: {
     /** The deploy connection (app-wide account) this project uses: yours or a client's. */
     connection: string
@@ -151,6 +281,15 @@ export interface SiteSettings {
     exclude: string[]
   }
   images: { maxWidth: number; quality: number; pngToJpeg: boolean; dir: string }
+  /** CraftForms (optional): where this project's forms come from, and for which website. */
+  forms: {
+    /** The CraftForms account (app-wide, by id) this project uses; '' = none. */
+    account: string
+    /** That account's email, so a synced copy on another computer can find its own. */
+    accountHint: string
+    /** The website forms are embedded for when it isn't the site address; '' = the site address. */
+    domain: string
+  }
   seo: {
     /** For generated pages (blog): %title% and %site%, e.g. "%title% · %site%". */
     titlePattern: string
@@ -432,6 +571,8 @@ export interface ComponentVariant {
 export interface ComponentGroup {
   id: string
   label: string
+  /** On a site with languages: the language whose pages share it (each has its own). */
+  language?: string
   tag: string
   /** The block's first heading, to name it for people. */
   heading?: string
@@ -588,6 +729,14 @@ export interface PostRecord {
   /** Card text and feed summary (and meta description unless `seoDescription` is set); made from the body when empty. */
   excerpt: string
   cover: { src: string; alt: string } | null
+  /** Image for social sharing when it should differ from the cover. */
+  socialImage?: { src: string; alt: string } | null
+  /**
+   * Where the 1200×630 share crop sits on the shared image, as fractions (0–1) of the room
+   * left to move across and down, like CSS `object-position`. Missing means centred, by
+   * what looks interesting (sharp's attention strategy).
+   */
+  shareFocus?: [number, number] | null
   /** Body as Gutenberg block markup. */
   content: string
   /** `<title>` when it should differ from the post title. */
@@ -599,6 +748,10 @@ export interface PostRecord {
   category?: string
   /** Empty: the layout's own author name stays. */
   author?: string
+  /** On a site with languages: the post's language code; empty for the root language. */
+  lang?: string
+  /** The post this one translates (its id); posts that translate each other share it. */
+  translationOf?: string
 }
 
 export interface PostSummary {
@@ -616,6 +769,10 @@ export interface PostSummary {
   tags: string[]
   category: string
   author: string
+  /** Language code; empty for the root language. */
+  lang: string
+  /** Id of the post group this one belongs to (translations share it). */
+  group: string
 }
 
 /** What a blog regeneration wrote into the site folder. */
@@ -714,6 +871,115 @@ export interface BlogSetup {
 }
 
 // ---------- SEO ----------
+
+// ---------- Languages ----------
+
+export interface SiteLanguage {
+  /** BCP 47 code, as in `<html lang>` and hreflang: "it", "pt-BR". */
+  code: string
+  name: string
+  /** Folder of its pages: '' for the root (the default language), else "en/". */
+  path: string
+  /** The blog's title in this language (the list's heading); empty: the site's blog title. */
+  blogTitle?: string
+  /** The language switcher's text for it; empty: its code in capitals (IT, EN). */
+  label?: string
+  /** The switcher's flag for it (an id of the built-in flags); empty: the language's usual one. */
+  flag?: string
+}
+
+/** How the site's language switchers look (kept on each one, in its own markup). */
+export interface SwitcherLook {
+  display: 'text' | 'flag' | 'both'
+  /** Text size and flag height, in px; 0 keeps the site's text size. */
+  size: number
+  /** Space between the languages, in px. */
+  gap: number
+}
+
+export interface SwitcherState {
+  /** Pages that have a switcher. */
+  pages: string[]
+  look: SwitcherLook
+  flags: { id: string; name: string; svg: string }[]
+  /** Each language's flag when none is chosen, by language code. */
+  defaultFlags: Record<string, string>
+}
+
+/** Pages that translate each other: language code → page path. */
+export interface TranslationGroup {
+  pages: Record<string, string>
+}
+
+export interface LanguagesState {
+  languages: SiteLanguage[]
+  /** Not set up yet, but the pages look multilingual: what was found. */
+  detected: SiteLanguage[] | null
+  /** Pages per language code. */
+  counts: Record<string, number>
+  /** Groups of two or more pages. */
+  groups: TranslationGroup[]
+  /** Per language code: pages of the root language with no page in that language. */
+  missing: Record<string, string[]>
+  /** Pages whose `lang` or links to translations (hreflang) need updating. */
+  outdated: string[]
+  /** Of those, pages with unsaved edits (updated after Save all). */
+  unsaved: string[]
+  /** Two pages of one language claim to translate the same page. */
+  conflicts: { language: string; pages: string[] }[]
+  /** Pages in the folder of a language the site doesn't list (left as they are). */
+  unmanaged: string[]
+}
+
+/**
+ * A translation's state: `source` (a page of the root language), `needs` (copied, not
+ * translated yet), `outdated` (its source page's text changed since it was translated), or
+ * `translated`.
+ */
+export type TranslationStatus = 'source' | 'needs' | 'outdated' | 'translated'
+
+/** One row of the translations grid: a page and its versions, by language code. */
+export interface TranslationRow {
+  title: string
+  pages: Record<string, { path: string; status: TranslationStatus }>
+}
+
+/** The open page's place among its translations (for the editor). */
+export interface PageLanguage {
+  code: string
+  status: TranslationStatus
+  /** The page it translates (a page of the root language), if any. */
+  source: string | null
+  /** Its versions, this one included, by language code. */
+  pages: Record<string, string>
+  /** The site's languages, in order. */
+  languages: SiteLanguage[]
+}
+
+/**
+ * A text block of a translation's source page that changed. `key` is the block's editor
+ * selector, `…@alt` for an image's alt text, or `@title` / `@description`.
+ */
+export interface TextChange {
+  key: string
+  /** Null: the block is new. */
+  before: string | null
+  /** Null: the block is gone. */
+  now: string | null
+}
+
+export interface LanguagesCopy {
+  created: string[]
+  /** Pages that already had a version in that language. */
+  skipped: string[]
+  historyId: string | null
+}
+
+export interface LanguagesUpdate {
+  changed: string[]
+  skipped: string[]
+  historyId: string | null
+}
 
 export interface SeoIssue {
   page: string
@@ -939,13 +1205,22 @@ export interface Deployment {
 export interface McpStatus {
   running: boolean
   port: number
+  /** WebSocket address (Claude Code). */
   url: string
+  /** Streamable HTTP address (Codex, Cursor and most other clients). */
+  httpUrl: string
   token: string
   clients: string[]
   error: string | null
   autoAccept: boolean
   /** Ready-to-paste `claude mcp add-json …` line. */
   command: string
+  /** Ready-to-paste `codex mcp add …` line. */
+  codexCommand: string
+  /** JSON server entry (url + Authorization header) for other HTTP clients. */
+  httpConfig: string
+  /** `mcpServers` entry that starts the stdio bridge (Claude Desktop, stdio-only clients). */
+  stdioConfig: string
 }
 
 export interface ProposalFile {
@@ -1122,6 +1397,33 @@ export interface Api {
 
   // SEO
   auditSeo: () => Promise<SeoReport>
+  languagesState: () => Promise<LanguagesState>
+  /** Saves the site's languages (validated); returns the new state. */
+  saveLanguages: (languages: SiteLanguage[]) => Promise<LanguagesState>
+  /** Writes `lang` and the links between translations into the pages that need them. */
+  updateLanguagePages: () => Promise<LanguagesUpdate>
+  /** Copies pages into a language's folder, linked to them, marked as needing translation. */
+  copyToLanguage: (code: string, paths: string[]) => Promise<LanguagesCopy>
+  translationsGrid: () => Promise<TranslationRow[]>
+  pageLanguage: (path: string) => Promise<PageLanguage | null>
+  /** Marks translations as translated (and up to date with their source pages). */
+  markTranslated: (paths: string[]) => Promise<void>
+  /** The source page's text for the element at this selector in a translation. */
+  originalText: (path: string, selector: string) => Promise<string | null>
+  /** What changed in an outdated translation's source page (null when not known). */
+  sourceChanges: (path: string) => Promise<TextChange[] | null>
+  switcherState: () => Promise<SwitcherState>
+  /** The switcher as it would look on this page (flags inline), for the live preview. */
+  switcherPreview: (path: string, look: SwitcherLook, languages?: SiteLanguage[]) => Promise<string>
+  placeSwitcher: (
+    path: string,
+    locator: ElementLocator,
+    position: IconPosition,
+    scope: 'all' | 'page',
+    look: SwitcherLook
+  ) => Promise<SearchChange>
+  restyleSwitchers: (look: SwitcherLook) => Promise<SearchChange>
+  removeSwitchers: () => Promise<SearchChange>
   rebuildSitemap: () => Promise<{ urls: number; changed: boolean }>
   /** robots.txt, or null when the site has none. */
   getRobots: () => Promise<string | null>
@@ -1176,6 +1478,8 @@ export interface Api {
   newPost: () => Promise<PostRecord>
   /** Saves; when the post is (or was) published, regenerates the blog pages in the site. */
   savePost: (post: PostRecord) => Promise<SavePostResult>
+  /** The post's version in another language: its existing translation, or a new draft. */
+  translatePost: (id: string, code: string) => Promise<PostRecord>
   deletePost: (id: string) => Promise<GenerateResult | null>
   /** The post rendered with its layout, as it would be published (not written). */
   previewPost: (post: PostRecord) => Promise<string>
@@ -1184,6 +1488,62 @@ export interface Api {
   importImageData: (name: string, data: Uint8Array) => Promise<ProcessedImage>
   /** A gist's files, for the Gist block. */
   fetchGist: (url: string) => Promise<Gist>
+
+  // CraftForms accounts
+  listFormsAccounts: () => Promise<FormsAccountView[]>
+  /** Opens the browser to sign in; resolves once the account is connected. */
+  connectFormsAccount: () => Promise<FormsAccountView>
+  cancelFormsConnect: () => Promise<void>
+  formsAccountInfo: (id: string) => Promise<FormsAccountInfo>
+  disconnectFormsAccount: (id: string) => Promise<void>
+  formsProject: () => Promise<FormsProject>
+  /** Chooses the project's account and/or website; `siteAddress` also sets the project's site address. */
+  setFormsProject: (patch: {
+    account?: string
+    domain?: string
+    siteAddress?: boolean
+  }) => Promise<FormsProject>
+  formsList: (domain?: string) => Promise<FormsList>
+  ensureFormEmbed: (formId: string, domain: string) => Promise<FormsEnsured>
+  releaseFormEmbed: (
+    formId: string,
+    domain: string
+  ) => Promise<{ released: number; domain: string }>
+  /** The Forms screen's live preview: the real embed.js, with a page's stylesheets or none. */
+  formPreviewUrl: (
+    target: { formId?: string; key?: string },
+    page: string,
+    styles: 'site' | 'form'
+  ) => Promise<string>
+  /** Changes an embed's key and settings in place (the page's nth embed). */
+  updateFormEmbed: (
+    path: string,
+    index: number,
+    patch: Partial<FormsEmbedSettings> & { key?: string }
+  ) => Promise<{ historyId: string }>
+  /** Removes an embed (and the loader, when no form is left on the page). */
+  removeFormEmbed: (path: string, index: number) => Promise<{ historyId: string }>
+  /** Adds the CraftForms loader script to a page that has a form but no loader. */
+  addFormLoader: (path: string, loaderUrl: string) => Promise<{ historyId: string }>
+  /** Connected account: another form, or another website, for an embed (ensures the key). */
+  changeEmbedForm: (path: string, index: number, formId: string) => Promise<{ historyId: string }>
+  changeEmbedWebsite: (
+    path: string,
+    index: number,
+    domain: string
+  ) => Promise<{ historyId: string; oldDomain: string | null; oldStillUsed: boolean }>
+  /** Removes every key of a website from the account, freeing its slot. */
+  releaseFormsWebsite: (domain: string) => Promise<{ released: number }>
+  /** A form's stylesheets and rendered HTML (no scripts), for placing it on a page. */
+  formPreviewMarkup: (formId: string) => Promise<string>
+  /** Puts the form's snippet at a picked spot on a page (and the loader, once). */
+  insertForm: (
+    path: string,
+    locator: ElementLocator,
+    position: IconPosition,
+    formId: string,
+    domain: string
+  ) => Promise<{ path: string; key: string; historyId: string }>
 
   // Site search
   getSearch: () => Promise<SearchState>

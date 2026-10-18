@@ -13,6 +13,7 @@ import type {
   Deployment,
   DeployTarget,
   DraftState,
+  FormsEmbed,
   SiteSettings,
   Workspace
 } from '../../../shared/types'
@@ -68,6 +69,28 @@ export default function PublishView({
   useEffect(() => {
     refresh()
   }, [refresh])
+
+  // CraftForms embeds that won't work once published: made for another website, or no loader.
+  const [formIssues, setFormIssues] = useState<FormsEmbed[]>([])
+  const [formsSite, setFormsSite] = useState('')
+  useEffect(() => {
+    if (!workspace) return
+    let live = true
+    window.api.formsProject().then(
+      (project) => {
+        if (!live) return
+        const home = project.siteDomain || project.domain
+        setFormsSite(home)
+        setFormIssues(
+          project.embeds.filter((e) => !e.hasLoader || (e.domain && home && e.domain !== home))
+        )
+      },
+      () => live && setFormIssues([])
+    )
+    return () => {
+      live = false
+    }
+  }, [workspace])
 
   useAppEvent((event) => {
     if (event.type === 'deploy') setProgress(event.progress)
@@ -201,6 +224,28 @@ export default function PublishView({
           </>
         }
       >
+        {formIssues.length > 0 && (
+          <Notice kind="warning">
+            <strong>{t('publish.formIssuesTitle', { count: formIssues.length })}</strong>
+            <ul className="publish__unsaved-pages">
+              {formIssues.map((issue, index) => (
+                <li key={`${issue.path}:${index}`}>
+                  <button
+                    className="link"
+                    title={issue.path}
+                    onClick={() => onOpenPage(issue.path)}
+                  >
+                    {issue.path}
+                  </button>
+                  {' · '}
+                  {!issue.hasLoader
+                    ? t('forms.noLoader')
+                    : t('forms.wrongDomain', { domain: issue.domain ?? '', site: formsSite })}
+                </li>
+              ))}
+            </ul>
+          </Notice>
+        )}
         {unsaved > 0 && (
           <div className="publish__unsaved">
             <Notice kind="warning">

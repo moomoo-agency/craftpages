@@ -31,10 +31,16 @@ export function follow(start: Element, path: number[]): Element | null {
 const classesOf = (element: Element): string[] =>
   (attr(element, 'class') ?? '').split(/\s+/).filter(Boolean)
 
+const spacedText = (element: Element): string =>
+  element.childNodes
+    .map((child) => (isElement(child) ? spacedText(child) : textContent(child)))
+    .join(' ')
+
 export function describe(element: Element): string {
   const id = attr(element, 'id')
   const classes = classesOf(element)
-  const text = textContent(element).replace(/\s+/g, ' ').trim()
+  // Spaced, so a menu reads "Home About Contact" rather than "HomeAboutContact".
+  const text = spacedText(element).replace(/\s+/g, ' ').trim()
   const name = element.tagName + (id ? `#${id}` : '') + (classes[0] ? `.${classes[0]}` : '')
   return text ? `${name} “${text.length > 40 ? text.slice(0, 38) + '…' : text}”` : name
 }

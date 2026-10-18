@@ -100,24 +100,32 @@ export function writeSeo(source: string, seo: PageSeo): string {
     }
   }
 
-  if (additions.length > 0) {
-    const location = head.sourceCodeLocation
-    const lastChild = [...head.childNodes].reverse().find((node) => node.sourceCodeLocation)
-    const at = location?.endTag?.startOffset ?? lastChild?.sourceCodeLocation?.endOffset
-    if (at === undefined) throw new Error('Could not find where <head> ends')
-    // Match the indentation of the head's last tag, inserting on its own line when `</head>` is.
-    const lastElement = [...children(head)].reverse()[0]
-    const indentOf = (offset: number): string =>
-      source.slice(source.lastIndexOf('\n', offset - 1) + 1, offset).match(/^[ \t]*/)![0]
-    const childIndent = lastElement?.sourceCodeLocation
-      ? indentOf(lastElement.sourceCodeLocation.startOffset)
-      : ''
-    const lineStart = source.lastIndexOf('\n', at - 1) + 1
-    const ownLine = /^[ \t]*$/.test(source.slice(lineStart, at))
-    const text = additions.map((line) => `${childIndent}${line}\n`).join('')
-    const start = ownLine ? lineStart : at
-    patches.push({ start, end: start, text })
-  }
+  if (additions.length > 0) patches.push(headInsertPatch(source, head, additions))
 
   return applyPatches(source, patches)
+}
+
+/**
+ * Adds tags at the end of `<head>`, one per line, indented like the head's last tag
+ * (on their own lines when `</head>` is on its own line).
+ */
+export function headInsertPatch(source: string, head: Element, lines: string[]): Patch {
+  const location = head.sourceCodeLocation
+  const lastChild = [...head.childNodes].reverse().find((node) => node.sourceCodeLocation)
+  const at = location?.endTag?.startOffset ?? lastChild?.sourceCodeLocation?.endOffset
+  if (at === undefined) throw new Error('Could not find where <head> ends')
+  const lastElement = [...children(head)].reverse()[0]
+  const childIndent = lastElement?.sourceCodeLocation
+    ? indentAt(source, lastElement.sourceCodeLocation.startOffset)
+    : ''
+  const lineStart = source.lastIndexOf('\n', at - 1) + 1
+  const ownLine = /^[ \t]*$/.test(source.slice(lineStart, at))
+  const text = lines.map((line) => `${childIndent}${line}\n`).join('')
+  const start = ownLine ? lineStart : at
+  return { start, end: start, text }
+}
+
+/** The spaces and tabs a line starts with, for the line holding `offset`. */
+export function indentAt(source: string, offset: number): string {
+  return source.slice(source.lastIndexOf('\n', offset - 1) + 1, offset).match(/^[ \t]*/)![0]
 }

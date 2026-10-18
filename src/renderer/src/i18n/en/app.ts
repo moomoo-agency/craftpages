@@ -9,6 +9,7 @@ export default {
   viewMedia: 'Media',
   viewSeo: 'SEO',
   viewSearch: 'Site search',
+  viewForms: 'Forms',
   viewAi: 'Template editing (AI)',
   viewPublish: 'Publish',
   viewProject: 'Project settings',

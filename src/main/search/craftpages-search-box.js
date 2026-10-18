@@ -34,6 +34,14 @@
   var PLAIN = /^[ -~\s]*$/
   var folded = Object.create(null)
 
+  /** On a site with languages: the index for this page's language (the loader says where each is). */
+  function languageIndex() {
+    var map = window.CraftPagesSearchIndexes
+    if (!map) return null
+    var lang = (document.documentElement.lang || '').toLowerCase()
+    return map[lang] || map[lang.split('-')[0]] || null
+  }
+
   function fold(text) {
     if (PLAIN.test(text)) return text.toLowerCase()
     var out = ''
@@ -201,7 +209,7 @@
       if (this._index) return Promise.resolve(this._index)
       if (this._loading) return this._loading
       var self = this
-      var url = this.dataset.index || '/search-index.json'
+      var url = this.dataset.index || languageIndex() || '/search-index.json'
       this._loading = fetch(url, { cache: 'no-cache' })
         .then(function (response) {
           if (!response.ok) throw new Error(url + ': HTTP ' + response.status)

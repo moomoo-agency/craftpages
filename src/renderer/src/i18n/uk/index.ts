@@ -7,6 +7,7 @@ import blog from './blog'
 import post from './post'
 import seo from './seo'
 import search from './search'
+import forms from './forms'
 import publish from './publish'
 import project from './project'
 import connections from './connections'
@@ -17,6 +18,7 @@ import updates from './updates'
 import code from './code'
 import versions from './versions'
 import sync from './sync'
+import languages from './languages'
 import type { Translation } from '../types'
 
 export const uk: Translation = {
@@ -29,6 +31,7 @@ export const uk: Translation = {
   post,
   seo,
   search,
+  forms,
   publish,
   project,
   connections,
@@ -38,5 +41,6 @@ export const uk: Translation = {
   updates,
   code,
   versions,
-  sync
+  sync,
+  languages
 }

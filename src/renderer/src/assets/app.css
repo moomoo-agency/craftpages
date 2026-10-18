@@ -931,6 +931,16 @@ textarea.mono {
   flex: 1;
 }
 
+/* Next to a multi-line field, a button keeps its own height, at the top. */
+.input-group:has(> textarea) {
+  align-items: flex-start;
+}
+
+.input-group > textarea {
+  flex: 1;
+  min-width: 0;
+}
+
 .inline-form {
   display: flex;
   gap: 8px;
@@ -1853,6 +1863,13 @@ textarea.mono {
   color: var(--success);
 }
 
+/* Was translated, then the original changed: outlined, so it reads apart from "to translate". */
+.badge--outdated {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--warning);
+  color: var(--warning);
+}
+
 .badge--muted {
   background: var(--surface-2);
   color: var(--muted);
@@ -1925,6 +1942,21 @@ textarea.mono {
   height: 100%;
   max-height: none;
   object-fit: cover;
+}
+
+.share-crop {
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.share-crop:active {
+  cursor: grabbing;
+}
+
+.share-crop:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 /* ---------- Modal + media picker ---------- */
@@ -5110,4 +5142,380 @@ div.media-card:has(.media-card__open:hover) {
   margin-right: 8px;
   color: var(--warning);
   font-weight: 500;
+}
+
+/* ---------- Forms (CraftForms) ---------- */
+.forms-domain {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 480px;
+}
+
+.forms-domain__current {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.editor-canvas .cp-form-block__card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 28px 20px;
+  border: 2px dashed var(--accent, #2f6fed);
+  border-radius: 10px;
+  text-align: center;
+}
+
+.editor-canvas .cp-form-block__warn {
+  color: var(--danger);
+}
+
+.editor-canvas .cp-form-block__picker {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  max-width: 420px;
+}
+
+.forms-preview__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.forms-preview__frame {
+  width: 100%;
+  height: 640px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.form-embed-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface, #fff);
+}
+
+.form-embed-panel__row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.form-embed-panel__inline {
+  display: flex;
+  gap: 8px;
+}
+
+.form-embed-panel__inline input {
+  flex: 1;
+  min-width: 0;
+}
+
+.form-embed-panel__settings {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.form-embed-panel__settings > summary {
+  cursor: pointer;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.forms-websites {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.forms-websites li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.forms-websites__confirm {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ---------- Project settings: languages ---------- */
+.languages {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.languages > * {
+  margin: 0;
+}
+
+.languages__add select {
+  max-width: 320px;
+}
+
+.languages__table td {
+  vertical-align: middle;
+}
+
+.languages__table input {
+  width: 100%;
+}
+
+.languages details ul {
+  margin: 6px 0 0;
+  padding-left: 20px;
+}
+
+.languages__missing {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.copy-pages {
+  max-height: 320px;
+  margin: 8px 0 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.copy-pages .check {
+  margin: 4px 0;
+}
+
+.pages-tabs {
+  margin-bottom: 16px;
+}
+
+.translations td {
+  vertical-align: middle;
+}
+
+.translations__cell {
+  text-decoration: none;
+}
+
+/* ---------- Page editor: translations ---------- */
+.translation-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 6px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+  font-size: 13px;
+}
+
+.translation-bar__versions {
+  display: flex;
+  gap: 4px;
+}
+
+.translation-bar__versions .btn.is-active {
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 650;
+}
+
+.translation-bar__missing,
+.btn.btn--ghost.translation-bar__missing {
+  border: 1px dashed var(--border);
+}
+
+.post-versions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.translations__summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 24px;
+  margin-bottom: 12px;
+}
+
+.translations__counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 24px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--muted);
+}
+
+.translations__counts strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.translation-changes {
+  max-height: 40vh;
+  overflow: auto;
+  padding: 4px 16px 8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+  font-size: 13px;
+}
+
+.translation-changes p {
+  margin: 4px 0;
+}
+
+.translation-changes__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.translation-changes__item {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+  padding: 8px 0;
+}
+
+.translation-changes__item + .translation-changes__item {
+  border-top: 1px solid var(--border);
+}
+
+.translation-changes__kind {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.translation-changes__texts {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.translation-changes__before {
+  color: var(--muted);
+  text-decoration-color: color-mix(in srgb, var(--muted) 60%, transparent);
+}
+
+.translation-changes__now {
+  text-decoration: none;
+}
+
+.translation-bar__original {
+  flex: 1 1 240px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.languages__switcher .settings__subhead {
+  margin-top: 8px;
+}
+
+.switcher-look {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.switcher-look__languages td {
+  padding-left: 6px;
+  padding-right: 6px;
+}
+
+.switcher-look__languages input {
+  width: 5.5em;
+}
+
+.switcher-look__languages select {
+  width: 100%;
+  min-width: 0;
+}
+
+.switcher-look__languages td:last-child {
+  width: 100%;
+}
+
+.switcher-look__flag {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.switcher-look__flag img {
+  flex-shrink: 0;
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px var(--border);
+}
+
+/* Where Project settings scrolls back to after a full-screen step (the language switcher). */
+.settings__anchor {
+  scroll-margin-top: 16px;
+}
+
+/* A second click for an action that changes the whole site. */
+.inline-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-2);
+}
+
+.inline-confirm > span {
+  flex: 1 1 260px;
+}
+
+/* A rarely needed way out, kept out of the way of everyday actions. */
+.languages__footer {
+  margin: 20px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.link.link--quiet {
+  color: var(--muted);
+}
+
+.link.link--quiet:hover {
+  color: var(--text);
+}
+
+/* A value shown in a field's place when it's set somewhere else. */
+.field__static {
+  margin: 0;
+  padding: 8px 0;
 }

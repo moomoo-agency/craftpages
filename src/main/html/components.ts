@@ -2,6 +2,8 @@ import { createHash } from 'crypto'
 import { readFile, stat } from 'fs/promises'
 import { join } from 'path'
 import { parse } from 'parse5'
+import { getSiteSettings } from '../settings'
+import { languageOfPath } from '../../shared/languages'
 import {
   attr,
   children,
@@ -11,7 +13,7 @@ import {
   type Document,
   type Element
 } from './dom'
-import type { ComponentGroup } from '../../shared/types'
+import type { ComponentGroup, SiteLanguage } from '../../shared/types'
 
 const SEMANTIC = new Set(['header', 'footer', 'nav', 'aside'])
 const SECTION_TAGS = new Set(['section', 'div', 'form', 'article'])
@@ -32,6 +34,9 @@ function normalize(node: ChildNode): string {
     return textContent(node).replace(/\s+/g, ' ').trim()
   }
   if (!isElement(node)) return ''
+  // The language switcher's links are each page's own (to its versions): it's the same part
+  // on every page of a language, whatever it points at.
+  if (node.attrs.some((a) => a.name === 'data-craftpages-languages')) return '<language-switcher>'
   const attrs = node.attrs
     .filter((a) => !STATE_ATTRS.has(a.name))
     .map((a) => {
@@ -101,6 +106,18 @@ const hash = (text: string): string => createHash('sha1').update(text).digest('h
 
 export const componentId = (signature: string): string => hash(signature)
 
+/**
+ * On a site with languages, each language's pages share their own header, footer…: the
+ * Italian header is one shared part, the English one another. '' on a one-language site,
+ * so ids stay as they were.
+ */
+export const componentLanguage = (path: string, languages: SiteLanguage[]): string =>
+  languages.length > 1 ? (languageOfPath(path, languages)?.code ?? '') : ''
+
+/** The id of a block with this signature on a page of this language. */
+export const scopedComponentId = (signature: string, language: string): string =>
+  componentId(language ? `${signature}@${language}` : signature)
+
 function bodyOf(document: Document): Element | undefined {
   const html = document.childNodes.filter(isElement)[0]
   return html && children(html).find((element) => element.tagName === 'body')
@@ -158,14 +175,26 @@ async function scanPage(root: string, page: string): Promise<PageScan> {
  * but different content are listed as variants of one group.
  */
 export async function scanComponents(root: string, pages: string[]): Promise<ComponentGroup[]> {
+  const { languages } = await getSiteSettings(root)
   const groups = new Map<
     string,
-    { tag: string; preview: string; heading?: string; variants: Map<string, Set<string>> }
+    {
+      label: string
+      language: string
+      tag: string
+      preview: string
+      heading?: string
+      variants: Map<string, Set<string>>
+    }
   >()
 
   for (const page of pages) {
+    const language = componentLanguage(page, languages)
     for (const [label, entry] of (await scanPage(root, page)).entries) {
-      const group = groups.get(label) ?? {
+      const key = language ? `${label}@${language}` : label
+      const group = groups.get(key) ?? {
+        label,
+        language,
         tag: entry.tag,
         preview: entry.preview,
         heading: entry.heading,
@@ -175,12 +204,12 @@ export async function scanComponents(root: string, pages: string[]): Promise<Com
         entry.fingerprint,
         (group.variants.get(entry.fingerprint) ?? new Set()).add(page)
       )
-      groups.set(label, group)
+      groups.set(key, group)
     }
   }
 
   const result: ComponentGroup[] = []
-  for (const [label, group] of groups) {
+  for (const group of groups.values()) {
     const pagesWith = new Set([...group.variants.values()].flatMap((set) => [...set]))
     if (pagesWith.size < 2) continue
     // A generic section that matches by class alone but is never identical on two pages is
@@ -188,8 +217,9 @@ export async function scanComponents(root: string, pages: string[]): Promise<Com
     const identicalSomewhere = [...group.variants.values()].some((set) => set.size > 1)
     if (!SEMANTIC.has(group.tag) && !identicalSomewhere) continue
     result.push({
-      id: componentId(label),
-      label,
+      id: scopedComponentId(group.label, group.language),
+      label: group.label,
+      ...(group.language ? { language: group.language } : {}),
       tag: group.tag,
       heading: group.heading,
       pages: [...pagesWith].sort(),

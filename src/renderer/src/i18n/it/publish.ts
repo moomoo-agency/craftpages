@@ -83,6 +83,10 @@ const messages: Translation['publish'] = {
     '«Pubblica comunque» sostituisce quelle pagine con la versione programmata e le altre modifiche su di esse vanno perse. «Annulla programmazione» trasforma le modifiche programmate di nuovo in modifiche non salvate; quelle sulle pagine cambiate nel frattempo vengono scartate.',
   helpLive:
     '«Ritira comunque» riporta quelle pagine esattamente com’erano prima e le modifiche fatte nel frattempo vanno perse.',
+  formIssuesTitle: {
+    one: '{count} modulo non si caricherà sul sito pubblicato',
+    other: '{count} moduli non si caricheranno sul sito pubblicato'
+  },
   unsavedTitle: {
     one: 'Modifiche non salvate su {count} pagina',
     other: 'Modifiche non salvate su {count} pagine'

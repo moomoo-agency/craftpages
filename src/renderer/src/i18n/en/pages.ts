@@ -23,6 +23,10 @@ export default {
   } satisfies Msg,
   scopeLabel: 'Apply edits to',
   scopeAll: { one: 'All {count} page', other: 'All {count} pages' } satisfies Msg,
+  scopeAllIn: {
+    one: 'All {count} {language} page',
+    other: 'All {count} {language} pages'
+  } satisfies Msg,
   scopePage: 'This page only',
   scopeHint: 'Pages where someone changed their own copy keep it.',
   interactBar: 'Preview: the page runs its own scripts, with your unsaved edits applied.',

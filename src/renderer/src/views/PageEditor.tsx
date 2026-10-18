@@ -3,6 +3,7 @@ import { Icon, desktop, tablet, mobile, moreHorizontal } from '@wordpress/icons'
 import { Field, Notice } from '../components/Field'
 import MediaPicker from '../components/MediaPicker'
 import MenuButton, { type MenuItem } from '../components/MenuButton'
+import TranslationBar from '../components/TranslationBar'
 import { componentName } from '../lib/components'
 import { addressOfFile } from '../../../shared/blog-urls'
 import { errorMessage, isMac, shortcut } from '../lib/api'
@@ -76,6 +77,10 @@ interface Props {
   others?: SyncPresence[]
   /** The site's pages, offered when a link is edited. */
   pages?: { path: string; title: string }[]
+  /** CraftForms forms on this page: open the Forms view on them. */
+  onOpenForms?: (path: string) => void
+  /** Opens another page (its version in another language). */
+  onOpenPage?: (path: string) => void
 }
 
 const MODE_LABELS: Record<EditorMode, Key> = {
@@ -174,11 +179,25 @@ export default function PageEditor({
   onSaveAll,
   onCodeSaved,
   others = [],
-  pages = []
+  pages = [],
+  onOpenForms,
+  onOpenPage
 }: Props): React.JSX.Element {
   const t = useT()
   const frame = useRef<HTMLIFrameElement>(null)
   const [session, setSession] = useState<EditSession | null>(null)
+  /** CraftForms embeds on this page (shown as placeholders here; edited in Forms). */
+  const [formsHere, setFormsHere] = useState(0)
+  useEffect(() => {
+    let live = true
+    window.api.formsProject().then(
+      (project) => live && setFormsHere(project.embeds.filter((e) => e.path === path).length),
+      () => null
+    )
+    return () => {
+      live = false
+    }
+  }, [path, reloadToken])
   /** An action waiting for a yes, shown in a strip under the toolbar. */
   const [confirm, setConfirm] = useState<'discard' | 'unpublish' | 'publish' | null>(null)
   const [templates, setTemplates] = useState<string[]>([])
@@ -258,11 +277,34 @@ export default function PageEditor({
     frame.current?.contentWindow?.postMessage({ target: 'sitecms', ...payload }, '*')
 
   const sessionRef = useRef(session)
+  /** What was last clicked in the page, for the original text of a translation. */
+  const [selection, setSelection] = useState<{ selector: string; text: string } | null>(null)
   const onSaveAllRef = useRef(onSaveAll)
   const pagesRef = useRef(pages)
   const tRef = useRef(t)
   const scopesRef = useRef(scopes)
+  /**
+   * On a site with languages: this page's language. Shared parts are shared per language, so
+   * "All N pages" says which pages ("All 3 Italiano pages").
+   */
+  const [languageName, setLanguageName] = useState<string | null>(null)
+  const languageNameRef = useRef(languageName)
   useEffect(() => {
+    let live = true
+    window.api.pageLanguage(path).then(
+      (info) =>
+        live &&
+        setLanguageName(
+          info?.languages.find((language) => language.code === info.code)?.name ?? null
+        ),
+      () => live && setLanguageName(null)
+    )
+    return () => {
+      live = false
+    }
+  }, [path])
+  useEffect(() => {
+    languageNameRef.current = languageName
     sessionRef.current = session
     onSaveAllRef.current = onSaveAll
     pagesRef.current = pages
@@ -284,7 +326,9 @@ export default function PageEditor({
       id: shared.id,
       scope: scopesRef.current[shared.id] ?? 'all',
       name: componentName(tr, shared),
-      all: tr('pages.scopeAll', { count }),
+      all: languageNameRef.current
+        ? tr('pages.scopeAllIn', { count, language: languageNameRef.current })
+        : tr('pages.scopeAll', { count }),
       page: tr('pages.scopePage'),
       allNote: tr('pages.sharedAlso', { count: count - 1 }),
       pageNote: tr('pages.sharedOnlyHere'),
@@ -379,6 +423,7 @@ export default function PageEditor({
             .catch((error) => setMessage({ kind: 'error', text: errorMessage(error) }))
           break
         case 'select':
+          setSelection({ selector: data.selector, text: data.text })
           window.api.reportSelection({
             path,
             selector: data.selector,
@@ -681,6 +726,17 @@ export default function PageEditor({
         </div>
       </div>
 
+      {onOpenPage && (
+        <TranslationBar
+          path={path}
+          reloadToken={reloadToken}
+          selection={selection}
+          onOpenPage={onOpenPage}
+          onReveal={(selector) => post({ type: 'focus-selector', selector })}
+          onError={(text) => setMessage({ kind: 'error', text })}
+        />
+      )}
+
       {confirm && (
         <div
           className="component-bar component-bar--confirm"
@@ -865,7 +921,12 @@ export default function PageEditor({
                     className={shared ? 'is-active' : ''}
                     onClick={() => setScope(activeComponent.id, 'all')}
                   >
-                    {t('pages.scopeAll', { count: activeComponent.pages.length })}
+                    {languageName
+                      ? t('pages.scopeAllIn', {
+                          count: activeComponent.pages.length,
+                          language: languageName
+                        })
+                      : t('pages.scopeAll', { count: activeComponent.pages.length })}
                   </button>
                   <button
                     role="radio"
@@ -1042,7 +1103,17 @@ export default function PageEditor({
         </div>
       )}
       {session && mode === 'edit' && (
-        <div className="page-editor__foot">{t('pages.footer', { shortcut: shortcut('S') })}</div>
+        <div className="page-editor__foot">
+          {formsHere > 0 && onOpenForms && (
+            <>
+              <button className="link" onClick={() => onOpenForms(path)}>
+                {t('forms.onThisPage', { count: formsHere })}
+              </button>
+              {' · '}
+            </>
+          )}
+          {t('pages.footer', { shortcut: shortcut('S') })}
+        </div>
       )}
 
       <div className="visually-hidden" role="status" aria-live="polite">

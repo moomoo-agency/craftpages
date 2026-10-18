@@ -29,6 +29,12 @@ const messages: Translation['pages'] = {
     many: 'Усі {count} сторінок',
     other: 'Усі {count} сторінки'
   },
+  scopeAllIn: {
+    one: '{count} сторінка мовою «{language}»',
+    few: 'Усі {count} сторінки мовою «{language}»',
+    many: 'Усі {count} сторінок мовою «{language}»',
+    other: 'Усі {count} сторінки мовою «{language}»'
+  },
   scopePage: 'Лише ця сторінка',
   scopeHint: 'Сторінки, де хтось змінив власну копію, її зберігають.',
   interactBar: 'Перегляд: сторінка виконує власні скрипти, з урахуванням незбережених змін.',

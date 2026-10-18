@@ -105,6 +105,15 @@ export async function setupCloudflareSync(
   }
 }
 
+/** The Worker has no secret for this computer's key (a new key, or one it never registered). */
+export class UnknownKeyError extends Error {
+  constructor() {
+    super(
+      'The sync Worker doesn’t know this computer’s key. Set up sync again in Project settings → Sync.'
+    )
+  }
+}
+
 /** Talks to a sync Worker: its URL and this computer's key. */
 async function fetchJson<T>(url: string, key: string, init: RequestInit = {}): Promise<T> {
   let response: Response
@@ -122,10 +131,7 @@ async function fetchJson<T>(url: string, key: string, init: RequestInit = {}): P
       cause: error
     })
   }
-  if (response.status === 401)
-    throw new Error(
-      'The sync Worker doesn’t know this computer’s key. Set up sync again in Project settings → Sync.'
-    )
+  if (response.status === 401) throw new UnknownKeyError()
   if (response.status === 404 && init.method !== 'PUT') return null as T
   if (!response.ok) {
     const body = await response.text()

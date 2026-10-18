@@ -26,7 +26,7 @@ const messages: Translation['settings'] = {
 
   mcp: 'Connessione IA (MCP)',
   mcpHint:
-    'Un server MCP WebSocket raggiungibile solo da questo computer. Il tuo strumento di IA (per esempio Claude Code) si collega per leggere il sito e proporre modifiche al template.',
+    'Un server MCP raggiungibile solo da questo computer. Il tuo strumento di IA (Claude Code, OpenAI Codex, Cursor…) si collega per leggere il sito e proporre modifiche al template.',
   mcpEnabled: 'Accetta connessioni IA',
   port: 'Porta',
   portHint: 'Solo su 127.0.0.1.',
@@ -46,6 +46,17 @@ const messages: Translation['settings'] = {
   addToClaudeHint: 'Contiene il token di accesso, quindi tienilo riservato.',
   addToClaudeSteps:
     'Esegui il comando una volta nel Terminale, poi avvia Claude Code scrivendo «claude». Se Claude Code era già aperto, riavvialo: si collega all’avvio, e «/mcp» mostra se craftpages è collegato. Le sue modifiche arrivano in Modifica template come proposte da rivedere.',
+  aiClient: 'Il tuo strumento di IA',
+  aiClientOther: 'Altro (Cursor, VS Code…)',
+  addToCodex: 'Aggiungi a Codex',
+  addToCodexSteps:
+    'Esegui il comando una volta nel Terminale, poi avvia Codex (o riavvialo se era aperto): si collega all’avvio, e «/mcp» mostra se craftpages è collegato. Vale per Codex CLI, l’estensione per IDE e l’app. Le sue modifiche arrivano in Modifica template come proposte da rivedere.',
+  aiClientDesktop: 'Claude Desktop (stdio)',
+  addToDesktopSteps:
+    'In Claude Desktop apri Impostazioni → Sviluppatore → Modifica configurazione e aggiungi questo a claude_desktop_config.json (uniscilo a “mcpServers” se il file ne ha già), poi chiudi e riapri Claude Desktop. Avvia il ponte di CraftPages, quindi non serve installare altro; CraftPages deve restare aperto mentre lo usi. Funziona con qualsiasi strumento che avvia i server MCP come comandi.',
+  addToOther: 'Voce del server',
+  addToOtherSteps:
+    'Aggiungila ai server MCP del tuo strumento (Streamable HTTP). Se lo strumento non può impostare intestazioni, metti il token nell’indirizzo: {http}?token=… Gli strumenti che usano WebSocket possono usare {ws}.',
   copyCommand: 'Copia comando',
   diagnostics: 'Diagnostica',
   diagnosticsHint:

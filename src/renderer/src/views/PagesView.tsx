@@ -1,25 +1,32 @@
 import { useEffect, useMemo, useState } from 'react'
 import PageViewer from '../components/PageViewer'
+import TranslationsGrid from '../components/TranslationsGrid'
 import { addressOfFile, fileOfPath } from '../../../shared/blog-urls'
 import { ListSearch, NoMatches, Pagination } from '../components/ListControls'
 import { useFilteredList } from '../lib/list'
 import { useT } from '../i18n'
-import type { SyncPresence, Workspace } from '../../../shared/types'
+import { languageName, languageOfPath } from '../../../shared/languages'
+import type { SiteLanguage, SyncPresence, Workspace } from '../../../shared/types'
 
 /**
  * The site-name endings page titles repeat (" | Inkwell", " · inkwell"): any " | X" ending,
- * with separators |, ·, –, — or -, that two or more titles share.
+ * with separators |, ·, –, — or -, that two or more different titles share. (A page and its
+ * not yet translated copy have the same title, so that alone says nothing.)
  */
 function siteSuffixes(titles: string[]): string[] {
-  const counts = new Map<string, number>()
+  const owners = new Map<string, Set<string>>()
   for (const title of titles) {
     const match = title.match(/\s[|·–—-]\s[^|·–—]+$/)
-    if (match) counts.set(match[0], (counts.get(match[0]) ?? 0) + 1)
+    if (match) owners.set(match[0], (owners.get(match[0]) ?? new Set()).add(title))
   }
-  return [...counts].filter(([, count]) => count >= 2).map(([suffix]) => suffix)
+  return [...owners].filter(([, titles]) => titles.size >= 2).map(([suffix]) => suffix)
 }
 
-const isHome = (path: string): boolean => /^index\.html?$/i.test(path)
+/** The site's home page, or a language's (`it/index.html`). */
+const isHome = (path: string, languages: SiteLanguage[] = []): boolean => {
+  const folder = languageOfPath(path, languages)?.path ?? ''
+  return path.startsWith(folder) && /^index\.html?$/i.test(path.slice(folder.length))
+}
 
 interface Props {
   workspace: Workspace | null
@@ -31,6 +38,9 @@ interface Props {
   onOpenBlog?: () => void
   /** Other computers with the project open (sync), to mark the pages they're on. */
   people?: SyncPresence[]
+  /** On a site with languages: the tab to show, kept by the app across page edits. */
+  tab?: 'pages' | 'translations'
+  onTabChange?: (tab: 'pages' | 'translations') => void
 }
 
 export default function PagesView({
@@ -39,7 +49,9 @@ export default function PagesView({
   onEditPage,
   unsaved,
   onOpenBlog,
-  people = []
+  people = [],
+  tab: initialTab = 'pages',
+  onTabChange
 }: Props): React.JSX.Element {
   const t = useT()
   const [generated, setGenerated] = useState<Set<string>>(new Set())
@@ -48,16 +60,28 @@ export default function PagesView({
     list: null
   })
   const [unpublished, setUnpublished] = useState<Record<string, string>>({})
+  const [languages, setLanguages] = useState<SiteLanguage[]>([])
+  /** On a site with languages: the page list, or the grid of translations. */
+  const [tab, setTabState] = useState<'pages' | 'translations'>(initialTab)
+  const setTab = (next: 'pages' | 'translations'): void => {
+    setTabState(next)
+    onTabChange?.(next)
+  }
   /** A generated page shown as visitors see it. */
   const [viewing, setViewing] = useState<string | null>(null)
   /** Files of posts' pages, to tell a post from a list page. */
   const [postFiles, setPostFiles] = useState<Set<string>>(new Set())
-  // The home page first: it's the page people come to edit most.
-  const pages = useMemo(
-    () =>
-      [...(workspace?.pages ?? [])].sort((a, b) => Number(isHome(b.path)) - Number(isHome(a.path))),
-    [workspace?.pages]
-  )
+  // The home page first: it's the page people come to edit most. On a site with languages,
+  // each language's pages stay together (in the languages' order), its home page first.
+  const pages = useMemo(() => {
+    const rank = (path: string): number =>
+      languages.length > 1 ? languages.indexOf(languageOfPath(path, languages)!) : 0
+    return [...(workspace?.pages ?? [])].sort(
+      (a, b) =>
+        rank(a.path) - rank(b.path) ||
+        Number(isHome(b.path, languages)) - Number(isHome(a.path, languages))
+    )
+  }, [workspace?.pages, languages])
   const list = useFilteredList(`pages:${workspace?.folder}`, pages, (entry) => [
     entry.title,
     entry.path
@@ -70,6 +94,10 @@ export default function PagesView({
     )
     window.api.blogLayoutPages().then(setLayouts, () => {})
     window.api.getUnpublished().then(setUnpublished, () => {})
+    window.api.getSiteSettings().then(
+      (site) => setLanguages(site.languages),
+      () => {}
+    )
     if (onOpenBlog)
       window.api.listPosts().then(
         (posts) => setPostFiles(new Set(posts.map((post) => fileOfPath(post.url)))),
@@ -181,7 +209,17 @@ export default function PagesView({
                 {person.device}
               </span>
             ))}
-          {isHome(entry.path) && <span className="badge badge--muted">{t('pages.homeBadge')}</span>}
+          {languages.length > 1 && (
+            <span
+              className="badge badge--muted"
+              title={languageName(languageOfPath(entry.path, languages)?.code ?? '')}
+            >
+              {languageOfPath(entry.path, languages)?.code.toUpperCase()}
+            </span>
+          )}
+          {isHome(entry.path, languages) && (
+            <span className="badge badge--muted">{t('pages.homeBadge')}</span>
+          )}
           {entry.path in unpublished && (
             <span className="badge badge--muted" title={t('pages.publishOffTip')}>
               {t('pages.publishOff')}
@@ -207,8 +245,39 @@ export default function PagesView({
     </table>
   )
 
+  const tabs = languages.length > 1 && (
+    <div className="segmented pages-tabs" role="tablist" aria-label={t('languages.viewLabel')}>
+      {(['pages', 'translations'] as const).map((option) => (
+        <button
+          key={option}
+          role="tab"
+          aria-selected={tab === option}
+          className={tab === option ? 'is-active' : ''}
+          onClick={() => setTab(option)}
+        >
+          {t(option === 'pages' ? 'languages.tabPages' : 'languages.tabTranslations')}
+        </button>
+      ))}
+    </div>
+  )
+
+  if (tab === 'translations' && languages.length > 1) {
+    return (
+      <>
+        {tabs}
+        <TranslationsGrid
+          workspace={workspace}
+          languages={languages}
+          pageName={pageName}
+          onEditPage={onEditPage}
+        />
+      </>
+    )
+  }
+
   return (
     <>
+      {tabs}
       {list.searchable && (
         <ListSearch value={list.query} onChange={list.setQuery} label={t('pages.searchPages')} />
       )}

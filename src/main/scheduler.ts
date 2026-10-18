@@ -13,6 +13,7 @@ import { APP_DIR, getAppSettings, getSiteSettings } from './settings'
 import { broadcast, getWorkspace, requireRoot, setWorkspace } from './state'
 import { resolveInWorkspace, scanWorkspace } from './workspace'
 import { postPath } from '../shared/blog-urls'
+import { siteForPost } from '../shared/languages'
 import { describeRun } from '../shared/schedule'
 import type { PageRelease, ScheduleInput, ScheduleOverview, ScheduledRun } from '../shared/types'
 
@@ -566,7 +567,7 @@ export async function scheduleOverview(root: string): Promise<ScheduleOverview> 
         id: post.id,
         title: post.title || 'Untitled post',
         date: post.date,
-        url: postPath(site.blog.permalink, post.slug)
+        url: postPath(siteForPost(site, post).blog.permalink, post.slug)
       })),
     deployRetry: deployRetry && { since: deployRetry.since, error: deployRetry.error }
   }

@@ -11,6 +11,8 @@
 **Guides**
 
 - [[Writing a blog]]
+- [[Sites in several languages]]
+- [[Forms]]
 - [[Editing code]]
 - [[Working with others]]
 - [[Sync between computers]]

@@ -124,7 +124,31 @@ const messages: Translation['connections'] = {
   testConnection: 'Prova connessione',
   hostKey:
     'Chiave del server {key}: d’ora in poi è fidata. Se cambia, CraftPages si ferma e chiede.',
-  addConnection: 'Aggiungi connessione'
+  addConnection: 'Aggiungi connessione',
+
+  // Account CraftForms
+  formsTitle: 'Account CraftForms',
+  formsDescription:
+    'Moduli per i tuoi siti (contatti, prenotazioni, pagamenti) da craftforms.app. Facoltativo; il piano Free è un modulo su un sito. Accedi dal browser e ogni progetto sceglie il suo account.',
+  formsConnect: 'Collega o crea un account gratuito',
+  formsAddAnother: 'Collega un altro account',
+  formsWaiting: 'Completa nel browser…',
+  formsEmpty: 'Nessun account collegato.',
+  formsConnected: '{email} è collegato.',
+  formsDisconnected: '{email} è scollegato.',
+  formsPlan: 'Piano {plan}',
+  formsForms: 'Moduli',
+  formsWebsites: 'Siti',
+  formsSiteReady: 'Sito dei moduli pronto',
+  formsNoSite: 'Nessun sito dei moduli: premi “Start free” nella dashboard di CraftForms.',
+  formsVerifyEmail:
+    'Conferma il tuo indirizzo email, poi avvia il sito dei moduli gratuito dalla dashboard di CraftForms.',
+  formsSignedOut: 'Disconnesso: collegalo di nuovo per usarlo.',
+  formsReconnect: 'Collega di nuovo',
+  formsDashboard: 'Apri la dashboard',
+  formsDisconnect: 'Scollega',
+  formsConfirmDisconnect:
+    'Scollegare {email}? I moduli già nelle tue pagine continuano a funzionare; CraftPages smette solo di vedere questo account.'
 }
 
 export default messages

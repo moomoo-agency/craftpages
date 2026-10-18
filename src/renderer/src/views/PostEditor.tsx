@@ -16,10 +16,12 @@ import StatusPill from '../components/StatusPill'
 import { BREAK_BLOCK, COLUMNS_BLOCK, CORE_BLOCKS, registerBlocks } from '../lib/blocks'
 import { CODE_BLOCK } from '../lib/code-block'
 import { GIST_BLOCK } from '../lib/gist-block'
+import { FORM_BLOCK } from '../lib/form-block'
 import { errorMessage, formatDate, toLocalInput } from '../lib/api'
 import { useT } from '../i18n'
 import { listPath, postPath, postPrefix, slugify } from '../../../shared/blog-urls'
-import type { ImageEntry, PostRecord, SiteSettings } from '../../../shared/types'
+import { folderLanguage, postGroup, siteForPost } from '../../../shared/languages'
+import type { ImageEntry, PostRecord, PostSummary, SiteSettings } from '../../../shared/types'
 
 registerBlocks()
 
@@ -58,6 +60,10 @@ interface Props {
   onSaved: (post: PostRecord, message: string) => void
   onDeleted: () => void
   onBack: () => void
+  /** Every post (for this one's versions in other languages). */
+  posts?: PostSummary[]
+  /** Opens another post (a version in another language). */
+  onOpenPost?: (id: string) => void
 }
 
 export default function PostEditor({
@@ -70,7 +76,9 @@ export default function PostEditor({
   knownAuthors,
   onSaved,
   onDeleted,
-  onBack
+  onBack,
+  posts,
+  onOpenPost
 }: Props): React.JSX.Element {
   const t = useT()
   const uid = useId()
@@ -88,7 +96,7 @@ export default function PostEditor({
   })
   const [slugTouched, setSlugTouched] = useState(Boolean(initial.slug))
   const [tab, setTab] = useState<'post' | 'block'>('post')
-  const [picker, setPicker] = useState(false)
+  const [picker, setPicker] = useState<'cover' | 'social' | null>(null)
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState<{ kind: 'error' | 'success' | 'info'; text: string } | null>(
     null
@@ -115,6 +123,7 @@ export default function PostEditor({
         COLUMNS_BLOCK,
         CODE_BLOCK,
         GIST_BLOCK,
+        FORM_BLOCK,
         ...(splitRegions ? [BREAK_BLOCK] : [])
       ],
       // Images, galleries, tables, embeds and text columns may go wide or full width.
@@ -154,7 +163,7 @@ export default function PostEditor({
       const savedAt = Date.now()
       setOpenedAt(savedAt)
       const scheduledFor = new Date(result.post.date).getTime() > savedAt
-      const path = postPath(site.blog.permalink, result.post.slug)
+      const path = postPath(siteForPost(site, result.post).blog.permalink, result.post.slug)
       const message =
         status === 'published' && scheduledFor
           ? t('post.scheduledFor', { date: formatDate(result.post.date), path })
@@ -218,10 +227,16 @@ export default function PostEditor({
     }
   }
 
-  const pickCover = (image: ImageEntry): void => {
-    setPicker(false)
-    set('cover', { src: `/${image.path}`, alt: post.cover?.alt ?? '' })
+  const pickImage = (image: ImageEntry): void => {
+    const src = `/${image.path}`
+    if (picker === 'social') set('socialImage', { src, alt: post.socialImage?.alt ?? '' })
+    else set('cover', { src, alt: post.cover?.alt ?? '' })
+    // A place on the old picture means nothing on the new one.
+    if (picker === 'social' || !post.socialImage) set('shareFocus', null)
+    setPicker(null)
   }
+  // What a share shows: the post's own social image, else the cover, else the site's default.
+  const shareImage = post.socialImage?.src || post.cover?.src || site.seo.defaultImage
 
   const autoExcerpt = content
     .replace(/<!--[\s\S]*?-->/g, ' ')
@@ -234,6 +249,19 @@ export default function PostEditor({
   const seoTitle = post.seoTitle || post.title
   const seoDescription = post.seoDescription || post.excerpt || autoExcerpt
   const isNew = !saved.slug
+  // The blog this post belongs to: its language's addresses (/en/blog/…).
+  const own = siteForPost(site, post)
+  const multilingual = site.languages.length > 1
+  const group = postGroup(post)
+  const versions = (posts ?? []).filter((other) => other.group === group && other.id !== post.id)
+  const translate = async (code: string): Promise<void> => {
+    try {
+      const record = await window.api.translatePost(post.id, code)
+      onOpenPost?.(record.id)
+    } catch (error) {
+      setNotice({ kind: 'error', text: errorMessage(error) })
+    }
+  }
 
   const tags = post.tags ?? []
   const tabs = ['post', 'block'] as const
@@ -242,6 +270,7 @@ export default function PostEditor({
   const tagsLabelId = `${uid}-tags-label`
   const tagsHintId = `${uid}-tags-hint`
   const coverLabelId = `${uid}-cover-label`
+  const socialLabelId = `${uid}-social-label`
   const confirmTextId = `${uid}-confirm`
 
   // Tabs: arrow keys move between them (WAI-ARIA tabs pattern).
@@ -441,6 +470,61 @@ export default function PostEditor({
                     role="tabpanel"
                     aria-labelledby={tabId('post')}
                   >
+                    {multilingual && (
+                      <div className="field" role="group" aria-labelledby={`${uid}-language`}>
+                        <span className="field__label" id={`${uid}-language`}>
+                          {t('post.languageLabel')}
+                        </span>
+                        <select
+                          aria-labelledby={`${uid}-language`}
+                          value={folderLanguage(site.languages, post.lang)?.code ?? ''}
+                          onChange={(e) => set('lang', e.target.value || undefined)}
+                        >
+                          {site.languages.map((language) => (
+                            <option key={language.code} value={language.path ? language.code : ''}>
+                              {language.name}
+                            </option>
+                          ))}
+                        </select>
+                        {!isNew && (
+                          <div className="post-versions" aria-label={t('post.versions')}>
+                            {site.languages
+                              .filter(
+                                (language) =>
+                                  (language.path ? language.code : '') !==
+                                  (folderLanguage(site.languages, post.lang)?.code ?? '')
+                              )
+                              .map((language) => {
+                                const code = language.path ? language.code : ''
+                                const version = versions.find((other) => other.lang === code)
+                                return version ? (
+                                  <button
+                                    key={language.code}
+                                    className="btn btn--small"
+                                    title={version.title}
+                                    onClick={() => onOpenPost?.(version.id)}
+                                  >
+                                    {language.code.toUpperCase()}
+                                  </button>
+                                ) : (
+                                  <button
+                                    key={language.code}
+                                    className="btn btn--small btn--ghost translation-bar__missing"
+                                    title={t('post.translateTip', { language: language.name })}
+                                    onClick={() => translate(language.code)}
+                                  >
+                                    + {language.code.toUpperCase()}
+                                  </button>
+                                )
+                              })}
+                          </div>
+                        )}
+                        <span className="field__hint">
+                          {isNew ? t('post.languageHintNew') : t('post.languageHint')}
+                        </span>
+                      </div>
+                    )}
+
                     <Field
                       label={t('post.slugLabel')}
                       hint={
@@ -453,7 +537,7 @@ export default function PostEditor({
                     >
                       <div className="slug-input">
                         <span className="mono muted" aria-hidden="true">
-                          {postPrefix(site.blog.permalink)}
+                          {postPrefix(own.blog.permalink)}
                         </span>
                         <input
                           className="mono"
@@ -543,7 +627,7 @@ export default function PostEditor({
                       <span className="field__hint" id={tagsHintId}>
                         {tags[0]
                           ? t('post.tagsHintExample', {
-                              path: `${listPath(site.blog.listPath)}tag/${slugify(tags[0])}/`
+                              path: `${listPath(own.blog.listPath)}tag/${slugify(tags[0])}/`
                             })
                           : t('post.tagsHint')}
                       </span>
@@ -554,7 +638,7 @@ export default function PostEditor({
                       hint={
                         post.category?.trim()
                           ? t('post.categoryHintExample', {
-                              path: `${listPath(site.blog.listPath)}category/${slugify(post.category)}/`
+                              path: `${listPath(own.blog.listPath)}category/${slugify(post.category)}/`
                             })
                           : t('post.categoryHint')
                       }
@@ -596,7 +680,7 @@ export default function PostEditor({
                         )}
                       </div>
                       <div className="input-group">
-                        <button className="btn" onClick={() => setPicker(true)}>
+                        <button className="btn" onClick={() => setPicker('cover')}>
                           {post.cover ? t('post.changeCover') : t('post.chooseCover')}
                         </button>
                         {post.cover && (
@@ -632,7 +716,7 @@ export default function PostEditor({
                     <h2 className="post-sidebar__heading">{t('post.seoHeading')}</h2>
                     <div className="snippet">
                       <span className="snippet__url">
-                        {(site.baseUrl || '') + postPath(site.blog.permalink, slug)}
+                        {(site.baseUrl || '') + postPath(own.blog.permalink, slug)}
                       </span>
                       <span className="snippet__title">{seoTitle || t('post.untitled')}</span>
                       <span className="snippet__desc">
@@ -660,6 +744,71 @@ export default function PostEditor({
                         onChange={(e) => set('seoDescription', e.target.value)}
                       />
                     </Field>
+                    <div className="field" role="group" aria-labelledby={socialLabelId}>
+                      <span className="field__label" id={socialLabelId}>
+                        {t('post.socialLabel')}
+                      </span>
+                      {shareImage?.startsWith('/') ? (
+                        <ShareCrop
+                          src={previewOrigin + shareImage}
+                          focus={post.shareFocus ?? null}
+                          label={t('post.shareCropLabel')}
+                          onChange={(focus) => set('shareFocus', focus)}
+                        />
+                      ) : (
+                        <div className="image-preview image-preview--social">
+                          {shareImage ? (
+                            <img src={shareImage} alt="" />
+                          ) : (
+                            <span className="muted small">{t('post.noSocial')}</span>
+                          )}
+                        </div>
+                      )}
+                      <div className="input-group">
+                        <button className="btn" onClick={() => setPicker('social')}>
+                          {post.socialImage ? t('post.changeCover') : t('post.chooseSocial')}
+                        </button>
+                        {post.socialImage && (
+                          <button
+                            className="btn btn--ghost"
+                            onClick={() => {
+                              set('socialImage', null)
+                              set('shareFocus', null)
+                            }}
+                          >
+                            {t(post.cover ? 'post.useCover' : 'common.remove')}
+                          </button>
+                        )}
+                        {post.shareFocus && (
+                          <button
+                            className="btn btn--ghost"
+                            onClick={() => set('shareFocus', null)}
+                          >
+                            {t('post.shareCropReset')}
+                          </button>
+                        )}
+                      </div>
+                      <span className="field__hint">
+                        {post.socialImage
+                          ? t('post.socialHint')
+                          : post.cover
+                            ? t('post.socialFromCover')
+                            : shareImage
+                              ? t('post.socialFromDefault')
+                              : t('post.socialHint')}
+                      </span>
+                    </div>
+                    {post.socialImage && (
+                      <Field label={t('post.altLabel')} hint={t('post.altHint')}>
+                        <input
+                          placeholder={t('post.altPlaceholder')}
+                          value={post.socialImage.alt}
+                          onChange={(e) =>
+                            set('socialImage', { ...post.socialImage!, alt: e.target.value })
+                          }
+                        />
+                      </Field>
+                    )}
                     {!isNew && (
                       <button
                         className="btn btn--block btn--danger-outline btn--spaced"
@@ -679,12 +828,91 @@ export default function PostEditor({
 
       {picker && (
         <MediaPicker
-          title={t('post.coverLabel')}
-          current={post.cover?.src.replace(/^\//, '')}
-          onPick={pickCover}
-          onClose={() => setPicker(false)}
+          title={t(picker === 'social' ? 'post.socialLabel' : 'post.coverLabel')}
+          current={(picker === 'social' ? post.socialImage : post.cover)?.src.replace(/^\//, '')}
+          onPick={pickImage}
+          onClose={() => setPicker(null)}
         />
       )}
+    </div>
+  )
+}
+
+const clamp = (n: number): number => Math.min(1, Math.max(0, n))
+
+/**
+ * The share card's 1.91:1 crop of the image, moved by dragging the picture (or with the
+ * arrow keys). The place is `object-position` as fractions, which is how the crop is cut.
+ */
+function ShareCrop({
+  src,
+  focus,
+  label,
+  onChange
+}: {
+  src: string
+  focus: [number, number] | null
+  label: string
+  onChange: (focus: [number, number]) => void
+}): React.JSX.Element {
+  const image = useRef<HTMLImageElement>(null)
+  const drag = useRef<{ x: number; y: number; from: [number, number] } | null>(null)
+  const [x, y] = focus ?? [0.5, 0.5]
+  // How far the picture overflows the card, in pixels: what a drag can move across.
+  const room = (): [number, number] => {
+    const img = image.current
+    if (!img?.naturalWidth) return [0, 0]
+    const box = img.getBoundingClientRect()
+    const scale = Math.max(box.width / img.naturalWidth, box.height / img.naturalHeight)
+    return [img.naturalWidth * scale - box.width, img.naturalHeight * scale - box.height]
+  }
+  const move = (dx: number, dy: number, from: [number, number]): void => {
+    const [rx, ry] = room()
+    if (rx < 1 && ry < 1) return
+    onChange([
+      rx >= 1 ? clamp(from[0] - dx / rx) : from[0],
+      ry >= 1 ? clamp(from[1] - dy / ry) : from[1]
+    ])
+  }
+  return (
+    <div
+      className="image-preview image-preview--social share-crop"
+      tabIndex={0}
+      role="group"
+      aria-label={label}
+      title={label}
+      onPointerDown={(e) => {
+        e.currentTarget.setPointerCapture(e.pointerId)
+        drag.current = { x: e.clientX, y: e.clientY, from: [x, y] }
+      }}
+      onPointerMove={(e) => {
+        const start = drag.current
+        if (start) move(e.clientX - start.x, e.clientY - start.y, start.from)
+      }}
+      onPointerUp={() => (drag.current = null)}
+      onPointerCancel={() => (drag.current = null)}
+      onKeyDown={(e) => {
+        const step = e.shiftKey ? 0.25 : 0.05
+        const [rx, ry] = room()
+        const keys: Record<string, [number, number]> = {
+          ArrowLeft: [-step, 0],
+          ArrowRight: [step, 0],
+          ArrowUp: [0, -step],
+          ArrowDown: [0, step]
+        }
+        const delta = keys[e.key]
+        if (!delta || (rx < 1 && ry < 1)) return
+        e.preventDefault()
+        onChange([clamp(x + (rx >= 1 ? delta[0] : 0)), clamp(y + (ry >= 1 ? delta[1] : 0))])
+      }}
+    >
+      <img
+        ref={image}
+        src={src}
+        alt=""
+        draggable={false}
+        style={{ objectPosition: `${x * 100}% ${y * 100}%` }}
+      />
     </div>
   )
 }

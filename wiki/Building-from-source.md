@@ -118,7 +118,7 @@ src/
                        worker/ is the Worker uploaded to the user's Cloudflare account
     code.ts            code mode: a page's own files, written through the history
     updates.ts         update check (electron-updater, GitHub releases)
-    mcp/               WebSocket MCP server, tools, proposals (accept / reject / revert)
+    mcp/               MCP server (WebSocket + HTTP), tools, proposals (accept / reject / revert)
   preload/           contextBridge: a typed window.api (see src/shared/types.ts)
   shared/            types and helpers shared by main and renderer; feature switches
   renderer/          React UI (one view per sidebar item) and translations (en, it, uk)

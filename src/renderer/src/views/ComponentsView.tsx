@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Explainer, Notice } from '../components/Field'
 import { errorMessage } from '../lib/api'
 import { useT } from '../i18n'
+import { languageName } from '../../../shared/languages'
 import { componentName } from '../lib/components'
 import type { ComponentGroup, Workspace } from '../../../shared/types'
 
@@ -69,6 +70,11 @@ export default function ComponentsView({ workspace, onEditPage }: Props): React.
                   {componentName(t, group)}
                 </h2>
                 <code className="component-card__selector">{group.label}</code>
+                {group.language && (
+                  <span className="badge badge--muted" title={languageName(group.language)}>
+                    {group.language.toUpperCase()}
+                  </span>
+                )}
                 {varied && (
                   <span className="badge badge--warn">
                     {t('components.variants', { count: group.variants.length })}

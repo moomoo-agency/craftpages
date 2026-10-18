@@ -15,11 +15,13 @@ your own design, and publishes to Cloudflare or any web host over FTP / SFTP.
 ## More
 
 - [[Writing a blog]]: posts and post lists in your site's own design.
+- [[Sites in several languages]]: a folder per language, translations, a language switcher.
+- [[Forms]]: contact and booking forms from CraftForms (optional).
 - [[Editing code]]: a page's HTML, CSS and JS, when clicking isn't enough.
 - [[Working with others]]: several people, computers or tools publishing one site.
 - [[Sync between computers]] (beta): one project on several computers.
 - [[Upgrading]]: how new versions arrive.
-- [[Connect an AI]]: let Claude, Cursor or another MCP client propose template changes.
+- [[Connect an AI]]: let Claude, Codex, Cursor or another MCP client propose template changes.
 - [[Building from source]]: development, packaging and releases.
 - [[Troubleshooting]]
 

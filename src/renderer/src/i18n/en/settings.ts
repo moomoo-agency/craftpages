@@ -26,7 +26,7 @@ export default {
 
   mcp: 'AI connection (MCP)',
   mcpHint:
-    'A WebSocket MCP server that only this computer can reach. Your own AI tool (for example Claude Code) connects to it to read the site and propose template changes.',
+    'An MCP server that only this computer can reach. Your own AI tool (Claude Code, OpenAI Codex, Cursor…) connects to it to read the site and propose template changes.',
   mcpEnabled: 'Accept AI connections',
   port: 'Port',
   portHint: 'Bound to 127.0.0.1 only.',
@@ -46,6 +46,17 @@ export default {
   addToClaudeHint: 'Includes the access token, so keep it private.',
   addToClaudeSteps:
     'Run the command once in Terminal, then start Claude Code by typing “claude”. If Claude Code was already open, restart it: it connects when it starts, and “/mcp” in it shows whether craftpages is connected. What it changes arrives in Template editing as proposals for you to review.',
+  aiClient: 'Your AI tool',
+  aiClientOther: 'Other (Cursor, VS Code…)',
+  addToCodex: 'Add to Codex',
+  addToCodexSteps:
+    'Run the command once in Terminal, then start Codex (or restart it if it was open): it connects when it starts, and “/mcp” in it shows whether craftpages is connected. Works the same for the Codex CLI, IDE extension and app. What it changes arrives in Template editing as proposals for you to review.',
+  aiClientDesktop: 'Claude Desktop (stdio)',
+  addToDesktopSteps:
+    'In Claude Desktop, open Settings → Developer → Edit Config and add this to claude_desktop_config.json (merge it into “mcpServers” if the file already has some), then quit and reopen Claude Desktop. It starts CraftPages’ own bridge, so nothing else needs installing; CraftPages has to be open while you use it. Works for any tool that starts MCP servers as commands.',
+  addToOther: 'Server entry',
+  addToOtherSteps:
+    'Add this to your tool’s MCP servers (Streamable HTTP). Tools that can’t set headers can put the token in the address instead: {http}?token=… Tools that speak WebSocket can use {ws}.',
   copyCommand: 'Copy command',
   diagnostics: 'Diagnostics',
   diagnosticsHint:

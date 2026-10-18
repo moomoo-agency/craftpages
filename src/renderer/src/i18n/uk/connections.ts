@@ -135,7 +135,31 @@ const messages: Translation['connections'] = {
   testConnection: 'Перевірити підключення',
   hostKey:
     'Ключ сервера {key}: відтепер довірений. Якщо він зміниться, CraftPages зупиниться й запитає.',
-  addConnection: 'Додати підключення'
+  addConnection: 'Додати підключення',
+
+  // Акаунти CraftForms
+  formsTitle: 'Акаунти CraftForms',
+  formsDescription:
+    'Форми для ваших сайтів (контакти, бронювання, оплати) з craftforms.app. Необовʼязково; план Free — одна форма на одному сайті. Ви входите в браузері, а кожен проєкт обирає свій акаунт.',
+  formsConnect: 'Підключити або створити безкоштовний акаунт',
+  formsAddAnother: 'Підключити інший акаунт',
+  formsWaiting: 'Завершіть у браузері…',
+  formsEmpty: 'Жодного акаунта не підключено.',
+  formsConnected: '{email} підключено.',
+  formsDisconnected: '{email} відключено.',
+  formsPlan: 'План {plan}',
+  formsForms: 'Форми',
+  formsWebsites: 'Сайти',
+  formsSiteReady: 'Сайт форм готовий',
+  formsNoSite: 'Сайту форм ще немає: натисніть «Start free» у панелі CraftForms.',
+  formsVerifyEmail:
+    'Підтвердьте email, потім запустіть безкоштовний сайт форм у панелі CraftForms.',
+  formsSignedOut: 'Вихід виконано: підключіть знову, щоб користуватися.',
+  formsReconnect: 'Підключити знову',
+  formsDashboard: 'Відкрити панель',
+  formsDisconnect: 'Відключити',
+  formsConfirmDisconnect:
+    'Відключити {email}? Форми, вже додані на сторінки, працюватимуть далі; CraftPages просто перестане бачити цей акаунт.'
 }
 
 export default messages

@@ -866,6 +866,12 @@ export interface HeadFinish {
   /** Site-wide JSON-LD (e.g. from the home page) for layouts that carry none of their own. */
   fallbackSiteNodes?: Record<string, unknown>[]
   baseUrl?: string
+  /**
+   * On a site with languages: this page's language code. `<html lang>` is set to it, and the
+   * layout's own hreflang links (they describe the layout page) are dropped; the generator
+   * adds this page's through extraHead.
+   */
+  lang?: string
 }
 
 /**
@@ -892,18 +898,24 @@ export function finishPage(html: string, finish: HeadFinish): string {
     if (element) patches.push(...attrPatches(html, element, { content: value }))
     else if (add) inserts.push(`<meta ${key}="${name}" content="${escapeAttr(value)}">`)
   }
-  // The layout page's own article:* / craftpages:* / generator tags describe it, not this page;
-  // the generator adds this page's ones through extraHead.
+  // The layout page's own article:* / og:image:* / craftpages:* / generator tags describe it,
+  // not this page; the generator adds this page's ones through extraHead.
   if (head) {
     walk(head, (element) => {
-      if (element.tagName !== 'meta' || !element.sourceCodeLocation) return true
+      if ((element.tagName !== 'meta' && element.tagName !== 'link') || !element.sourceCodeLocation)
+        return true
       const property = attr(element, 'property') ?? ''
       const name = attr(element, 'name') ?? ''
+      const hreflang =
+        finish.lang !== undefined &&
+        element.tagName === 'link' &&
+        attr(element, 'hreflang') !== undefined
       if (
         property.startsWith('article:') ||
-        property === 'og:image:alt' ||
+        property.startsWith('og:image:') ||
         name.startsWith('craftpages:') ||
-        name === 'generator'
+        name === 'generator' ||
+        hreflang
       ) {
         const { startOffset, endOffset } = element.sourceCodeLocation
         let end = endOffset
@@ -913,12 +925,23 @@ export function finishPage(html: string, finish: HeadFinish): string {
       return true
     })
   }
+  if (finish.lang) {
+    const htmlTag = find(document, (e) => e.tagName === 'html')
+    if (htmlTag?.sourceCodeLocation?.startTag && attr(htmlTag, 'lang') !== finish.lang)
+      patches.push(...attrPatches(html, htmlTag, { lang: finish.lang }))
+  }
   setMeta('property', 'og:url', finish.url, true)
   setMeta('property', 'og:type', finish.ogType, true)
-  setMeta('name', 'twitter:title', finish.title, false)
-  setMeta('name', 'twitter:description', finish.description, false)
-  setMeta('name', 'twitter:image', finish.image, false)
+  // X reads og:* too, but a layout's own twitter:* would describe the layout page: these
+  // are set either way, and added when missing so every generated page carries a full card.
+  setMeta('name', 'twitter:title', finish.title, true)
+  setMeta('name', 'twitter:description', finish.description, true)
+  setMeta('name', 'twitter:image', finish.image, true)
   setMeta('property', 'og:image', finish.image, true)
+  // X shows no card without it; a layout that picked a card type keeps its own.
+  if (finish.image && !metaBy('name', 'twitter:card')) {
+    inserts.push('<meta name="twitter:card" content="summary_large_image">')
+  }
 
   const robots = metaBy('name', 'robots')
   const robotsValue = robots && attr(robots, 'content')

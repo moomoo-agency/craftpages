@@ -84,6 +84,10 @@ export default {
     '“Publish anyway” replaces those pages with the scheduled version, and the other changes on them are lost. “Unschedule” turns the scheduled edits back into unsaved edits; edits on a page that changed are dropped.',
   helpLive:
     '“Take down anyway” puts those pages back exactly as they were before, and the changes made since are lost.',
+  formIssuesTitle: {
+    one: '{count} form won’t load on the published site',
+    other: '{count} forms won’t load on the published site'
+  } satisfies Msg,
   unsavedTitle: {
     one: 'Unsaved edits on {count} page',
     other: 'Unsaved edits on {count} pages'

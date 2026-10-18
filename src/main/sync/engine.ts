@@ -27,7 +27,8 @@ import {
   openCloudflareStore,
   putObjects,
   setupCloudflareSync,
-  SYNC_WORKER_VERSION
+  SYNC_WORKER_VERSION,
+  UnknownKeyError
 } from './cloudflare-store'
 import { listServerProjects, openServerStore, serverLive } from './server-store'
 import {
@@ -172,6 +173,29 @@ async function openStoreFor(
 async function openStore(root: string, config: SyncConfig): Promise<SyncStore> {
   const site = await getSiteSettings(root)
   return openStoreFor(config, site.id)
+}
+
+/**
+ * Opens the store and, when the sync Worker doesn't know this computer's key (the key
+ * was lost with the local secrets, or setup never finished), registers it again once.
+ * Setup is safe to repeat and only needs the connection's token; without one, the
+ * connection's own "no API token" error is the one the user sees.
+ */
+async function openKnownStore(root: string, config: SyncConfig): Promise<SyncStore> {
+  const store = await openStore(root, config)
+  if (config.mode !== 'cloudflare') return store
+  try {
+    await store.getHead()
+    return store
+  } catch (error) {
+    await store.close().catch(() => null)
+    if (!(error instanceof UnknownKeyError)) throw error
+  }
+  const connection = await connectionById(config.connection)
+  log.warn('sync', 'The sync Worker didn’t know this computer’s key; registering it again')
+  workerUrls.delete(connection.accountId)
+  await ensureWorker(connection)
+  return openStore(root, config)
 }
 
 // ---------- Pull ----------
@@ -410,7 +434,7 @@ async function runSync(root: string): Promise<SyncResult> {
   const stored = await readConfig(root)
   if (!stored) throw new Error('Sync is off for this project.')
   const config = await updateWorker(root, stored)
-  const store = await openStore(root, config)
+  const store = await openKnownStore(root, config)
   const device = deviceName()
   try {
     for (let attempt = 0; attempt < 4; attempt++) {

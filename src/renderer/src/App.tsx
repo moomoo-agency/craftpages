@@ -6,6 +6,7 @@ import PageEditor, { type EditorMode, type Viewport } from './views/PageEditor'
 import BlogView from './views/BlogView'
 import SeoView from './views/SeoView'
 import SearchView from './views/SearchView'
+import FormsView from './views/FormsView'
 import ProjectsModal from './components/ProjectsModal'
 import MediaView from './views/MediaView'
 import SettingsView from './views/SettingsView'
@@ -29,6 +30,8 @@ import type { DraftState, McpStatus, SaveResult, Workspace } from '../../shared/
 function App(): React.JSX.Element {
   const [workspace, setWorkspace] = useState<Workspace | null>(null)
   const [view, setView] = useState<ViewId>('pages')
+  /** Pages: the list or the translations grid (kept while a page is open). */
+  const [pagesTab, setPagesTab] = useState<'pages' | 'translations'>('pages')
   const [editing, setEditing] = useState<{ path: string; focus?: string } | null>(null)
   const [drafts, setDrafts] = useState<DraftState>({ pages: [], stale: [] })
   const [lastSave, setLastSave] = useState<SaveResult | null>(null)
@@ -119,7 +122,13 @@ function App(): React.JSX.Element {
         text: other ? t('app.scheduledOtherProject', { project: run.project, message }) : message
       })
       // Pages on screen may have just changed underneath.
-      if (!other) setReloadToken((n) => n + 1)
+      if (!other) {
+        setReloadToken((n) => n + 1)
+        refreshPending()
+      }
+    } else if (event.type === 'deploy' && event.progress.phase === 'done') {
+      // A publish finished, maybe after leaving the Publish view: the live site caught up.
+      refreshPending()
     } else if (event.type === 'drafts') {
       setDrafts(event.drafts)
     } else if (event.type === 'mcp') {
@@ -194,7 +203,11 @@ function App(): React.JSX.Element {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
+  /** Forms view opened from a page: that page's forms first. */
+  const [formsFocus, setFormsFocus] = useState<string | undefined>(undefined)
+
   const navigate = (next: ViewId): void => {
+    if (next !== 'forms') setFormsFocus(undefined)
     // Coming back from Publish (or going there): the live site may have just caught up.
     if (next === 'publish' || view === 'publish') refreshPending()
     setView(next)
@@ -319,6 +332,11 @@ function App(): React.JSX.Element {
                   refreshPending()
                 }}
                 others={sync?.people.filter((person) => person.page === editing.path) ?? []}
+                onOpenForms={(path) => {
+                  setFormsFocus(path)
+                  navigate('forms')
+                }}
+                onOpenPage={(path) => editPage(path)}
               />
             ) : (
               <PagesView
@@ -328,6 +346,8 @@ function App(): React.JSX.Element {
                 unsaved={draftPaths}
                 onOpenBlog={FEATURES.blog ? () => navigate('blog') : undefined}
                 people={sync?.people ?? []}
+                tab={pagesTab}
+                onTabChange={setPagesTab}
               />
             ))}
           {FEATURES.blog && view === 'blog' && (
@@ -344,6 +364,14 @@ function App(): React.JSX.Element {
             <SeoView workspace={workspace} onEditPage={(path) => editPage(path)} />
           )}
           {view === 'search' && <SearchView key={workspace?.root} workspace={workspace} />}
+          {view === 'forms' && (
+            <FormsView
+              key={`${workspace?.root}#${formsFocus ?? ''}`}
+              workspace={workspace}
+              focusPath={formsFocus}
+              onEditPage={(path) => editPage(path)}
+            />
+          )}
           {view === 'ai' && <AiView mcp={mcp} onOpenSettings={() => navigate('settings')} />}
           {view === 'publish' && (
             <PublishView
@@ -360,6 +388,10 @@ function App(): React.JSX.Element {
               key={workspace?.root}
               workspace={workspace}
               onOpenAppSettings={() => navigate('settings')}
+              onOpenTranslations={() => {
+                setPagesTab('translations')
+                navigate('pages')
+              }}
               sync={sync}
             />
           )}

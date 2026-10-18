@@ -106,6 +106,8 @@ export function analyze(source: string): Analysis {
       if (location) patches.push({ start: location.startOffset, end: location.endOffset, text: '' })
       return false
     }
+    // The language switcher is CraftPages' own: its links and labels are written for each page.
+    if (attr(element, 'data-craftpages-languages') !== undefined) return false
     if (element.tagName === 'img' && location?.startTag) {
       mark(element, 'image')
       return false

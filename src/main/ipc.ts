@@ -21,16 +21,28 @@ import * as scheduler from './scheduler'
 import { applyBackgroundSettings } from './background'
 import { startStaticServer, type StaticServer } from './preview/server'
 import { postPath, fileOfPath } from '../shared/blog-urls'
+import { siteForPost } from '../shared/languages'
 import * as pointing from './pointing'
 import * as seoSite from './seo-site'
+import * as languages from './languages'
+import * as translations from './translations'
+import * as switcher from './language-switcher'
 import * as search from './search-site'
 import { refreshSearch } from './search-site'
 import * as drafts from './drafts'
-import { clearSessions, interactUrl, previewServer, previewUrl, startEditing } from './editing'
+import {
+  clearSessions,
+  formPreviewUrl,
+  interactUrl,
+  previewServer,
+  previewUrl,
+  startEditing
+} from './editing'
 import { scanComponents } from './html/components'
 import { revert } from './history'
 import { importImage } from './images'
 import { fetchGist } from './gist'
+import * as craftforms from './craftforms'
 import * as media from './media'
 import {
   broadcastMcpStatus,
@@ -55,10 +67,14 @@ import * as snapshots from './sync/snapshots'
 import * as sync from './sync/engine'
 import type {
   AppSettings,
+  SiteLanguage,
+  SearchChange,
+  SwitcherLook,
   BlogTemplates,
   ConnectionInput,
   ComponentScope,
   ElementLocator,
+  FormsEmbedSettings,
   DeepPartial,
   DeployTarget,
   IconPosition,
@@ -150,6 +166,16 @@ let postPreview: StaticServer | null = null
  * generator: a draft becomes a page in .sitecms/drafts, a published post a page
  * on the site, with lists, feed and redirects updated in the same undoable step.
  */
+/** After switchers change: blog pages take them from the layouts, then search and Pages refresh. */
+async function afterSwitcher(root: string, result: SearchChange): Promise<SearchChange> {
+  if (result.pages.length) {
+    await generateBlog(root).catch(() => null)
+    await refreshSearch(root).catch(() => null)
+    setWorkspace(await scanWorkspace(root))
+  }
+  return result
+}
+
 async function savePost(post: PostRecord): Promise<SavePostResult> {
   const root = requireRoot()
   const valid = await posts.validatePost(root, post)
@@ -496,6 +522,73 @@ export function registerIpc(appIcon: string): void {
       search.setExcluded(requireRoot(), path, excluded),
 
     'seo:audit': () => seoSite.auditSite(requireRoot()),
+    'languages:state': () => languages.languagesState(requireRoot()),
+    'languages:save': async (_event, list: SiteLanguage[]) => {
+      const root = requireRoot()
+      await settings.saveSiteSettings(root, { languages: list })
+      return languages.languagesState(root)
+    },
+    'languages:update': async () => {
+      const result = await languages.updateLanguagePages(requireRoot())
+      if (result.changed.length) setWorkspace(await scanWorkspace(requireRoot()))
+      return result
+    },
+    'languages:copy': async (_event, code: string, paths: string[]) => {
+      const result = await translations.copyToLanguage(requireRoot(), code, paths)
+      if (result.created.length) setWorkspace(await scanWorkspace(requireRoot()))
+      return result
+    },
+    'languages:grid': () => translations.translationsGrid(requireRoot()),
+    'switcher:state': () => switcher.switcherState(requireRoot()),
+    'switcher:preview': async (
+      _event,
+      path: string,
+      look: SwitcherLook,
+      labels?: SiteLanguage[]
+    ) => {
+      const root = requireRoot()
+      const saved = await settings.getSiteSettings(root)
+      // Labels and flags as edited, before they're saved.
+      const site = labels ? { ...saved, languages: settings.checkLanguages(labels) } : saved
+      const { code, links } = languages.switcherTarget(await languages.analyze(root, site))(path)
+      return switcher.switcherMarkup(site, look, code, links, true)
+    },
+    'switcher:place': async (
+      _event,
+      path: string,
+      locator: ElementLocator,
+      position: IconPosition,
+      scope: 'all' | 'page',
+      look: SwitcherLook
+    ) => {
+      const root = requireRoot()
+      const site = await settings.getSiteSettings(root)
+      const targets = languages.switcherTarget(await languages.analyze(root, site))
+      const result = await switcher.placeSwitcher(
+        root,
+        path,
+        locator,
+        position,
+        scope,
+        look,
+        targets
+      )
+      return afterSwitcher(root, result)
+    },
+    'switcher:restyle': async (_event, look: SwitcherLook) => {
+      const root = requireRoot()
+      const site = await settings.getSiteSettings(root)
+      const targets = languages.switcherTarget(await languages.analyze(root, site))
+      return afterSwitcher(root, await switcher.restyleSwitchers(root, look, targets))
+    },
+    'switcher:remove': async () =>
+      afterSwitcher(requireRoot(), await switcher.removeSwitchers(requireRoot())),
+    'languages:page': (_event, path: string) => translations.pageLanguage(requireRoot(), path),
+    'languages:mark': (_event, paths: string[]) =>
+      translations.markTranslated(requireRoot(), paths),
+    'languages:original': (_event, path: string, selector: string) =>
+      translations.originalText(requireRoot(), path, selector),
+    'languages:changes': (_event, path: string) => translations.sourceChanges(requireRoot(), path),
     'seo:sitemap': async () => {
       const result = await seoSite.writeSitemap(requireRoot())
       setWorkspace(await scanWorkspace(requireRoot()))
@@ -573,6 +666,13 @@ export function registerIpc(appIcon: string): void {
     'posts:get': (_event, id: string) => posts.getPost(requireRoot(), id),
     'posts:new': () => posts.newPost(),
     'posts:save': (_event, post: PostRecord) => savePost(post),
+    'posts:translate': async (_event, id: string, code: string) => {
+      const draft = await posts.translationDraft(requireRoot(), id, code)
+      // An existing translation is opened as it is; a new one is saved as a draft first.
+      const stored = await posts.readPosts(requireRoot())
+      if (stored.some((post) => post.record.id === draft.id)) return draft
+      return (await savePost(draft)).post
+    },
     'posts:delete': async (_event, id: string) => {
       const root = requireRoot()
       const generated = await generateBlog(root, { remove: id })
@@ -589,7 +689,7 @@ export function registerIpc(appIcon: string): void {
         title: post.title.trim() || 'Untitled',
         slug: post.slug || 'preview'
       }
-      const url = postPath(site.blog.permalink, draft.slug)
+      const url = postPath(siteForPost(site, draft).blog.permalink, draft.slug)
       const overlay = new Map([[fileOfPath(url), await buildPostPage(root, draft)]])
       await postPreview?.close()
       postPreview = await startStaticServer({
@@ -599,6 +699,64 @@ export function registerIpc(appIcon: string): void {
       return postPreview.origin + url
     },
     'gist:fetch': (_event, url: string) => fetchGist(url),
+    'forms:accounts': () => craftforms.listFormsAccounts(),
+    'forms:connect': () => craftforms.connectFormsAccount(),
+    'forms:cancel-connect': () => craftforms.cancelFormsConnect(),
+    'forms:account-info': (_event, id: string) => craftforms.formsAccountInfo(id),
+    'forms:disconnect': (_event, id: string) => craftforms.disconnectFormsAccount(id),
+    'forms:project': () => craftforms.formsProject(requireRoot()),
+    'forms:set-project': (
+      _event,
+      patch: { account?: string; domain?: string; siteAddress?: boolean }
+    ) => craftforms.setFormsProject(requireRoot(), patch),
+    'forms:list': (_event, domain?: string) => craftforms.formsList(requireRoot(), domain),
+    'forms:ensure': (_event, formId: string, domain: string) =>
+      craftforms.ensureFormEmbed(requireRoot(), formId, domain),
+    'forms:release': (_event, formId: string, domain: string) =>
+      craftforms.releaseFormEmbed(requireRoot(), formId, domain),
+    'forms:preview-url': (
+      _event,
+      target: { formId?: string; key?: string },
+      page: string,
+      styles: 'site' | 'form'
+    ) => formPreviewUrl(target, page, styles),
+    'forms:update-embed': (
+      _event,
+      path: string,
+      index: number,
+      patch: Partial<FormsEmbedSettings> & { key?: string }
+    ) => craftforms.updateFormEmbed(requireRoot(), path, index, patch),
+    'forms:remove-embed': (_event, path: string, index: number) =>
+      craftforms.removeFormEmbed(requireRoot(), path, index),
+    'forms:add-loader': (_event, path: string, loaderUrl: string) =>
+      craftforms.addFormLoader(requireRoot(), path, loaderUrl),
+    'forms:change-form': (_event, path: string, index: number, formId: string) =>
+      craftforms.changeEmbedForm(requireRoot(), path, index, formId),
+    'forms:change-website': (_event, path: string, index: number, domain: string) =>
+      craftforms.changeEmbedWebsite(requireRoot(), path, index, domain),
+    'forms:release-website': (_event, domain: string) =>
+      craftforms.releaseFormsWebsite(requireRoot(), domain),
+    'forms:preview-markup': (_event, formId: string) =>
+      craftforms.formPreviewMarkup(requireRoot(), formId),
+    'forms:insert': async (
+      _event,
+      path: string,
+      locator: ElementLocator,
+      position: IconPosition,
+      formId: string,
+      domain: string
+    ) => {
+      const result = await craftforms.insertForm(
+        requireRoot(),
+        path,
+        locator,
+        position,
+        formId,
+        domain
+      )
+      setWorkspace(await scanWorkspace(requireRoot()))
+      return result
+    },
     'posts:regenerate': async () => {
       const root = requireRoot()
       const generated = await generateBlog(root)

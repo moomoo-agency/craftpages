@@ -50,6 +50,13 @@ export default {
   tabsLabel: 'Post settings',
   tabPost: 'Post',
   tabBlock: 'Block',
+  languageLabel: 'Language',
+  languageHint:
+    'Its address is in the language’s folder. The buttons open its versions in other languages, or create one (+).',
+  languageHintNew:
+    'Its address is in the language’s folder. Save it once to translate it into other languages.',
+  versions: 'Versions in other languages',
+  translateTip: 'Translate into {language}: a draft copy of the saved post, linked to it',
   slugLabel: 'URL',
   slugHintPublished: 'Changing it moves the page; the old URL redirects to the new one.',
   slugHintManual: 'Lowercase letters, digits and dashes.',
@@ -75,6 +82,18 @@ export default {
     other:
       '{count} characters (aim for 70–160). Shown on the post card and in the feed, and as the meta description unless you set one below. Leave empty to use the first words of the post.'
   } satisfies Msg,
+  shareCropLabel: 'Drag the picture to choose what the card shows',
+  shareCropReset: 'Centre',
+  socialLabel: 'Social image',
+  noSocial: 'No image: shares show none',
+  chooseSocial: 'Use another image…',
+  useCover: 'Use the cover',
+  socialHint:
+    'Shown when the post is shared on social networks and in chats. Cropped to 1200×630 when it isn’t that shape.',
+  socialFromCover:
+    'Shares show the cover. Pick another image to show something else; it’s cropped to 1200×630 when it isn’t that shape.',
+  socialFromDefault:
+    'Shares show the site’s default image (set in SEO). Pick one for this post; it’s cropped to 1200×630 when it isn’t that shape.',
   seoHeading: 'Search & social',
   noDescription: 'No description.',
   seoTitleLabel: 'SEO title',
@@ -133,6 +152,14 @@ export default {
   gistLatestHelp: 'The post keeps the copy fetched here. Update to get the gist’s latest version.',
   gistPinnedHelp: 'The link names a revision, so updating keeps to that version.',
   gistEmpty: 'This gist has no files.',
+  formTitle: 'Form',
+  formDescription: 'A form from your CraftForms account: contact, booking or order.',
+  formInstructions: 'Choose one of your CraftForms forms. It loads only on this project’s website.',
+  formPanel: 'Form',
+  formLabel: 'CraftForms form',
+  formChoose: 'Choose a form…',
+  formNoAccount: 'Choose a CraftForms account for this project in Forms first.',
+  formNoWebsite: 'Choose the website for forms in Forms first.',
   categoryLabel: 'Category',
   categoryHint:
     'One per post, shown where your layout has a category badge. Each gets a page listing its posts.',

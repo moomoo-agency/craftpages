@@ -6,6 +6,7 @@ import {
   image,
   seen,
   search,
+  envelope,
   cog,
   settings as projectIcon,
   upload,
@@ -28,6 +29,7 @@ export type ViewId =
   | 'media'
   | 'seo'
   | 'search'
+  | 'forms'
   | 'ai'
   | 'publish'
   | 'project'
@@ -57,6 +59,7 @@ const NAV_GROUPS = [
     items: [
       { id: 'components', icon: symbol },
       { id: 'search', icon: search },
+      { id: 'forms', icon: envelope },
       { id: 'ai', icon: plugins }
     ]
   }

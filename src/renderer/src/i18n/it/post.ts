@@ -44,6 +44,13 @@ const messages: Translation['post'] = {
   tabsLabel: 'Impostazioni articolo',
   tabPost: 'Articolo',
   tabBlock: 'Blocco',
+  languageLabel: 'Lingua',
+  languageHint:
+    'Il suo indirizzo è nella cartella della lingua. I pulsanti aprono le versioni in altre lingue, o ne creano una (+).',
+  languageHintNew:
+    'Il suo indirizzo è nella cartella della lingua. Salvalo una volta per tradurlo in altre lingue.',
+  versions: 'Versioni in altre lingue',
+  translateTip: 'Traduci in {language}: una bozza copiata dall’articolo salvato, collegata a esso',
   slugLabel: 'URL',
   slugHintPublished: 'Se lo cambi, la pagina si sposta e il vecchio URL reindirizza al nuovo.',
   slugHintManual: 'Lettere minuscole, cifre e trattini.',
@@ -70,6 +77,18 @@ const messages: Translation['post'] = {
     other:
       '{count} caratteri (ideale 70–160). Appare nella scheda e nel feed, e come meta description se non ne imposti una qui sotto. Se è vuoto, si usano le prime parole dell’articolo.'
   },
+  shareCropLabel: 'Trascina l’immagine per scegliere cosa mostra la scheda',
+  shareCropReset: 'Centra',
+  socialLabel: 'Immagine social',
+  noSocial: 'Nessuna immagine: le condivisioni non ne mostrano',
+  chooseSocial: 'Usa un’altra immagine…',
+  useCover: 'Usa la copertina',
+  socialHint:
+    'Mostrata quando l’articolo viene condiviso sui social e nelle chat. Ritagliata a 1200×630 se non ha già quella forma.',
+  socialFromCover:
+    'Le condivisioni mostrano la copertina. Scegli un’altra immagine per mostrare altro; viene ritagliata a 1200×630 se non ha già quella forma.',
+  socialFromDefault:
+    'Le condivisioni mostrano l’immagine predefinita del sito (impostata in SEO). Scegline una per questo articolo; viene ritagliata a 1200×630 se non ha già quella forma.',
   seoHeading: 'Ricerca e social',
   noDescription: 'Nessuna descrizione.',
   seoTitleLabel: 'Titolo SEO',
@@ -128,6 +147,15 @@ const messages: Translation['post'] = {
     'L’articolo conserva la copia scaricata qui. Aggiorna per avere l’ultima versione del gist.',
   gistPinnedHelp: 'Il link indica una revisione, quindi l’aggiornamento resta su quella versione.',
   gistEmpty: 'Questo gist non ha file.',
+  formTitle: 'Modulo',
+  formDescription: 'Un modulo dal tuo account CraftForms: contatto, prenotazione o ordine.',
+  formInstructions:
+    'Scegli uno dei tuoi moduli CraftForms. Si carica solo sul sito di questo progetto.',
+  formPanel: 'Modulo',
+  formLabel: 'Modulo CraftForms',
+  formChoose: 'Scegli un modulo…',
+  formNoAccount: 'Prima scegli un account CraftForms per questo progetto in Moduli.',
+  formNoWebsite: 'Prima scegli il sito per i moduli in Moduli.',
   categoryLabel: 'Categoria',
   categoryHint:
     'Una per articolo, mostrata dove il layout ha un badge di categoria. Ognuna ha una pagina con i suoi articoli.',

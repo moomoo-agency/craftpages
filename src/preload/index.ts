@@ -76,6 +76,22 @@ const api: Api = {
   setSearchExcluded: (path, excluded) => ipcRenderer.invoke('search:exclude', path, excluded),
 
   auditSeo: () => ipcRenderer.invoke('seo:audit'),
+  languagesState: () => ipcRenderer.invoke('languages:state'),
+  saveLanguages: (languages) => ipcRenderer.invoke('languages:save', languages),
+  updateLanguagePages: () => ipcRenderer.invoke('languages:update'),
+  copyToLanguage: (code, paths) => ipcRenderer.invoke('languages:copy', code, paths),
+  translationsGrid: () => ipcRenderer.invoke('languages:grid'),
+  pageLanguage: (path) => ipcRenderer.invoke('languages:page', path),
+  markTranslated: (paths) => ipcRenderer.invoke('languages:mark', paths),
+  originalText: (path, selector) => ipcRenderer.invoke('languages:original', path, selector),
+  sourceChanges: (path) => ipcRenderer.invoke('languages:changes', path),
+  switcherState: () => ipcRenderer.invoke('switcher:state'),
+  switcherPreview: (path, look, languages) =>
+    ipcRenderer.invoke('switcher:preview', path, look, languages),
+  placeSwitcher: (path, locator, position, scope, look) =>
+    ipcRenderer.invoke('switcher:place', path, locator, position, scope, look),
+  restyleSwitchers: (look) => ipcRenderer.invoke('switcher:restyle', look),
+  removeSwitchers: () => ipcRenderer.invoke('switcher:remove'),
   rebuildSitemap: () => ipcRenderer.invoke('seo:sitemap'),
   getRobots: () => ipcRenderer.invoke('seo:robots:get'),
   getSitemapStatus: () => ipcRenderer.invoke('seo:sitemap:status'),
@@ -105,11 +121,36 @@ const api: Api = {
   getPost: (id) => ipcRenderer.invoke('posts:get', id),
   newPost: () => ipcRenderer.invoke('posts:new'),
   savePost: (post) => ipcRenderer.invoke('posts:save', post),
+  translatePost: (id, code) => ipcRenderer.invoke('posts:translate', id, code),
   deletePost: (id) => ipcRenderer.invoke('posts:delete', id),
   previewPost: (post) => ipcRenderer.invoke('posts:preview', post),
   regenerateBlog: () => ipcRenderer.invoke('posts:regenerate'),
   importImageData: (name, data) => ipcRenderer.invoke('image:import-data', name, data),
   fetchGist: (url) => ipcRenderer.invoke('gist:fetch', url),
+  listFormsAccounts: () => ipcRenderer.invoke('forms:accounts'),
+  connectFormsAccount: () => ipcRenderer.invoke('forms:connect'),
+  cancelFormsConnect: () => ipcRenderer.invoke('forms:cancel-connect'),
+  formsAccountInfo: (id) => ipcRenderer.invoke('forms:account-info', id),
+  disconnectFormsAccount: (id) => ipcRenderer.invoke('forms:disconnect', id),
+  formsProject: () => ipcRenderer.invoke('forms:project'),
+  setFormsProject: (patch) => ipcRenderer.invoke('forms:set-project', patch),
+  formsList: (domain) => ipcRenderer.invoke('forms:list', domain),
+  ensureFormEmbed: (formId, domain) => ipcRenderer.invoke('forms:ensure', formId, domain),
+  releaseFormEmbed: (formId, domain) => ipcRenderer.invoke('forms:release', formId, domain),
+  formPreviewUrl: (target, page, styles) =>
+    ipcRenderer.invoke('forms:preview-url', target, page, styles),
+  updateFormEmbed: (path, index, patch) =>
+    ipcRenderer.invoke('forms:update-embed', path, index, patch),
+  removeFormEmbed: (path, index) => ipcRenderer.invoke('forms:remove-embed', path, index),
+  addFormLoader: (path, loaderUrl) => ipcRenderer.invoke('forms:add-loader', path, loaderUrl),
+  changeEmbedForm: (path, index, formId) =>
+    ipcRenderer.invoke('forms:change-form', path, index, formId),
+  changeEmbedWebsite: (path, index, domain) =>
+    ipcRenderer.invoke('forms:change-website', path, index, domain),
+  releaseFormsWebsite: (domain) => ipcRenderer.invoke('forms:release-website', domain),
+  formPreviewMarkup: (formId) => ipcRenderer.invoke('forms:preview-markup', formId),
+  insertForm: (path, locator, position, formId, domain) =>
+    ipcRenderer.invoke('forms:insert', path, locator, position, formId, domain),
 
   scanComponents: () => ipcRenderer.invoke('components:scan'),
 

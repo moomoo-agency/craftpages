@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import Connections from '../components/Connections'
+import FormsAccounts from '../components/FormsAccounts'
 import { Explainer, Field, Notice, Section } from '../components/Field'
 import { LOCALES, useLocale, useT, type Key, type Locale } from '../i18n'
 import { FEATURES } from '../../../shared/features'
@@ -39,6 +40,7 @@ export default function SettingsView({
   const [app, setApp] = useState<AppSettingsView | null>(null)
   const [connections, setConnections] = useState<ConnectionsView | null>(null)
   const [showMcpToken, setShowMcpToken] = useState(false)
+  const [aiClient, setAiClient] = useState<'claude' | 'codex' | 'desktop' | 'other'>('claude')
   const [status, setStatus] = useState<Record<string, Status>>({})
   const [busy, setBusy] = useState<string | null>(null)
 
@@ -127,6 +129,8 @@ export default function SettingsView({
       </Section>
 
       <Connections view={connections} onChange={setConnections} />
+
+      <FormsAccounts />
 
       {/* ---------- Background (scheduling) ---------- */}
       {FEATURES.scheduling && (
@@ -230,13 +234,59 @@ export default function SettingsView({
                   }`
                 : (mcp.error ?? t('settings.notRunning'))}
             </p>
-            <Field label={t('settings.addToClaude')} hint={t('settings.addToClaudeHint')}>
-              <div className="input-group">
-                <input className="mono" readOnly value={mcp.command} />
-                <CopyButton text={mcp.command} label={t('settings.copyCommand')} />
-              </div>
+            <Field label={t('settings.aiClient')}>
+              <select
+                value={aiClient}
+                onChange={(e) => setAiClient(e.target.value as typeof aiClient)}
+              >
+                <option value="claude">Claude Code</option>
+                <option value="codex">OpenAI Codex</option>
+                <option value="desktop">{t('settings.aiClientDesktop')}</option>
+                <option value="other">{t('settings.aiClientOther')}</option>
+              </select>
             </Field>
-            <Explainer>{t('settings.addToClaudeSteps')}</Explainer>
+            {aiClient === 'other' || aiClient === 'desktop' ? (
+              <Field label={t('settings.addToOther')} hint={t('settings.addToClaudeHint')}>
+                <div className="input-group">
+                  <textarea
+                    className="mono"
+                    readOnly
+                    rows={aiClient === 'desktop' ? 14 : 8}
+                    value={aiClient === 'desktop' ? mcp.stdioConfig : mcp.httpConfig}
+                  />
+                  <CopyButton
+                    text={aiClient === 'desktop' ? mcp.stdioConfig : mcp.httpConfig}
+                    label={t('common.copy')}
+                  />
+                </div>
+              </Field>
+            ) : (
+              <Field
+                label={t(aiClient === 'codex' ? 'settings.addToCodex' : 'settings.addToClaude')}
+                hint={t('settings.addToClaudeHint')}
+              >
+                <div className="input-group">
+                  <input
+                    className="mono"
+                    readOnly
+                    value={aiClient === 'codex' ? mcp.codexCommand : mcp.command}
+                  />
+                  <CopyButton
+                    text={aiClient === 'codex' ? mcp.codexCommand : mcp.command}
+                    label={t('settings.copyCommand')}
+                  />
+                </div>
+              </Field>
+            )}
+            <Explainer>
+              {aiClient === 'claude'
+                ? t('settings.addToClaudeSteps')
+                : aiClient === 'codex'
+                  ? t('settings.addToCodexSteps')
+                  : aiClient === 'desktop'
+                    ? t('settings.addToDesktopSteps')
+                    : t('settings.addToOtherSteps', { ws: mcp.url, http: mcp.httpUrl })}
+            </Explainer>
           </>
         )}
         {show('mcp')}

@@ -8,6 +8,7 @@ import { setShowApp, startScheduler } from './scheduler'
 import { stopMcp } from './mcp/server'
 import { flushDraftsSync } from './drafts'
 import { blockRemoteScripts } from './preview/capture'
+import { isFormsHost } from './craftforms'
 import { getAppSettings } from './settings'
 import { setupUpdates } from './updates'
 import { log, startLog } from './log'
@@ -89,7 +90,7 @@ app.whenReady().then(() => {
   })
 
   // Preview iframes run the site's CSS and images, but never remote scripts or beacons.
-  blockRemoteScripts(session.defaultSession, allowExternalScripts)
+  blockRemoteScripts(session.defaultSession, (host) => allowExternalScripts() || isFormsHost(host))
 
   startLog()
   registerIpc(icon)

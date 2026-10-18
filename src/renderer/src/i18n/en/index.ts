@@ -7,6 +7,7 @@ import blog from './blog'
 import post from './post'
 import seo from './seo'
 import search from './search'
+import forms from './forms'
 import publish from './publish'
 import project from './project'
 import connections from './connections'
@@ -17,6 +18,7 @@ import updates from './updates'
 import code from './code'
 import versions from './versions'
 import sync from './sync'
+import languages from './languages'
 
 export const en = {
   common,
@@ -28,6 +30,7 @@ export const en = {
   post,
   seo,
   search,
+  forms,
   publish,
   project,
   connections,
@@ -37,7 +40,8 @@ export const en = {
   updates,
   code,
   versions,
-  sync
+  sync,
+  languages
 }
 
 export type Catalog = typeof en

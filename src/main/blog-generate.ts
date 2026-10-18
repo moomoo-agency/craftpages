@@ -4,6 +4,7 @@ import { readTemplates, saveTemplates } from './blog'
 import {
   finishPage,
   pageSiteNodes,
+  relocate,
   latestCardHtml,
   renderLatest,
   renderList,
@@ -15,7 +16,11 @@ import { hasDraft } from './drafts'
 import { writeSitemap } from './seo-site'
 import { writeFiles, type FileWrite } from './history'
 import {
+  COVER_ALT_META,
   COVER_META,
+  SHARE_FOCUS_META,
+  SOCIAL_META,
+  TRANSLATION_META,
   EXCERPT_META,
   TITLE_META,
   DESCRIPTION_META,
@@ -31,7 +36,17 @@ import {
 import { APP_DIR, getSiteSettings, saveSiteSettings } from './settings'
 import { isPublished, pagePattern } from './deploy/exclude'
 import { listFiles, resolveInWorkspace } from './workspace'
-import { escapeAttr, escapeText } from './html/dom'
+import { SocialImages, focusOf, type SocialImage } from './social-image'
+import { fillSwitchers, withFlags } from './language-switcher'
+import { applyPatches, escapeAttr, escapeText, parseWithLocations, type Patch } from './html/dom'
+import { pageComponents } from './html/components'
+import {
+  folderLanguage,
+  languageOfPath,
+  postGroup,
+  rootLanguage,
+  siteForLanguage
+} from '../shared/languages'
 import { fileOfPath, listPath, postPath, slugify } from '../shared/blog-urls'
 import type {
   GenerateResult,
@@ -132,11 +147,16 @@ async function moveLayoutsAside(root: string, change: BlogChange, now: number): 
     .map((post) => post.record)
     .filter((post) => post.id !== change.remove && post.id !== change.upsert?.id)
   if (change.upsert) records.push(change.upsert)
+  // Every language's blog address and posts (a layout can sit in any of them).
   const taken = new Set([
-    fileOfPath(listPath(site.blog.listPath)),
+    ...[{ code: '' }, ...site.languages].map((language) =>
+      fileOfPath(listPath(siteForLanguage(site, language.code).blog.listPath))
+    ),
     ...records
       .filter((post) => isLive(post, now))
-      .map((post) => fileOfPath(postPath(site.blog.permalink, post.slug)))
+      .map((post) =>
+        fileOfPath(postPath(siteForLanguage(site, post.lang).blog.permalink, post.slug))
+      )
   ])
   const moved: Moved[] = []
   const update: BlogTemplates = {}
@@ -248,13 +268,21 @@ interface RenderContext {
   linkAliases?: Record<string, string>
 }
 
+/** The post's share image: its own social image, else the cover, else the site's default. */
+function shareSource(post: PostRecord, site: SiteSettings): string | null {
+  return post.socialImage?.src || post.cover?.src || site.seo.defaultImage || null
+}
+
 /** A post's page, complete with everything needed to read it back as a post. */
 function postPage(
   post: PostRecord,
   data: PostData,
   ctx: RenderContext,
   draft: boolean,
-  formerUrls: string[] = []
+  social: SocialImage | null,
+  formerUrls: string[] = [],
+  /** hreflang links to the post's translations (rendered `<link>` tags). */
+  alternates: string[] = []
 ): string {
   const { site } = ctx
   const html = renderPost(
@@ -265,8 +293,12 @@ function postPage(
     ctx.context
   )
   const title = post.seoTitle?.trim() || titleOf(site, post.title)
-  const fallbackImage = site.seo.defaultImage ? absolute(site, site.seo.defaultImage) : null
-  const image = post.cover ? absolute(site, post.cover.src) : fallbackImage
+  const image = social
+    ? social.src.startsWith('/')
+      ? absolute(site, social.src)
+      : social.src
+    : null
+  const imageAlt = post.socialImage ? post.socialImage.alt : post.cover?.alt
   const metas = [
     `<meta name="${POST_META}" content="${escapeAttr(post.id)}">`,
     ...(draft ? [`<meta name="${STATUS_META}" content="${post.status}">`] : []),
@@ -279,8 +311,21 @@ function postPage(
         ? [`<meta name="${EXCERPT_META}" content="${escapeAttr(post.excerpt.trim())}">`]
         : []),
     ...(data.description ? [`<meta name="${DESCRIPTION_META}" content="custom">`] : []),
-    ...(post.cover ? [] : [`<meta name="${COVER_META}" content="none">`]),
+    `<meta name="${COVER_META}" content="${escapeAttr(post.cover?.src || 'none')}">`,
+    ...(post.socialImage
+      ? [`<meta name="${SOCIAL_META}" content="${escapeAttr(post.socialImage.src)}">`]
+      : []),
+    ...(focusOf(post.shareFocus)
+      ? [`<meta name="${SHARE_FOCUS_META}" content="${focusOf(post.shareFocus)!.join(',')}">`]
+      : []),
+    ...(post.socialImage && post.cover?.alt
+      ? [`<meta name="${COVER_ALT_META}" content="${escapeAttr(post.cover.alt)}">`]
+      : []),
     ...(post.seoTitle?.trim() ? [`<meta name="${TITLE_META}" content="custom">`] : []),
+    ...(post.translationOf
+      ? [`<meta name="${TRANSLATION_META}" content="${escapeAttr(post.translationOf)}">`]
+      : []),
+    ...alternates,
     `<meta property="article:published_time" content="${escapeAttr(post.date)}">`,
     `<meta property="article:modified_time" content="${escapeAttr(post.modified)}">`,
     ...(data.tags ?? []).map(
@@ -292,8 +337,14 @@ function postPage(
     ...(data.author
       ? [`<meta property="article:author" content="${escapeAttr(data.author)}">`]
       : []),
-    ...(post.cover?.alt
-      ? [`<meta property="og:image:alt" content="${escapeAttr(post.cover.alt)}">`]
+    ...(image && social?.width && social.height
+      ? [
+          `<meta property="og:image:width" content="${social.width}">`,
+          `<meta property="og:image:height" content="${social.height}">`
+        ]
+      : []),
+    ...(image && imageAlt
+      ? [`<meta property="og:image:alt" content="${escapeAttr(imageAlt)}">`]
       : [])
   ]
   let page = finishPage(html, {
@@ -319,11 +370,115 @@ function postPage(
     currentPath: listPath(site.blog.listPath),
     linkAliases: ctx.linkAliases,
     baseUrl: site.baseUrl,
-    fallbackSiteNodes: ctx.homeNodes
+    fallbackSiteNodes: ctx.homeNodes,
+    lang: site.languages.length > 1 ? site.locale : undefined
   })
   // <title>: the post's own SEO title, or the title pattern (renderPost set it to the plain title).
   page = page.replace(/<title>[\s\S]*?<\/title>/i, `<title>${escapeText(title)}</title>`)
   return page
+}
+
+/** One language's blog: its view of the site, its layouts and their sources. */
+interface LanguageBlog {
+  /** '' for the root language (and on a site in one language). */
+  code: string
+  site: SiteSettings
+  ctx: RenderContext
+  listSource: string
+}
+
+/** Parts a language swaps into the root layout: its own header, footer and navigation. */
+const SWAPPED = new Set(['header', 'footer', 'nav'])
+
+/**
+ * The root layout dressed for another language: its header, footer and nav replaced by that
+ * language's (from one of its pages), so a post in English gets the English menu. Addresses
+ * in both are made root-absolute first, so the swapped parts work from any folder. The
+ * article and list areas the layout points at are left where they are.
+ */
+export function languageLayout(
+  source: string,
+  path: string,
+  reference: string,
+  referencePath: string
+): string {
+  const base = relocate(source, path)
+  const theirs = relocate(reference, referencePath)
+  const replacements = pageComponents(parseWithLocations(theirs))
+  const patches: Patch[] = []
+  let covered = -1
+  for (const [signature, element] of pageComponents(parseWithLocations(base))) {
+    const location = element.sourceCodeLocation
+    const other = replacements.get(signature)?.sourceCodeLocation
+    if (!SWAPPED.has(element.tagName) || !location || !other) continue
+    // A nav inside a swapped header goes with it.
+    if (location.startOffset < covered) continue
+    patches.push({
+      start: location.startOffset,
+      end: location.endOffset,
+      text: theirs.slice(other.startOffset, other.endOffset)
+    })
+    covered = location.endOffset
+  }
+  return applyPatches(
+    base,
+    patches.sort((a, b) => a.start - b.start)
+  )
+}
+
+/**
+ * The blogs to write: the root one, and on a site with languages one per other language.
+ * A language's layout is its own copy of the layout page when it has one (the same path in
+ * its folder), else the root layout with its header, footer and nav.
+ */
+async function languageBlogs(
+  root: string,
+  ctx: RenderContext,
+  listSource: string
+): Promise<Map<string, LanguageBlog>> {
+  const blogs = new Map<string, LanguageBlog>([['', { code: '', site: ctx.site, ctx, listSource }]])
+  const { site } = ctx
+  if (site.languages.length < 2) return blogs
+  const pages = (await listFiles(root)).map((file) => file.path).filter((p) => /\.html?$/.test(p))
+  for (const language of site.languages) {
+    if (!language.path) continue
+    const reference =
+      pages.find((p) => p === `${language.path}index.html`) ??
+      pages.find((p) => p.startsWith(language.path))
+    const referenceSource = reference ? await readSite(root, reference) : null
+    const layoutFor = async (
+      path: string,
+      source: string
+    ): Promise<{ path: string; source: string }> => {
+      const own = await readSite(root, language.path + path)
+      if (own !== null && !own.includes(GENERATOR))
+        return { path: language.path + path, source: own }
+      return {
+        path,
+        source:
+          reference && referenceSource
+            ? languageLayout(source, path, referenceSource, reference)
+            : source
+      }
+    }
+    const post = await layoutFor(ctx.layouts.post, ctx.postSource)
+    const list = await layoutFor(ctx.layouts.list, listSource)
+    const own = siteForLanguage(site, language.code)
+    blogs.set(language.code, {
+      code: language.code,
+      site: own,
+      listSource: list.source,
+      ctx: {
+        site: own,
+        layouts: { ...ctx.layouts, post: post.path, list: list.path },
+        postSource: post.source,
+        context: { baseUrl: site.baseUrl, locale: language.code, emptyText: site.blog.emptyText },
+        homeNodes: referenceSource ? pageSiteNodes(referenceSource) : ctx.homeNodes,
+        linkAliases: ctx.linkAliases
+      }
+    })
+  }
+  return blogs
 }
 
 async function renderContext(root: string): Promise<RenderContext> {
@@ -343,7 +498,15 @@ async function renderContext(root: string): Promise<RenderContext> {
 /** A post rendered as it would be published (for the editor's preview). */
 export async function buildPostPage(root: string, post: PostRecord): Promise<string> {
   const ctx = await renderContext(root)
-  return postPage(post, toPostData(post, ctx.site), ctx, false)
+  const listSource = (await readSite(root, ctx.layouts.list)) ?? ''
+  const blogs = await languageBlogs(root, ctx, listSource)
+  const blog =
+    blogs.get(folderLanguage(ctx.site.languages, post.lang)?.code ?? '') ?? blogs.get('')!
+  const social = await new SocialImages(root, ctx.site, true).resolve(
+    shareSource(post, ctx.site),
+    post.shareFocus
+  )
+  return postPage(post, toPostData(post, blog.site), blog.ctx, false, social)
 }
 
 function rss(site: SiteSettings, posts: PostData[]): string {
@@ -524,7 +687,7 @@ export async function generateBlog(
 ): Promise<GenerateResult> {
   const moved = await moveLayoutsAside(root, change, now)
   const ctx = await renderContext(root)
-  const { site, layouts, context } = ctx
+  const { site, layouts } = ctx
   const templates = await readTemplates(root)
   const listSource = await readSite(root, layouts.list)
   if (listSource === null) throw new Error(`The list layout page ${layouts.list} is missing.`)
@@ -565,8 +728,15 @@ export async function generateBlog(
   const canonicalCategory = spellingsOf((post) =>
     post.category?.trim() ? [post.category.trim()] : []
   )
+  // One blog per language: the root one, and one in each other language that has posts.
+  const blogs = await languageBlogs(root, ctx, listSource)
+  const multi = site.languages.length > 1
+  const rootCode = rootLanguage(site.languages)?.code ?? ''
+  const blogOf = (post: PostRecord): LanguageBlog =>
+    blogs.get(folderLanguage(site.languages, post.lang)?.code ?? '') ?? blogs.get('')!
+
   const dataOf = (post: PostRecord): PostData => {
-    const data = toPostData(post, site)
+    const data = toPostData(post, blogOf(post).site)
     const seen = new Set<string>()
     data.tags = (data.tags ?? [])
       .map((tag) => ({ ...tag, name: canonical(tag.name) }))
@@ -575,6 +745,55 @@ export async function generateBlog(
       data.category = { ...data.category, name: canonicalCategory(data.category.name) }
     return data
   }
+
+  // Posts that translate each other link to each other (hreflang), and to the root one as x-default.
+  const languageOrder = (code: string): number =>
+    site.languages.findIndex((language) => language.code === code)
+  const alternateLines = (members: { code: string; url: string }[]): string[] => {
+    if (!multi || members.length < 2) return []
+    const sorted = [...members].sort((a, b) => languageOrder(a.code) - languageOrder(b.code))
+    const fallback = sorted.find((member) => member.code === rootCode)
+    return [...sorted, ...(fallback ? [{ code: 'x-default', url: fallback.url }] : [])].map(
+      (member) =>
+        `<link rel="alternate" hreflang="${escapeAttr(member.code)}" href="${escapeAttr(absolute(site, member.url))}">`
+    )
+  }
+  const translations = new Map<string, { code: string; url: string }[]>()
+  if (multi) {
+    for (const post of live) {
+      const blog = blogOf(post)
+      const members = translations.get(postGroup(post)) ?? []
+      // One per language: the first (newest) wins.
+      if (members.some((member) => member.code === (blog.code || rootCode))) continue
+      members.push({
+        code: blog.code || rootCode,
+        url: postPath(blog.site.blog.permalink, post.slug)
+      })
+      translations.set(postGroup(post), members)
+    }
+  }
+
+  // Language switchers on blog pages: a post's own translations, else each language's blog
+  // (when it has posts) or its home page.
+  const withPosts = new Set(live.map((post) => blogOf(post).code))
+  const switcherLinks = (members?: { code: string; url: string }[]): Map<string, string> =>
+    new Map(
+      site.languages.map((language) => {
+        const code = language.path ? language.code : ''
+        const blog = blogs.get(code)
+        const fallback =
+          blog && (!code || withPosts.has(code))
+            ? listPath(blog.site.blog.listPath)
+            : '/' + language.path
+        return [language.code, members?.find((m) => m.code === language.code)?.url ?? fallback]
+      })
+    )
+  const withSwitcher = (
+    html: string,
+    blog: LanguageBlog,
+    members?: { code: string; url: string }[]
+  ): string =>
+    multi ? fillSwitchers(html, site, blog.code || rootCode, switcherLinks(members)) : html
 
   const outputs = new Map<string, string>()
   const blogUrls: string[] = []
@@ -589,8 +808,10 @@ export async function generateBlog(
   }
 
   // Posts: live ones on the site, the rest as drafts.
-  const datas: PostData[] = []
+  const datas = new Map<string, PostData[]>([...blogs.keys()].map((code) => [code, []]))
+  const socials = new SocialImages(root, site)
   for (const post of records) {
+    const blog = blogOf(post)
     const data = dataOf(post)
     const isOn = isLive(post, now)
     const target = isOn ? fileOfPath(data.url) : draftFile(post.id)
@@ -603,88 +824,121 @@ export async function generateBlog(
       former.push(url, ...Object.keys(redirects).filter((from) => redirects[from] === url))
     }
     if (isOn) for (const url of former) if (url !== data.url) redirects[url] = data.url
-    outputs.set(target, postPage(post, data, ctx, !isOn, [...new Set(former)]))
+    const social = await socials.resolve(shareSource(post, site), post.shareFocus)
+    const alternates = isOn ? alternateLines(translations.get(postGroup(post)) ?? []) : []
+    outputs.set(
+      target,
+      withSwitcher(
+        postPage(post, data, blog.ctx, !isOn, social, [...new Set(former)], alternates),
+        blog,
+        isOn ? translations.get(postGroup(post)) : undefined
+      )
+    )
     if (isOn) {
-      datas.push(data)
+      datas.get(blog.code)!.push(data)
       blogUrls.push(data.url)
     }
     if (before && before.file !== target && !before.legacy) {
       deletions.add(before.file)
       // Its old address keeps working: to the new one, or to the list while it's off the site.
       if (before.live)
-        redirects[urlOfFile(before.file)] = isOn ? data.url : listPath(site.blog.listPath)
+        redirects[urlOfFile(before.file)] = isOn ? data.url : listPath(blog.site.blog.listPath)
     }
   }
   if (change.remove) {
     const gone = byId.get(change.remove)
     if (gone && !gone.legacy) {
       deletions.add(gone.file)
-      if (gone.live) redirects[urlOfFile(gone.file)] = listPath(site.blog.listPath)
+      if (gone.live)
+        redirects[urlOfFile(gone.file)] = listPath(blogOf(gone.record).site.blog.listPath)
     }
   }
 
-  // Paginated lists: the main one and one per tag.
+  // Paginated lists: the main one and one per tag and category, in every language's blog.
   const perPage = site.blog.postsPerPage
-  const addList = (items: PostData[], urlOf: (page: number) => string, heading: string): void => {
+  // A language's blog exists once it has a post; the root one always does.
+  const listed = [...blogs.values()].filter((blog) => !blog.code || datas.get(blog.code)!.length)
+  const homeAlternates = alternateLines(
+    listed.map((blog) => ({
+      code: blog.code || rootCode,
+      url: listPath(blog.site.blog.listPath)
+    }))
+  )
+  const addList = (
+    blog: LanguageBlog,
+    items: PostData[],
+    urlOf: (page: number) => string,
+    heading: string,
+    alternates: string[] = []
+  ): void => {
+    const { site: own, ctx: blogCtx } = blog
     const total = Math.max(1, Math.ceil(items.length / perPage))
     for (let page = 1; page <= total; page++) {
       const url = urlOf(page)
       const html = renderList(
-        listSource,
-        layouts.list,
-        layouts.listLayout,
+        blog.listSource,
+        blogCtx.layouts.list,
+        blogCtx.layouts.listLayout,
         items.slice((page - 1) * perPage, page * perPage),
         { page, total, urlOf, heading },
-        context
+        blogCtx.context
       )
       const title = page > 1 ? `${heading} · page ${page}` : heading
       const withTitle = html.replace(
         /<title>[\s\S]*?<\/title>/i,
-        `<title>${escapeText(titleOf(site, title))}</title>`
+        `<title>${escapeText(titleOf(own, title))}</title>`
       )
       outputs.set(
         fileOfPath(url),
-        finishPage(withTitle, {
-          url: absolute(site, url),
-          ogType: 'website',
-          title,
-          image: site.seo.defaultImage ? absolute(site, site.seo.defaultImage) : null,
-          description: `${site.siteName} · ${title}`,
-          jsonLd: { '@type': 'CollectionPage', name: title, url: absolute(site, url) },
-          extraHead: sharedHead(site),
-          currentPath: listPath(site.blog.listPath),
-          linkAliases,
-          baseUrl: site.baseUrl,
-          fallbackSiteNodes: ctx.homeNodes
-        })
+        withSwitcher(
+          finishPage(withTitle, {
+            url: absolute(own, url),
+            ogType: 'website',
+            title,
+            image: own.seo.defaultImage ? absolute(own, own.seo.defaultImage) : null,
+            description: `${own.siteName} · ${title}`,
+            jsonLd: { '@type': 'CollectionPage', name: title, url: absolute(own, url) },
+            extraHead: [...sharedHead(own), ...(page === 1 ? alternates : [])],
+            currentPath: listPath(own.blog.listPath),
+            linkAliases,
+            baseUrl: own.baseUrl,
+            fallbackSiteNodes: blogCtx.homeNodes,
+            lang: multi ? own.locale : undefined
+          }),
+          blog
+        )
       )
       if (items.length) blogUrls.push(url)
     }
   }
-  addList(datas, (n) => listPath(site.blog.listPath, n), site.blog.title)
-  const tags = new Map<string, { name: string; posts: PostData[] }>()
-  for (const data of datas) {
-    for (const tag of data.tags ?? []) {
-      const entry = tags.get(tag.url) ?? { name: tag.name, posts: [] }
-      entry.posts.push(data)
-      tags.set(tag.url, entry)
+  for (const blog of listed) {
+    const own = blog.site
+    const items = datas.get(blog.code)!
+    addList(blog, items, (n) => listPath(own.blog.listPath, n), own.blog.title, homeAlternates)
+    const tags = new Map<string, { name: string; posts: PostData[] }>()
+    for (const data of items) {
+      for (const tag of data.tags ?? []) {
+        const entry = tags.get(tag.url) ?? { name: tag.name, posts: [] }
+        entry.posts.push(data)
+        tags.set(tag.url, entry)
+      }
     }
+    for (const { name, posts } of tags.values()) {
+      addList(blog, posts, (n) => tagUrl(own, name, n), `${own.blog.title}: ${name}`)
+    }
+    const categories = new Map<string, { name: string; posts: PostData[] }>()
+    for (const data of items) {
+      if (!data.category) continue
+      const entry = categories.get(data.category.url) ?? { name: data.category.name, posts: [] }
+      entry.posts.push(data)
+      categories.set(data.category.url, entry)
+    }
+    for (const { name, posts } of categories.values()) {
+      addList(blog, posts, (n) => categoryUrl(own, name, n), `${own.blog.title}: ${name}`)
+    }
+    const feedUrl = `${listPath(own.blog.listPath)}feed.xml`
+    outputs.set(feedUrl.replace(/^\//, ''), rss(own, items))
   }
-  for (const { name, posts } of tags.values()) {
-    addList(posts, (n) => tagUrl(site, name, n), `${site.blog.title}: ${name}`)
-  }
-  const categories = new Map<string, { name: string; posts: PostData[] }>()
-  for (const data of datas) {
-    if (!data.category) continue
-    const entry = categories.get(data.category.url) ?? { name: data.category.name, posts: [] }
-    entry.posts.push(data)
-    categories.set(data.category.url, entry)
-  }
-  for (const { name, posts } of categories.values()) {
-    addList(posts, (n) => categoryUrl(site, name, n), `${site.blog.title}: ${name}`)
-  }
-  const feedUrl = `${listPath(site.blog.listPath)}feed.xml`
-  outputs.set(feedUrl.replace(/^\//, ''), rss(site, datas))
   outputs.set(BLOCKS_CSS, `${blocksCss}\n${codeCss}`)
   outputs.set(LIGHTBOX_JS, lightboxJs)
   outputs.set(CODE_JS, codeJs)
@@ -730,6 +984,13 @@ export async function generateBlog(
       if (!path.startsWith(APP_DIR)) written.push(path)
     }
   }
+  // Share crops: new ones go out with the posts; ones no post uses any more go.
+  for (const write of socials.writes.values()) {
+    writes.push(write)
+    written.push(write.path)
+  }
+  for (const crop of socials.takeUnused()) deletions.add(crop)
+  await socials.save()
   const removed: string[] = []
   for (const path of deletions) {
     if ((await read(path)) === null) continue
@@ -756,7 +1017,18 @@ export async function generateBlog(
         cardsSaved = true
       }
     }
-    const next = renderLatest(source, latest, datas.slice(0, Math.max(1, latest.count)), context)
+    // A page shows the latest posts of its own language.
+    const language = multi
+      ? folderLanguage(site.languages, languageOfPath(latest.page, site.languages)?.code)
+      : undefined
+    const blog = blogs.get(language?.code ?? '') ?? blogs.get('')!
+    const posts = datas.get(blog.code) ?? []
+    const next = renderLatest(
+      source,
+      latest,
+      posts.slice(0, Math.max(1, latest.count)),
+      blog.ctx.context
+    )
     if (next !== source) {
       writes.push({ path: latest.page, content: next })
       written.push(latest.page)
@@ -784,7 +1056,9 @@ export async function generateBlog(
     written.push('sitemap.xml')
   }
 
-  const historyId = writes.length ? await writeFiles(root, writes, 'Blog: publish') : null
+  const historyId = writes.length
+    ? await writeFiles(root, await withFlags(root, site, writes), 'Blog: publish')
+    : null
   // With an automatic sitemap, rebuild it from all pages now that the blog is written.
   if (site.seo.sitemapAuto && writes.length) {
     const { changed } = await writeSitemap(root)

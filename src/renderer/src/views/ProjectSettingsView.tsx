@@ -1,7 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Explainer, Field, Notice, Section } from '../components/Field'
 import RemoteFolder from '../components/RemoteFolder'
 import SyncSection from '../components/SyncSection'
+import LanguagesSection from '../components/LanguagesSection'
+import { languageName } from '../../../shared/languages'
+import SwitcherSetup from './SwitcherSetup'
 import { useT } from '../i18n'
 import { errorMessage } from '../lib/api'
 import { FEATURES } from '../../../shared/features'
@@ -11,6 +14,7 @@ import type {
   CloudflareWorker,
   ConnectionsView,
   SiteSettings,
+  SwitcherState,
   SyncStatus,
   Workspace
 } from '../../../shared/types'
@@ -18,6 +22,8 @@ import type {
 interface Props {
   workspace: Workspace | null
   onOpenAppSettings: () => void
+  /** Pages → Translations. */
+  onOpenTranslations: () => void
   sync: SyncStatus | null
 }
 
@@ -27,6 +33,7 @@ type Status = { kind: 'error' | 'success'; text: string } | null
 export default function ProjectSettingsView({
   workspace,
   onOpenAppSettings,
+  onOpenTranslations,
   sync
 }: Props): React.JSX.Element {
   const t = useT()
@@ -43,6 +50,21 @@ export default function ProjectSettingsView({
   const [workers, setWorkers] = useState<CloudflareWorker[] | null>(null)
   const [status, setStatus] = useState<Record<string, Status>>({})
   const [busy, setBusy] = useState<string | null>(null)
+  /** The language switcher's setup, open on the page instead of the settings. */
+  const [switcherSetup, setSwitcherSetup] = useState<{
+    mode: 'add' | 'restyle'
+    state: SwitcherState
+  } | null>(null)
+  /** Bumped to reload the Languages section after the switcher changed. */
+  const [languagesKey, setLanguagesKey] = useState(0)
+  /** Back from the switcher's setup: the settings open again where Languages is, not at the top. */
+  const languagesAnchor = useRef<HTMLDivElement>(null)
+  const [backToLanguages, setBackToLanguages] = useState(false)
+  useEffect(() => {
+    if (switcherSetup || !backToLanguages) return
+    setBackToLanguages(false)
+    languagesAnchor.current?.scrollIntoView({ block: 'start' })
+  }, [switcherSetup, backToLanguages])
 
   useEffect(() => {
     window.api.listConnections().then(setConnections)
@@ -83,9 +105,40 @@ export default function ProjectSettingsView({
   }
   if (!site) return <div className="muted">{t('common.loading')}</div>
 
+  if (switcherSetup) {
+    return (
+      <SwitcherSetup
+        mode={switcherSetup.mode}
+        state={switcherSetup.state}
+        pages={workspace.pages.map((page) => page.path)}
+        languages={site.languages}
+        onCancel={() => {
+          setSwitcherSetup(null)
+          setBackToLanguages(true)
+        }}
+        onDone={(change) => {
+          setSwitcherSetup(null)
+          setBackToLanguages(true)
+          setLanguagesKey((key) => key + 1)
+          window.api.getSiteSettings().then(loaded)
+          setStatus((s) => ({
+            ...s,
+            switcher: {
+              kind: 'success',
+              text: t('languages.switcherDone', { count: change.pages.length })
+            }
+          }))
+        }}
+      />
+    )
+  }
+
   const saveSite = (): Promise<void> =>
     run('site', async () => {
-      loaded(await window.api.saveSiteSettings(site!))
+      const next = await window.api.saveSiteSettings(site!)
+      // The links between translations use the site's address: Languages shows what to update.
+      if (next.baseUrl !== savedSite?.baseUrl) setLanguagesKey((key) => key + 1)
+      loaded(next)
       return t('project.savedSite')
     })
 
@@ -178,12 +231,21 @@ export default function ProjectSettingsView({
                   onChange={(e) => setSiteField('baseUrl', e.target.value)}
                 />
               </Field>
-              <Field label={t('project.language')} hint={t('project.languageHint')}>
-                <input
-                  value={site.locale}
-                  onChange={(e) => setSiteField('locale', e.target.value)}
-                />
-              </Field>
+              {site.languages.length ? (
+                <Field label={t('project.language')} hint={t('languages.setInLanguages')}>
+                  {/* Not a field here: the root language is set in Languages. */}
+                  <p className="field__static">
+                    {languageName(site.locale)} <span className="mono muted">{site.locale}</span>
+                  </p>
+                </Field>
+              ) : (
+                <Field label={t('project.language')} hint={t('project.languageHint')}>
+                  <input
+                    value={site.locale}
+                    onChange={(e) => setSiteField('locale', e.target.value)}
+                  />
+                </Field>
+              )}
             </div>
 
             <h3 className="settings__subhead">{t('project.images')}</h3>
@@ -253,6 +315,24 @@ export default function ProjectSettingsView({
           </>
         )}
       </Section>
+
+      <div ref={languagesAnchor} className="settings__anchor" />
+      {show('switcher')}
+      <LanguagesSection
+        key={languagesKey}
+        onSwitcher={(mode, state) => setSwitcherSetup({ mode, state })}
+        onOpenTranslations={onOpenTranslations}
+        locale={site.locale}
+        hasBaseUrl={Boolean(savedSite?.baseUrl)}
+        onSaved={(languages) => {
+          // Only what the languages change, so unsaved edits in the Site section stay.
+          const locale = languages.find((language) => !language.path)?.code
+          const apply = (s: SiteSettings | null): SiteSettings | null =>
+            s ? { ...s, languages, locale: locale ?? s.locale } : s
+          setSite(apply)
+          setSavedSite(apply)
+        }}
+      />
 
       {/* ---------- Deploy (per project) ---------- */}
       {site && connections && (

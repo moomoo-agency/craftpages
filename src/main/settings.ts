@@ -1,6 +1,6 @@
 import { app, safeStorage } from 'electron'
 import { randomBytes } from 'crypto'
-import { mkdir, readFile, rm, writeFile } from 'fs/promises'
+import { mkdir, readFile, rename, rm, writeFile } from 'fs/promises'
 import { basename, join } from 'path'
 import {
   DEFAULT_LIST_PATH,
@@ -8,6 +8,7 @@ import {
   normalizePath,
   normalizePermalink
 } from '../shared/blog-urls'
+import { LANGUAGE_CODE, LANGUAGE_FOLDER, languageName, normalizeFolder } from '../shared/languages'
 import type {
   AppSettings,
   ConnectionInput,
@@ -15,9 +16,11 @@ import type {
   DeepPartial,
   DeployConnection,
   DeployConnectionView,
+  SiteLanguage,
   SiteSettings
 } from '../shared/types'
 import { isServerConnection } from '../shared/types'
+import { log } from './log'
 import { registerSecrets } from './redact'
 
 export const DEFAULT_MCP_PORT = 7424
@@ -27,6 +30,7 @@ const DEFAULT_APP: AppSettings = {
   lastWorkspace: null,
   recentProjects: [],
   connections: [],
+  formsAccounts: [],
   background: { keepRunning: true, openAtLogin: false }
 }
 
@@ -118,6 +122,8 @@ export async function forgetProject(root: string): Promise<void> {
 interface Secrets {
   /** Deploy connection tokens by connection id. */
   connectionTokens?: Record<string, string>
+  /** CraftForms API tokens by account id. */
+  formsTokens?: Record<string, string>
   /** Before connections: Cloudflare tokens by project id. Moved on first open. */
   cloudflareTokens?: Record<string, string>
   mcpToken?: string
@@ -140,27 +146,61 @@ function keychainAvailable(): boolean {
   const backend = safeStorage.getSelectedStorageBackend()
   return backend !== 'basic_text' && backend !== 'unknown'
 }
-let secrets: Secrets | null = null
+// The secrets as one shared load: callers at launch (MCP, sync, deploy) wait for the same
+// read instead of a second caller seeing an empty set and saving it over every token.
+let secrets: Promise<Secrets> | null = null
 
-async function readSecrets(): Promise<Secrets> {
-  if (secrets) return secrets
-  secrets = {}
+function readSecrets(): Promise<Secrets> {
+  return (secrets ??= loadSecrets())
+}
+
+async function loadSecrets(): Promise<Secrets> {
+  let loaded: Secrets = {}
   if (!keychainAvailable()) {
     // A file written with the weak fallback key doesn't stay around to be read.
     if (safeStorage.isEncryptionAvailable()) await rm(secretsFile(), { force: true })
-    return secrets
+    return loaded
+  }
+  let data: Buffer
+  try {
+    data = await readFile(secretsFile())
+  } catch {
+    return loaded
   }
   try {
-    secrets = JSON.parse(safeStorage.decryptString(await readFile(secretsFile()))) as Secrets
-    registerSecrets(secrets)
-  } catch {
-    // Missing or unreadable (e.g. keychain reset): start empty.
+    loaded = JSON.parse(safeStorage.decryptString(data)) as Secrets
+    registerSecrets(loaded)
+  } catch (error) {
+    // Unreadable (e.g. the keychain refused or was reset): start empty, but move the file
+    // aside first, so the next write can't destroy tokens a working keychain could still read.
+    const aside = `${secretsFile()}.unreadable-${new Date().toISOString().replace(/[:.]/g, '-')}`
+    await rename(secretsFile(), aside).catch(() => null)
+    log.warn('settings', 'Saved tokens could not be read; starting without them', {
+      kept: basename(aside),
+      error: (error as Error).message
+    })
   }
-  return secrets
+  return loaded
+}
+
+// Changes run one at a time, each on the result of the last, so two at once can't drop either.
+let writes: Promise<unknown> = Promise.resolve()
+
+/** Changes the secrets: `change` gets the current ones and returns the next, or null to keep them. */
+function updateSecrets<T = void>(
+  change: (current: Secrets) => { next: Secrets | null; result?: T }
+): Promise<T> {
+  const run = writes.then(async () => {
+    const { next, result } = change(await readSecrets())
+    if (next) await writeSecrets(next)
+    return result as T
+  })
+  writes = run.catch(() => null)
+  return run
 }
 
 async function writeSecrets(next: Secrets): Promise<void> {
-  secrets = next
+  secrets = Promise.resolve(next)
   registerSecrets(next)
   // Without a keychain the values stay in memory only, never on disk in plain text.
   if (!keychainAvailable()) return
@@ -168,14 +208,30 @@ async function writeSecrets(next: Secrets): Promise<void> {
   await writeFile(secretsFile(), safeStorage.encryptString(JSON.stringify(next)))
 }
 
+// ---------- CraftForms accounts (app-wide, several) ----------
+
+export async function formsToken(id: string): Promise<string> {
+  return (await readSecrets()).formsTokens?.[id] ?? ''
+}
+
+export async function setFormsToken(id: string, token: string | null): Promise<void> {
+  await updateSecrets((current) => {
+    const tokens = { ...current.formsTokens }
+    if (token) tokens[id] = token
+    else delete tokens[id]
+    return { next: { ...current, formsTokens: tokens } }
+  })
+}
+
 // ---------- Deploy connections (app-wide, several) ----------
 
 async function setConnectionToken(id: string, token: string | null): Promise<void> {
-  const current = await readSecrets()
-  const tokens = { ...current.connectionTokens }
-  if (token) tokens[id] = token
-  else delete tokens[id]
-  await writeSecrets({ ...current, connectionTokens: tokens })
+  await updateSecrets((current) => {
+    const tokens = { ...current.connectionTokens }
+    if (token) tokens[id] = token
+    else delete tokens[id]
+    return { next: { ...current, connectionTokens: tokens } }
+  })
 }
 
 export async function listConnections(): Promise<ConnectionsView> {
@@ -326,9 +382,11 @@ export async function migrateDeploy(root: string): Promise<void> {
     if (!connection) return
   }
   if (token) {
-    const tokens = { ...(await readSecrets()).cloudflareTokens }
-    delete tokens[stored.id]
-    await writeSecrets({ ...(await readSecrets()), cloudflareTokens: tokens })
+    await updateSecrets((current) => {
+      const tokens = { ...current.cloudflareTokens }
+      delete tokens[stored.id]
+      return { next: { ...current, cloudflareTokens: tokens } }
+    })
   }
   delete stored.deploy.accountId
   stored.deploy.connection = connection
@@ -337,11 +395,11 @@ export async function migrateDeploy(root: string): Promise<void> {
 
 /** This computer's stable sync id: 12 uppercase hex characters. */
 export async function syncDeviceId(): Promise<string> {
-  const current = await readSecrets()
-  if (current.syncDevice) return current.syncDevice
-  const id = randomBytes(6).toString('hex').toUpperCase()
-  await writeSecrets({ ...current, syncDevice: id })
-  return id
+  return updateSecrets((current) => {
+    if (current.syncDevice) return { next: null, result: current.syncDevice }
+    const id = randomBytes(6).toString('hex').toUpperCase()
+    return { next: { ...current, syncDevice: id }, result: id }
+  })
 }
 
 export async function getSyncSecret(name: string): Promise<string | null> {
@@ -349,24 +407,28 @@ export async function getSyncSecret(name: string): Promise<string | null> {
 }
 
 export async function setSyncSecret(name: string, value: string | null): Promise<void> {
-  const current = await readSecrets()
-  const next = { ...current.syncSecrets }
-  if (value) next[name] = value
-  else delete next[name]
-  await writeSecrets({ ...current, syncSecrets: next })
+  await updateSecrets((current) => {
+    const next = { ...current.syncSecrets }
+    if (value) next[name] = value
+    else delete next[name]
+    return { next: { ...current, syncSecrets: next } }
+  })
 }
 
 /** Bearer token AI clients must send. Kept across launches so the client config keeps working. */
 export async function getMcpToken(): Promise<string> {
-  const current = await readSecrets()
-  if (current.mcpToken) return current.mcpToken
-  return regenerateMcpToken()
+  return updateSecrets((current) => {
+    if (current.mcpToken) return { next: null, result: current.mcpToken }
+    const token = randomBytes(24).toString('base64url')
+    return { next: { ...current, mcpToken: token }, result: token }
+  })
 }
 
 export async function regenerateMcpToken(): Promise<string> {
-  const token = randomBytes(24).toString('base64url')
-  await writeSecrets({ ...(await readSecrets()), mcpToken: token })
-  return token
+  return updateSecrets((current) => {
+    const token = randomBytes(24).toString('base64url')
+    return { next: { ...current, mcpToken: token }, result: token }
+  })
 }
 
 // ---------- Site settings (.sitecms/site.json) ----------
@@ -379,6 +441,7 @@ function defaultSite(root: string): SiteSettings {
     siteName: basename(root),
     baseUrl: '',
     locale: 'en',
+    languages: [],
     deploy: {
       connection: '',
       target: 'workers',
@@ -391,6 +454,7 @@ function defaultSite(root: string): SiteSettings {
     },
     images: { maxWidth: 2400, quality: 80, pngToJpeg: true, dir: 'assets/img' },
     editing: { codeEditor: false },
+    forms: { account: '', accountHint: '', domain: '' },
     seo: {
       titlePattern: '%title% · %site%',
       defaultImage: '',
@@ -471,6 +535,44 @@ export async function getSiteSettings(root: string): Promise<SiteSettings> {
   return settings
 }
 
+/** Validates a site's languages: one at the root, distinct codes and folders. */
+export function checkLanguages(languages: SiteLanguage[]): SiteLanguage[] {
+  if (!languages.length) return []
+  const out = languages.map((language) => ({
+    code: language.code.trim(),
+    name: language.name.trim() || languageName(language.code.trim()),
+    path: normalizeFolder(language.path),
+    ...(language.blogTitle?.trim() ? { blogTitle: language.blogTitle.trim() } : {}),
+    ...(language.label?.trim() ? { label: language.label.trim().slice(0, 40) } : {}),
+    ...(language.flag?.trim() ? { flag: language.flag.trim() } : {})
+  }))
+  for (const language of out) {
+    if (!LANGUAGE_CODE.test(language.code))
+      throw new Error(`“${language.code}” isn’t a language code (e.g. it, en, pt-BR).`)
+    if (language.path && !LANGUAGE_FOLDER.test(language.path))
+      throw new Error(
+        `“${language.path}” can’t be a language folder: use letters, digits and dashes.`
+      )
+  }
+  const roots = out.filter((language) => !language.path)
+  if (roots.length !== 1)
+    throw new Error('One language lives at the root of the site: it’s the default language.')
+  const seen = (key: (language: SiteLanguage) => string, what: string): void => {
+    const keys = out.map(key)
+    const twice = keys.find((value, index) => keys.indexOf(value) !== index)
+    if (twice !== undefined) throw new Error(`Two languages use the same ${what}: “${twice}”.`)
+  }
+  seen((language) => language.code.toLowerCase(), 'code')
+  seen((language) => language.path.toLowerCase(), 'folder')
+  // A folder inside another language's folder would make its pages belong to both.
+  for (const a of out)
+    for (const b of out)
+      if (a !== b && a.path && b.path && b.path.startsWith(a.path))
+        throw new Error(`The folder “${b.path}” is inside “${a.path}”.`)
+  // The root first, then as given.
+  return [roots[0], ...out.filter((language) => language.path)]
+}
+
 export async function saveSiteSettings(
   root: string,
   patch: DeepPartial<SiteSettings>
@@ -500,6 +602,10 @@ export async function saveSiteSettings(
   )
   if (connection) next.deploy.connectionHint = connectionHint(connection)
   next.images.dir = next.images.dir.trim().replace(/^\/+|\/+$/g, '') || 'assets/img'
+  next.languages = checkLanguages(next.languages)
+  // The root language is the site's language: blog dates and the like follow it.
+  const root_ = next.languages.find((language) => !language.path)
+  if (root_) next.locale = root_.code
   await writeJson(siteFile(root), next)
   return next
 }

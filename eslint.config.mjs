@@ -34,6 +34,12 @@ export default defineConfig(
     rules: { '@typescript-eslint/explicit-function-return-type': 'off' }
   },
   {
+    // The stdio MCP bridge, run as it is by the app's binary in Node mode (see src/main/mcp/server.ts).
+    files: ['resources/*.mjs'],
+    languageOptions: { globals: { process: 'readonly', fetch: 'readonly' } },
+    rules: { '@typescript-eslint/explicit-function-return-type': 'off' }
+  },
+  {
     // The sync Worker, uploaded to Cloudflare as it is (see src/main/sync/cloudflare-store.ts).
     files: ['src/main/sync/worker/*.js'],
     languageOptions: { globals: { WebSocketPair: 'readonly' } },

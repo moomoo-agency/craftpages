@@ -1,4 +1,4 @@
-import { readFile, writeFile } from 'fs/promises'
+import { readdir, readFile, rm, writeFile } from 'fs/promises'
 import { join, posix } from 'path'
 import { parseFragment, serializeOuter } from 'parse5'
 import { hasDraft } from './drafts'
@@ -24,6 +24,7 @@ import { urlOfPage } from './seo-site'
 import { isPublished } from './deploy/exclude'
 import { getSiteSettings } from './settings'
 import { listFiles } from './workspace'
+import { languageOfPath, siteForLanguage } from '../shared/languages'
 import { SEARCH_ICONS } from './search/icons'
 import loaderJs from './search/craftpages-search.js?raw'
 import boxJs from './search/craftpages-search-box.js?raw'
@@ -35,7 +36,9 @@ import type {
   SearchChange,
   SearchIconOptions,
   SearchPageState,
-  SearchState
+  SearchState,
+  SiteLanguage,
+  SiteSettings
 } from '../shared/types'
 
 /**
@@ -383,10 +386,41 @@ function hasBodyMarks(body: Element): boolean {
   return found
 }
 
-export async function buildIndex(root: string): Promise<{ json: string; pages: number }> {
+/**
+ * The search indexes: on a site in one language, search-index.json; with languages, one per
+ * language (search-index.json for the root one, search-index.<code>.json for the others), so
+ * a visitor downloads only the pages in their language.
+ */
+export async function buildIndexes(
+  root: string
+): Promise<{ file: string; code: string; json: string; pages: number }[]> {
   const site = await getSiteSettings(root)
+  const all = await htmlPages(root)
+  if (site.languages.length < 2) return [{ file: INDEX, code: '', ...indexOf(all, site) }]
+  return site.languages.map((language) => {
+    const own = all.filter(
+      (page) => (languageOfPath(page.path, site.languages)?.code ?? '') === language.code
+    )
+    return {
+      file: indexFile(language),
+      code: language.code,
+      ...indexOf(own, siteForLanguage(site, language.code))
+    }
+  })
+}
+
+/** Where a language's index goes: the root one keeps search-index.json. */
+const indexFile = (language: SiteLanguage): string =>
+  language.path ? `search-index.${language.code.toLowerCase()}.json` : INDEX
+
+export async function buildIndex(root: string): Promise<{ json: string; pages: number }> {
+  const indexes = await buildIndexes(root)
+  return indexes.find((index) => index.file === INDEX) ?? indexes[0]
+}
+
+function indexOf(all: Page[], site: SiteSettings): { json: string; pages: number } {
   const listPath = site.blog.listPath
-  const pages = (await htmlPages(root))
+  const pages = all
     .filter((page) => !exclusion(page))
     .map((page) => ({ page, kind: kindOf(page, listPath) }))
     // Page 2, 3… of a list only repeat posts that are found on their own.
@@ -432,12 +466,43 @@ export async function refreshSearch(
   root: string
 ): Promise<{ pages: number; bytes: number } | null> {
   if ((await readText(root, LOADER)) === null) return null
-  for (const [path, content] of Object.entries(ASSETS)) {
+  const site = await getSiteSettings(root)
+  for (const [path, content] of Object.entries(assetsFor(site))) {
     if ((await readText(root, path)) !== content) await writeFile(join(root, path), content)
   }
-  const { json, pages } = await buildIndex(root)
-  if ((await readText(root, INDEX)) !== json) await writeFile(join(root, INDEX), json)
-  return { pages, bytes: Buffer.byteLength(json) }
+  const indexes = await buildIndexes(root)
+  for (const { file, json } of indexes) {
+    if ((await readText(root, file)) !== json) await writeFile(join(root, file), json)
+  }
+  // Indexes of languages the site no longer has.
+  const kept = new Set(indexes.map((index) => index.file))
+  for (const file of await languageIndexFiles(root)) if (!kept.has(file)) await rm(join(root, file))
+  return {
+    pages: indexes.reduce((sum, index) => sum + index.pages, 0),
+    bytes: indexes.reduce((sum, index) => sum + Buffer.byteLength(index.json), 0)
+  }
+}
+
+/** search-index.<code>.json files at the root of the site. */
+async function languageIndexFiles(root: string): Promise<string[]> {
+  return (await readdir(root).catch(() => [] as string[])).filter((name) =>
+    /^search-index\.[a-z0-9-]+\.json$/.test(name)
+  )
+}
+
+/**
+ * The bundled scripts. On a site with languages the loader starts with where each
+ * language's index is, so the box fetches only the one for the page's `<html lang>`.
+ */
+function assetsFor(site: SiteSettings): Record<string, string> {
+  if (site.languages.length < 2) return ASSETS
+  const map = Object.fromEntries(
+    site.languages.map((language) => [language.code.toLowerCase(), '/' + indexFile(language)])
+  )
+  return {
+    ...ASSETS,
+    [LOADER]: `window.CraftPagesSearchIndexes=${JSON.stringify(map)};\n${loaderJs}`
+  }
 }
 
 // ---------- Script tag ----------
@@ -681,7 +746,8 @@ function scriptPatch(page: Page, tag: string): Patch | null | { skip: string } {
 
 async function assetWrites(root: string): Promise<FileWrite[]> {
   const writes: FileWrite[] = []
-  for (const [path, content] of Object.entries(ASSETS)) {
+  const site = await getSiteSettings(root)
+  for (const [path, content] of Object.entries(assetsFor(site))) {
     if ((await readText(root, path)) !== content) writes.push({ path, content })
   }
   return writes
@@ -758,7 +824,7 @@ export async function disableSearch(root: string): Promise<SearchChange> {
     }
     writes.push({ path: page.path, content: applyPatches(page.source, patches) })
   }
-  for (const path of [...Object.keys(ASSETS), INDEX]) {
+  for (const path of [...Object.keys(ASSETS), INDEX, ...(await languageIndexFiles(root))]) {
     if ((await readText(root, path)) !== null) writes.push({ path, content: null })
   }
   const historyId = writes.length ? await writeFiles(root, writes, 'Search: turned off') : null

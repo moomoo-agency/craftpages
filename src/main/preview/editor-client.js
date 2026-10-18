@@ -1372,8 +1372,32 @@
     element.setAttribute('contenteditable', 'true')
     element.setAttribute('spellcheck', 'true')
     element.focus()
+    placeCaret(element)
     placeToolbar()
     updateToolbarState()
+  }
+
+  /** Where the last click landed, to put the caret there once the element is editable. */
+  let clickPoint = null
+
+  /**
+   * The element became editable on the click, after the browser placed (or didn't place) the
+   * caret, and focusing a link leaves the caret where it was: often in the last element edited,
+   * so typing went there. Put it at the click, or at the end.
+   */
+  function placeCaret(element) {
+    const selection = getSelection()
+    const point = clickPoint
+    clickPoint = null
+    if (selection.rangeCount && element.contains(selection.anchorNode)) return
+    let range = point && document.caretRangeFromPoint(point.x, point.y)
+    if (!range || !element.contains(range.startContainer)) {
+      range = document.createRange()
+      range.selectNodeContents(element)
+      range.collapse(false)
+    }
+    selection.removeAllRanges()
+    selection.addRange(range)
   }
 
   function deactivate() {
@@ -1407,6 +1431,7 @@
       }
       if (target.tagName === 'IMG') return selectImage(target, false)
       peek(null)
+      clickPoint = { x: event.clientX, y: event.clientY }
       activate(target)
     },
     true
@@ -1646,6 +1671,18 @@
       component.scrollIntoView({ block: 'center' })
       component.setAttribute('data-cms-flash', '')
       setTimeout(() => component.removeAttribute('data-cms-flash'), 1300)
+    } else if (message.type === 'focus-selector') {
+      // A text the app points at (what changed in a translation's original).
+      let element = null
+      try {
+        element = document.querySelector(message.selector)
+      } catch {
+        return
+      }
+      if (!element) return
+      element.scrollIntoView({ block: 'center' })
+      element.setAttribute('data-cms-flash', '')
+      setTimeout(() => element.removeAttribute('data-cms-flash'), 1300)
     } else if (message.type === 'set-image') {
       const element = document.querySelector(`img[${ATTR}="${CSS.escape(message.id)}"]`)
       if (!element) return

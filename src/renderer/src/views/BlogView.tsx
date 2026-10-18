@@ -240,6 +240,16 @@ export default function BlogView({
     window.api.getLayoutLinks(true).then(setPlannedLinks, () => setPlannedLinks(null))
   }, [workspace, setup, generated])
 
+  // Before the early returns: the post editor opens other posts (its versions) with it.
+  const openPost = async (id: string | null): Promise<void> => {
+    try {
+      setEditing(id ? await window.api.getPost(id) : await window.api.newPost())
+      setMode('editor')
+    } catch (e) {
+      setError(errorMessage(e))
+    }
+  }
+
   if (!workspace) {
     return (
       <div className="empty">
@@ -464,6 +474,11 @@ export default function BlogView({
         knownCategories={[...new Set((posts ?? []).map((p) => p.category).filter(Boolean))].sort()}
         knownAuthors={[...new Set((posts ?? []).map((p) => p.author).filter(Boolean))].sort()}
         onSaved={() => loadPosts()}
+        posts={posts ?? []}
+        onOpenPost={(id) => {
+          loadPosts()
+          openPost(id)
+        }}
         onDeleted={() => {
           setFlash(t('blog.postDeleted'))
           setEditing(null)
@@ -477,15 +492,6 @@ export default function BlogView({
         }}
       />
     )
-  }
-
-  const openPost = async (id: string | null): Promise<void> => {
-    try {
-      setEditing(id ? await window.api.getPost(id) : await window.api.newPost())
-      setMode('editor')
-    } catch (e) {
-      setError(errorMessage(e))
-    }
   }
 
   // ---------- Choosing pages ----------
@@ -913,6 +919,11 @@ export default function BlogView({
                       >
                         {item.title || t('blog.untitled')}
                       </button>
+                      {site && site.languages.length > 1 && (
+                        <span className="badge badge--muted">
+                          {(item.lang || site.languages[0].code).toUpperCase()}
+                        </span>
+                      )}
                     </td>
                     <td className="muted mono">{item.url}</td>
                     <td className="muted small">{item.tags.join(', ')}</td>
@@ -1184,6 +1195,11 @@ function UrlSettings({
   const [title, setTitle] = useState(site.blog.title)
   const [scheduleDeploy, setScheduleDeploy] = useState(site.blog.scheduleDeploy)
   const [emptyText, setEmptyText] = useState(site.blog.emptyText)
+  /** The blog's title in each of the site's other languages. */
+  const others = site.languages.filter((language) => language.path)
+  const [titles, setTitles] = useState<Record<string, string>>(() =>
+    Object.fromEntries(others.map((language) => [language.code, language.blogTitle ?? '']))
+  )
   const [status, setStatus] = useState<{ kind: 'error' | 'success'; text: string } | null>(null)
   const changed =
     permalink !== site.blog.permalink ||
@@ -1191,13 +1207,28 @@ function UrlSettings({
     perPage !== site.blog.postsPerPage ||
     title !== site.blog.title ||
     scheduleDeploy !== site.blog.scheduleDeploy ||
-    emptyText !== site.blog.emptyText
+    emptyText !== site.blog.emptyText ||
+    others.some((language) => (titles[language.code] ?? '') !== (language.blogTitle ?? ''))
 
   const save = async (): Promise<void> => {
     setStatus(null)
     try {
       const next = await window.api.saveSiteSettings({
-        blog: { permalink, listPath: list, postsPerPage: perPage, title, scheduleDeploy, emptyText }
+        blog: {
+          permalink,
+          listPath: list,
+          postsPerPage: perPage,
+          title,
+          scheduleDeploy,
+          emptyText
+        },
+        ...(others.length
+          ? {
+              languages: site.languages.map((language) =>
+                language.path ? { ...language, blogTitle: titles[language.code] ?? '' } : language
+              )
+            }
+          : {})
       })
       setPermalink(next.blog.permalink)
       setList(next.blog.listPath)
@@ -1288,6 +1319,19 @@ function UrlSettings({
         <Field label={t('blog.blogTitle')} hint={t('blog.blogTitleHint')}>
           <input value={title} onChange={(e) => setTitle(e.target.value)} />
         </Field>
+        {others.map((language) => (
+          <Field
+            key={language.code}
+            label={t('blog.blogTitleIn', { language: language.name })}
+            hint={t('blog.blogTitleInHint', { path: `/${language.path}` })}
+          >
+            <input
+              value={titles[language.code] ?? ''}
+              placeholder={title}
+              onChange={(e) => setTitles({ ...titles, [language.code]: e.target.value })}
+            />
+          </Field>
+        ))}
         <Field label={t('blog.emptyTextLabel')} hint={t('blog.emptyTextHint')}>
           <input value={emptyText} onChange={(e) => setEmptyText(e.target.value)} />
         </Field>

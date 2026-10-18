@@ -156,6 +156,8 @@ export default {
   urlExample: 'Example post: {post} · List: {list} · Page 2: {page2}',
   blogTitle: 'Blog title',
   blogTitleHint: 'Heading and title of the list page. Tag pages show “Blog: tag”.',
+  blogTitleIn: 'Blog title in {language}',
+  blogTitleInHint: 'The heading of the blog at {path}. Empty: the blog title above.',
   scheduleDeploy: 'Deploy to production when a scheduled post goes live',
   scheduleDeployHint:
     'Uses this project’s deploy settings. CraftPages must be open at that time; otherwise it deploys at the next launch.',

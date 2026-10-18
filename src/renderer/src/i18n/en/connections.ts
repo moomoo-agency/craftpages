@@ -123,5 +123,29 @@ export default {
   passwordKeep: 'Leave empty to keep the saved password',
   testConnection: 'Test connection',
   hostKey: 'Server key {key}: trusted from now on. If it ever changes, CraftPages stops and asks.',
-  addConnection: 'Add connection'
+  addConnection: 'Add connection',
+
+  // CraftForms accounts
+  formsTitle: 'CraftForms accounts',
+  formsDescription:
+    'Forms for your sites (contact, booking, payments) from craftforms.app. Optional; the Free plan is one form on one website. You sign in in your browser, and each project chooses its account.',
+  formsConnect: 'Connect or create a free account',
+  formsAddAnother: 'Connect another account',
+  formsWaiting: 'Finish in your browser…',
+  formsEmpty: 'No account connected.',
+  formsConnected: '{email} is connected.',
+  formsDisconnected: '{email} is disconnected.',
+  formsPlan: '{plan} plan',
+  formsForms: 'Forms',
+  formsWebsites: 'Websites',
+  formsSiteReady: 'Forms site ready',
+  formsNoSite: 'No forms site yet: press “Start free” on your CraftForms dashboard.',
+  formsVerifyEmail:
+    'Confirm your email address, then start your free forms site from the CraftForms dashboard.',
+  formsSignedOut: 'Signed out: connect again to use it.',
+  formsReconnect: 'Connect again',
+  formsDashboard: 'Open dashboard',
+  formsDisconnect: 'Disconnect',
+  formsConfirmDisconnect:
+    'Disconnect {email}? Forms already on your pages keep working; CraftPages just stops seeing this account.'
 } satisfies Record<string, Msg>

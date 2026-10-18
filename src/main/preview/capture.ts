@@ -16,9 +16,13 @@ const BLOCKED_TYPES = new Set([
  * Previews run the site's own pages, whose scripts may send analytics beacons
  * or load payment widgets from the live site. Remote requests of those kinds are
  * cancelled; remote stylesheets, fonts and images still load so the page looks right.
- * `allow` lets the user opt in (Interact mode) to test e.g. a checkout button.
+ * `allow` lets the user opt in (Interact mode) to test e.g. a checkout button, and lets
+ * through hosts the app trusts on its own (the project's CraftForms site, for previews).
  */
-export function blockRemoteScripts(target: Session, allow: () => boolean = () => false): void {
+export function blockRemoteScripts(
+  target: Session,
+  allow: (host: string) => boolean = () => false
+): void {
   target.webRequest.onBeforeRequest((details, callback) => {
     let host = ''
     try {
@@ -27,7 +31,7 @@ export function blockRemoteScripts(target: Session, allow: () => boolean = () =>
       // data:, blob: and similar have no host and are local anyway.
     }
     const remote = /^(https?|wss?):/.test(details.url) && !LOCAL_HOSTS.has(host)
-    callback({ cancel: remote && BLOCKED_TYPES.has(details.resourceType) && !allow() })
+    callback({ cancel: remote && BLOCKED_TYPES.has(details.resourceType) && !allow(host) })
   })
 }
 

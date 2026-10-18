@@ -147,6 +147,8 @@ const messages: Translation['blog'] = {
   blogTitle: 'Titolo del blog',
   blogTitleHint:
     'Titolo e intestazione della pagina dell’elenco. Le pagine dei tag mostrano “Blog: tag”.',
+  blogTitleIn: 'Titolo del blog in {language}',
+  blogTitleInHint: 'Il titolo del blog in {path}. Vuoto: il titolo del blog qui sopra.',
   scheduleDeploy: 'Pubblica in produzione quando un articolo programmato va online',
   scheduleDeployHint:
     'Usa le impostazioni di pubblicazione di questo progetto. CraftPages deve essere aperto in quel momento; altrimenti la pubblicazione avviene al prossimo avvio.',

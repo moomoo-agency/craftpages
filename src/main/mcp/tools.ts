@@ -1,6 +1,8 @@
 import { readFile } from 'fs/promises'
 import { extname } from 'path'
 import { previewUrl } from '../editing'
+import { ensureFormEmbed, formsList, formsProject } from '../craftforms'
+import { LOADER_SRC, embedDiv, embedSnippet, loaderTag } from '../../shared/forms'
 import { scanComponents } from '../html/components'
 import { pageOutline } from '../html/outline'
 import { capture } from '../preview/capture'
@@ -18,7 +20,7 @@ import {
   waitForDecision,
   type ChangeOp
 } from './proposals'
-import type { Proposal } from '../../shared/types'
+import type { FormsList, Proposal } from '../../shared/types'
 
 export type ToolContent =
   { type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string }
@@ -73,7 +75,7 @@ function summary(proposal: Proposal): Record<string, unknown> {
   }
 }
 
-export const INSTRUCTIONS = `CraftPages is a desktop editor for a plain-HTML static site (no build step, no templating: every page is a complete HTML file). You are connected to the one project (site folder) the user has open. It can change while you work: the server sends a project_switched notice.
+export const INSTRUCTIONS = `CraftPages is a desktop editor for a plain-HTML static site (no build step, no templating: every page is a complete HTML file). You are connected to the one project (site folder) the user has open. It can change while you work: WebSocket clients get a project_switched notice, and proposals for another project are refused, so call site_info again when a proposal is refused for that reason.
 
 - Read with list_pages, list_files, read_file and page_outline (a tag tree with line numbers). get_selection returns what the user last clicked in the page editor.
 - Start with site_info. Every propose_change must name that project; changes to any other project are refused.
@@ -81,13 +83,13 @@ export const INSTRUCTIONS = `CraftPages is a desktop editor for a plain-HTML sta
 - Keep edits minimal and exact: an "edit" replaces old_text with new_text, and old_text must match the file exactly once. Keep untouched markup byte-identical.
 - Header, footer and nav are copied into every page; list_components shows which blocks repeat, and a change to one usually belongs on every page that has it.
 - render_preview returns a screenshot of a page, optionally with a pending proposal applied, so you can check your work visually.
-- Some features are built into CraftPages (e.g. site search). Before adding one, call list_guides and read the matching guide with get_guide, and follow it instead of building your own.`
+- Some features are built into CraftPages (e.g. site search, forms). Before adding one, call list_guides and read the matching guide with get_guide, and follow it instead of building your own.`
 
 export const TOOLS: Tool[] = [
   {
     name: 'site_info',
     description:
-      'The open site: folder name, page count, base URL and whether proposals are auto-accepted.',
+      'The open site: folder name, page count, base URL, its languages (one folder each; the one at the root is the default) and whether proposals are auto-accepted.',
     inputSchema: { type: 'object', properties: {} },
     annotations: { readOnlyHint: true },
     run: async () => {
@@ -100,6 +102,9 @@ export const TOOLS: Tool[] = [
         siteName: site.siteName,
         baseUrl: site.baseUrl,
         pages: workspace.pages.length,
+        languages: site.languages.length
+          ? site.languages.map((l) => ({ code: l.code, name: l.name, folder: l.path || '/' }))
+          : undefined,
         autoAccept: isAutoAccept()
       })
     }
@@ -134,6 +139,97 @@ export const TOOLS: Tool[] = [
       const guide = GUIDES[str(args, 'name')]
       if (!guide) throw new Error(`No guide named ${str(args, 'name')}. See list_guides.`)
       return guide.text
+    }
+  },
+  {
+    name: 'list_forms',
+    description:
+      'CraftForms forms for this project: the connected account (if any), the website its forms are made for and whether that website is authorised, the account\'s forms, and every form embed already on the site (hosted or self-hosted). Read the "forms" guide first.',
+    inputSchema: { type: 'object', properties: {} },
+    annotations: { readOnlyHint: true },
+    run: async () => {
+      const root = requireRoot()
+      const project = await formsProject(root)
+      const account = project.accounts.find((a) => a.id === project.account) ?? null
+      let list: FormsList | null = null
+      let listError = ''
+      if (account && project.domain) {
+        list = await formsList(root, project.domain).catch((error: Error) => {
+          listError = error.message
+          return null
+        })
+      }
+      return json({
+        account: account ? { email: account.email, plan: account.plan } : null,
+        website: project.domain || null,
+        siteAddress: project.siteDomain || null,
+        websiteStatus: list?.requested?.status ?? null,
+        quota: list?.quota ?? null,
+        error: listError || undefined,
+        forms: (list?.forms ?? []).map((form) => ({
+          id: form.id,
+          title: form.title,
+          published: form.published,
+          embeddable: form.embeddable,
+          onWebsite: Boolean(list?.requested?.keys[form.id])
+        })),
+        embedsOnSite: project.embeds.map((embed) => ({
+          page: embed.path,
+          index: embed.index,
+          source: embed.source,
+          site: embed.site,
+          form: embed.title,
+          website: embed.domain,
+          hasLoader: embed.hasLoader,
+          settings: embed.settings
+        }))
+      })
+    }
+  },
+  {
+    name: 'form_snippet',
+    description:
+      "The exact CraftForms snippet for one of the account's forms on the project's website, ready to insert with propose_change. Refuses when that would use a new website slot of the user's plan (the user inserts that first form from the Forms view). With \"page\", also says whether that page already has the loader script.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        form_id: { type: 'string', description: 'A form id from list_forms' },
+        page: { type: 'string', description: 'The page it goes on, e.g. "contact.html" (optional)' }
+      },
+      required: ['form_id']
+    },
+    run: async (args) => {
+      const root = requireRoot()
+      const formId = str(args, 'form_id')
+      const project = await formsProject(root)
+      if (!project.account)
+        throw new Error('No CraftForms account for this project. The user connects one in Forms.')
+      if (!project.domain)
+        throw new Error('No website chosen for forms. The user sets it in Forms.')
+      const list = await formsList(root, project.domain)
+      const status = list.requested?.status
+      if (status !== 'authorised') {
+        throw new Error(
+          status === 'over_limit'
+            ? `The plan has no free website for ${project.domain}. The user upgrades or frees one in Forms.`
+            : `${project.domain} isn't one of the account's websites yet; adding it uses a slot of the plan. Ask the user to insert this first form from the Forms view.`
+        )
+      }
+      const { key } = await ensureFormEmbed(root, formId, project.domain)
+      const page = str(args, 'page', false)
+      let pageHasLoader: boolean | null = null
+      if (page) {
+        const source = await readFile(resolveInWorkspace(root, page), 'utf8')
+        pageHasLoader = new RegExp(LOADER_SRC.source, 'i').test(source)
+      }
+      return json({
+        website: project.domain,
+        snippet: embedSnippet(key, list.loaderUrl),
+        div: embedDiv(key),
+        loader: loaderTag(list.loaderUrl),
+        pageHasLoader,
+        note: 'Insert "div" where the form goes; add "loader" once per page, only when the page has none.'
+      })
     }
   },
   {
@@ -217,7 +313,7 @@ export const TOOLS: Tool[] = [
   {
     name: 'list_components',
     description:
-      'Blocks repeated across pages (header, footer, nav, shared sections), with the pages that contain each. Variants = same block with different content on some pages.',
+      'Blocks repeated across pages (header, footer, nav, shared sections), with the pages that contain each. Variants = same block with different content on some pages. On a site with languages each language has its own groups (language = its code).',
     inputSchema: { type: 'object', properties: {} },
     annotations: { readOnlyHint: true },
     run: async () => {
@@ -229,6 +325,7 @@ export const TOOLS: Tool[] = [
       return json(
         groups.map((group) => ({
           label: group.label,
+          ...(group.language ? { language: group.language } : {}),
           pages: group.pages,
           identical: group.variants.length === 1,
           variants:

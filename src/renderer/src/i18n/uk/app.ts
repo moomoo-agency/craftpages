@@ -7,6 +7,7 @@ const messages: Translation['app'] = {
   viewMedia: 'Медіа',
   viewSeo: 'SEO',
   viewSearch: 'Пошук на сайті',
+  viewForms: 'Форми',
   viewAi: 'Редагування шаблону (ШІ)',
   viewPublish: 'Публікація',
   viewProject: 'Налаштування проєкту',

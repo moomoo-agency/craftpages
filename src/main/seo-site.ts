@@ -1,21 +1,19 @@
 import { readFile, stat } from 'fs/promises'
-import { join, posix } from 'path'
+import { join } from 'path'
 import { parse } from 'parse5'
+import sharp from 'sharp'
 import { attr, find, textContent, walk, type Element } from './html/dom'
 import { pageSiteNodes } from './blog-render'
 import { writeFiles } from './history'
 import { POST_META } from './posts'
 import { getSiteSettings } from './settings'
 import { listFiles } from './workspace'
+import { fileFor, resolveLink, urlOfPage } from './site-paths'
+import { alternateHref, languageIssues, translationsOf } from './languages'
+import { rootLanguage } from '../shared/languages'
 import { isPublished } from './deploy/exclude'
 import { identityScript } from '../shared/identity'
-import type {
-  SeoIssue,
-  SeoReport,
-  SiteIdentity,
-  SiteSettings,
-  SitemapStatus
-} from '../shared/types'
+import type { SeoIssue, SeoReport, SiteIdentity, SitemapStatus } from '../shared/types'
 
 /**
  * Site-wide SEO: the check panel (every page scanned for the usual problems),
@@ -23,7 +21,12 @@ import type {
  * page says about the site (Organization / WebSite structured data).
  */
 
+export { urlOfPage }
+
 const OVERSIZED = 400 * 1024
+/** Facebook's and X's limits for a share image; below the minimum they show a small card or none. */
+const SOCIAL_MIN = { width: 600, height: 315 }
+const SOCIAL_MAX_BYTES = 5 * 1024 * 1024
 
 interface PageInfo {
   path: string
@@ -40,13 +43,6 @@ interface PageInfo {
   links: string[]
   images: { src: string; alt: string | undefined; sized: boolean }[]
   isPost: boolean
-}
-
-/** Site path of a page file: about/index.html → /about/, contact.html → /contact */
-export function urlOfPage(path: string): string {
-  if (path === 'index.html') return '/'
-  if (path.endsWith('/index.html')) return '/' + path.slice(0, -'index.html'.length)
-  return '/' + path.replace(/\.html?$/, '')
 }
 
 function metaContent(head: Element | null, key: 'name' | 'property', value: string): string {
@@ -106,38 +102,6 @@ async function readPages(root: string): Promise<PageInfo[]> {
   return pages
 }
 
-/**
- * Where a link points inside the site: a file path (with the #fragment),
- * or null for external links, mailto: and the like.
- */
-function resolveLink(
-  href: string,
-  fromPath: string,
-  site: SiteSettings
-): { path: string; hash: string } | null {
-  let value = href.trim()
-  if (!value || /^(mailto:|tel:|javascript:|data:)/i.test(value)) return null
-  if (site.baseUrl && value.startsWith(site.baseUrl))
-    value = value.slice(site.baseUrl.length) || '/'
-  if (/^[a-z][a-z0-9+.-]*:|^\/\//i.test(value)) return null
-  const [withoutHash, hash = ''] = value.split('#')
-  const pathPart = withoutHash.split('?')[0]
-  if (!pathPart) return { path: fromPath, hash } // same-page anchor
-  const base = posix.dirname('/' + fromPath)
-  const absolute = pathPart.startsWith('/') ? pathPart : posix.join(base, pathPart)
-  return { path: decodeURI(posix.normalize(absolute)).replace(/^\/+/, ''), hash }
-}
-
-/** The file a site path is served from (Cloudflare Pages rules), or null. */
-function fileFor(path: string, files: Set<string>): string | null {
-  const clean = path.replace(/\/+$/, '')
-  const candidates =
-    path.endsWith('/') || !clean
-      ? [`${clean ? clean + '/' : ''}index.html`]
-      : [clean, `${clean}.html`, `${clean}/index.html`]
-  return candidates.find((candidate) => files.has(candidate)) ?? null
-}
-
 export async function auditSite(root: string): Promise<SeoReport> {
   const site = await getSiteSettings(root)
   // Only what goes live: pages and files left out of publishing (layout pages, drafts) are
@@ -147,6 +111,24 @@ export async function auditSite(root: string): Promise<SeoReport> {
   const fileSet = new Set(files.map((file) => file.path))
   const sizes = new Map(files.map((file) => [file.path, file.bytes]))
   const byPath = new Map(pages.map((page) => [page.path, page]))
+  // Share images' sizes: a header read each, once per image however many pages use it.
+  const ogPaths = [
+    ...new Set(
+      pages
+        .map((page) => page.ogImage && resolveLink(page.ogImage, page.path, site)?.path)
+        .filter((path): path is string => Boolean(path && fileSet.has(path)))
+    )
+  ]
+  const ogSizes = new Map(
+    await Promise.all(
+      ogPaths.map(async (path) => {
+        const meta = await sharp(join(root, path))
+          .metadata()
+          .catch(() => null)
+        return [path, meta?.width && meta.height ? meta : null] as const
+      })
+    )
+  )
   const issues: SeoIssue[] = []
   const add = (issue: SeoIssue): void => {
     issues.push(issue)
@@ -250,6 +232,34 @@ export async function auditSite(root: string): Promise<SeoReport> {
           kind: 'social',
           message: 'No social image (og:image); shares show no picture.'
         })
+      else {
+        const path = resolveLink(page.ogImage, page.path, site)?.path
+        const meta = path ? ogSizes.get(path) : null
+        if (meta && (meta.width! < SOCIAL_MIN.width || meta.height! < SOCIAL_MIN.height))
+          add({
+            ...where,
+            severity: 'warning',
+            kind: 'social',
+            message: `Social image is small (${meta.width}×${meta.height}); shares show a small card. Use at least 1200×630.`,
+            detail: [path!]
+          })
+        else if (meta && Math.abs(meta.width! / meta.height! - 1.91) > 0.3)
+          add({
+            ...where,
+            severity: 'info',
+            kind: 'social',
+            message: `Social image is ${meta.width}×${meta.height}; networks crop it to 1.91:1 (e.g. 1200×630).`,
+            detail: [path!]
+          })
+        if (path && (sizes.get(path) ?? 0) > SOCIAL_MAX_BYTES)
+          add({
+            ...where,
+            severity: 'warning',
+            kind: 'social',
+            message: `Social image is over 5 MB; some networks won't show it.`,
+            detail: [path]
+          })
+      }
     } else if (page.path !== '404.html') {
       add({
         ...where,
@@ -365,6 +375,14 @@ export async function auditSite(root: string): Promise<SeoReport> {
     })
   }
 
+  issues.push(
+    ...(await languageIssues(
+      root,
+      site,
+      pages.map((page) => page.path)
+    ))
+  )
+
   const order = { error: 0, warning: 1, info: 2 }
   issues.sort((a, b) => order[a.severity] - order[b.severity] || a.page.localeCompare(b.page))
   return {
@@ -402,19 +420,49 @@ function excluded(path: string, patterns: string[]): boolean {
 /** sitemap.xml from every indexable page (not 404, not noindex, not excluded). */
 export async function buildSitemap(root: string): Promise<{ xml: string; urls: number }> {
   const site = await getSiteSettings(root)
+  const listed = (await readPages(root)).filter(
+    (page) =>
+      !/(^|\/)404\.html$/.test(page.path) &&
+      !/noindex/i.test(page.robots) &&
+      !excluded(page.path, site.seo.sitemapExclude) &&
+      isPublished(site, page.path)
+  )
+  const listedPaths = new Set(listed.map((page) => page.path))
+  // Each URL lists its translations (Google reads hreflang from the sitemap too).
+  const translations = await translationsOf(
+    root,
+    site,
+    listed.map((page) => page.path)
+  )
+  const xmlEscape = (text: string): string => text.replace(/&/g, '&amp;')
   const entries: string[] = []
-  for (const page of await readPages(root)) {
-    if (page.path === '404.html' || /noindex/i.test(page.robots)) continue
-    if (excluded(page.path, site.seo.sitemapExclude) || !isPublished(site, page.path)) continue
+  for (const page of listed) {
     const modified = (await stat(join(root, page.path))).mtime.toISOString().slice(0, 10)
     const loc = (site.baseUrl || '') + page.url
+    const group = translations.get(page.path)
+    const links = group
+      ? [
+          ...Object.entries(group.pages)
+            .filter(([, path]) => listedPaths.has(path))
+            .map(([code, path]) => [code, path] as const),
+          ...(group.pages[rootLanguage(site.languages)?.code ?? '']
+            ? [['x-default', group.pages[rootLanguage(site.languages)!.code]] as const]
+            : [])
+        ].map(
+          ([code, path]) =>
+            `<xhtml:link rel="alternate" hreflang="${code}" href="${xmlEscape(alternateHref(site, path))}"/>`
+        )
+      : []
     entries.push(
-      `  <url><loc>${loc.replace(/&/g, '&amp;')}</loc><lastmod>${modified}</lastmod></url>`
+      `  <url><loc>${xmlEscape(loc)}</loc><lastmod>${modified}</lastmod>${links.join('')}</url>`
     )
   }
   entries.sort()
+  const xhtml = entries.some((entry) => entry.includes('<xhtml:link'))
+    ? ' xmlns:xhtml="http://www.w3.org/1999/xhtml"'
+    : ''
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"${xhtml}>
 ${entries.join('\n')}
 </urlset>
 `
