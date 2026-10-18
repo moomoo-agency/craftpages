@@ -36,6 +36,9 @@ Click **Publish site**. CraftPages:
 To know what it uploaded, CraftPages keeps a small list on the server, in
 `.craftpages/manifest.json` inside the site's folder.
 
+Storage services with FTP access, such as Bunny Storage, work too, including ones that
+create folders on upload and don't allow renaming files.
+
 If the server folder already holds files that CraftPages didn't publish, the first publish
 says so and asks before uploading. Files with the same names are replaced, the others kept.
 

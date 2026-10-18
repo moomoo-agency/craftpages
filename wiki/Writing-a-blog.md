@@ -29,6 +29,20 @@ images, galleries, tables, embeds and text columns. Pasting from Google Docs kee
 formatting and drops the clutter. Images go through the same pipeline as everywhere else (resized,
 location data removed).
 
+**Code** and **Gist** blocks show code with syntax highlighting: pick the language, a color
+theme, line numbers, lines to highlight and a copy button. Typing ` ``` ` or pasting formatted code
+starts a Code block. Paste a GitHub gist link and its file comes in as a Code block, linked
+to the gist; **Update from GitHub** fetches it again. Either way the highlighting is saved as
+plain HTML, so published pages load no highlighter and no script from GitHub.
+
+## Cover and social image
+
+The **cover** shows on the post card and, unless you choose otherwise, when the post is
+shared on social networks and in chats. Pick a different **Social image** to share something
+else. Share images are cropped to 1200×630 when they aren't that shape: drag the preview to
+choose what the crop keeps. With no image, shares show the site's default image from
+**SEO**.
+
 Give a post a future date and **Publish** becomes **Schedule**: the post joins the blog at
 that time, as long as CraftPages is running on this computer. Then publish the site, or tick
 **Deploy to production when a scheduled post goes live** in the blog settings.

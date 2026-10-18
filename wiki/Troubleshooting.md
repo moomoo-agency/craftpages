@@ -38,6 +38,17 @@ serves (often `public_html`, `www` or `htdocs`) and publish again.
 **Workers R2 Storage · Edit**, and R2 turned on for the account. The message links to both.
 See [[Sync between computers]].
 
+**A connection says it has no API token (or password), though you added it.** Versions
+before 1.2.0 could lose saved tokens when CraftPages started, most often after restarting the
+computer. Update to the latest version, then add the token again in **App settings → Deploy
+connections**.
+
+**Sync: "The sync Worker doesn't know this computer's key."** This computer's sync key is new
+to the Worker, usually because saved tokens were lost (see above). Since 1.2.0 CraftPages
+registers the key again by itself, as long as the connection has its token. On older versions,
+add the token, then in **Project settings → Sync** turn sync off and on again. Nothing is
+deleted.
+
 **"The live site was published from somewhere else."** Someone published from another
 copy of the folder. See [[Working with others]].
 
