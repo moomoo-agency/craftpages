@@ -262,6 +262,37 @@ function contains(ancestor: Element, element: Element): boolean {
 
 /** Never removed: they don't show content (styles, scripts, metadata). */
 const NON_VISUAL = new Set(['script', 'style', 'link', 'meta', 'template', 'noscript'])
+
+/**
+ * What goes when a post has no image: the layout's image and the wrappers that only hold it
+ * (a figure with its caption, the card's image link…), never `stop` or anything above it.
+ */
+function imageRemoval(img: Element, stop: Element): Patch | null {
+  let block = img
+  for (
+    let parent = img.parentNode as Element | null;
+    parent && isElement(parent) && parent !== stop;
+    parent = parent.parentNode as Element | null
+  ) {
+    const others = children(parent).filter(
+      (e) => e !== block && e.tagName !== 'figcaption' && !NON_VISUAL.has(e.tagName)
+    )
+    const text = parent.childNodes.some((n) => n.nodeName === '#text' && textContent(n).trim())
+    if (others.length || text) break
+    block = parent
+  }
+  const location = block.sourceCodeLocation
+  return location ? { start: location.startOffset, end: location.endOffset, text: '' } : null
+}
+
+/** Drops patches inside a removed range (they'd overlap it), and adds the removal. */
+function withRemoval(patches: Patch[], removal: Patch | null): Patch[] {
+  if (!removal) return patches
+  return [
+    ...patches.filter((patch) => patch.end <= removal.start || patch.start >= removal.end),
+    removal
+  ]
+}
 /** Page chrome, kept when it sits outside <main>. */
 const CHROME = new Set(['header', 'footer', 'nav', 'aside'])
 
@@ -496,6 +527,7 @@ export function renderPost(
   const img =
     imageElement &&
     (imageElement.tagName === 'img' ? imageElement : find(imageElement, (e) => e.tagName === 'img'))
+  let noImage: Patch | null = null
   if (img && post.image && !insideRegion(img)) {
     patches.push(
       ...attrPatches(source, img, {
@@ -505,6 +537,11 @@ export function renderPost(
         sizes: null
       })
     )
+  } else if (img && !post.image && !insideRegion(img)) {
+    // The layout's own picture isn't this post's: leave the space out.
+    const main =
+      find(document, (e) => e.tagName === 'main') ?? find(document, (e) => e.tagName === 'body')
+    if (main) noImage = imageRemoval(img, main)
   }
 
   // Tags and category in the layout's own badge design; removed when the post has none.
@@ -538,7 +575,7 @@ export function renderPost(
   ].filter((element): element is Element => Boolean(element))
   patches.push(...trimPatches(document, keptParts, layout.remove, layout.keepOnly))
 
-  const body = applyPatches(source, patches)
+  const body = applyPatches(source, withRemoval(patches, noImage))
   const absolute = (path: string): string => (context.baseUrl ? context.baseUrl + path : path)
   const seo = readSeo(body)
   return writeSeo(body, {
@@ -608,6 +645,7 @@ function fillCard(
   const img =
     imageHolder &&
     (imageHolder.tagName === 'img' ? imageHolder : find(imageHolder, (e) => e.tagName === 'img'))
+  const noImage = img && !post.image ? imageRemoval(img, card) : null
   if (img && post.image) {
     patches.push(
       ...attrPatches(cardHtml, img, {
@@ -670,7 +708,7 @@ function fillCard(
       picked.includes(anchor) || (href !== undefined && originals.has(href) && !inTerms(anchor))
     if (linked) patches.push(...attrPatches(cardHtml, anchor, { href: post.url }))
   }
-  return applyPatches(cardHtml, patches)
+  return applyPatches(cardHtml, withRemoval(patches, noImage))
 }
 
 export interface ListPage {
