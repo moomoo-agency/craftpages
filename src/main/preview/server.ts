@@ -5,6 +5,7 @@ import { extname } from 'path'
 import { resolveInWorkspace } from '../workspace'
 import editorClient from './editor-client.js?raw'
 import pointerClient from './pointer-client.js?raw'
+import { VIDEO_PATH, videoStandIn, withVideoStandIns } from './video'
 
 export const EDITOR_SCRIPT_PATH = '/__cms/editor.js'
 export const POINTER_SCRIPT_PATH = '/__cms/pointer.js'
@@ -121,6 +122,12 @@ export async function startStaticServer(options: StaticServerOptions): Promise<S
       res.writeHead(200, { ...headers, 'Content-Type': TYPES['.js'] }).end(editorClient)
       return
     }
+    if (url.pathname === VIDEO_PATH) {
+      const page = videoStandIn(url)
+      if (page) res.writeHead(200, { ...headers, 'Content-Type': TYPES['.html'] }).end(page)
+      else res.writeHead(400).end()
+      return
+    }
 
     const routed = await options.route?.(url, origin)
     if (routed) {
@@ -158,7 +165,7 @@ export async function startStaticServer(options: StaticServerOptions): Promise<S
           // Only the app's own scripts (/__cms/) may run; the page's scripts were stripped.
           'Content-Security-Policy': `script-src ${origin}/__cms/; object-src 'none'`
         })
-        .end(editCopy)
+        .end(withVideoStandIns(editCopy, origin))
       return
     }
 
@@ -172,7 +179,9 @@ export async function startStaticServer(options: StaticServerOptions): Promise<S
     }
     const [path, raw] = found
     const transformed = path.endsWith('.html') ? await options.transformHtml?.(path, origin) : null
-    const body = transformed ?? raw
+    const html = transformed ?? (path.endsWith('.html') ? raw.toString() : null)
+    // Players render black inside the sandboxed preview frames (video.ts).
+    const body = html !== null ? withVideoStandIns(html, origin) : raw
     if (path === `${pathname.replace(/^\/+/, '')}/index.html`) {
       // Directory without a trailing slash: redirect so relative URLs resolve.
       res.writeHead(301, { ...headers, Location: `${pathname}/${url.search}` }).end()
