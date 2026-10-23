@@ -407,7 +407,11 @@ export default function LayoutPointer({
       }))
     )
     post({ type: 'marks', marks })
-    post({ type: 'scope', n: step.within ? (picks[step.within]?.[0]?.n ?? null) : null })
+    post({
+      type: 'scope',
+      n: step.within ? (picks[step.within]?.[0]?.n ?? null) : null,
+      links: step.id === 'card-link'
+    })
   }
   const syncRef = useRef(sync)
   useEffect(() => {

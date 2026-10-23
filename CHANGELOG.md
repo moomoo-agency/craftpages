@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.1 (2026-10-23)
+
+- Blog setup: pointing at a card's parts looks through a link stretched over the whole card
+  (a title link's `::after`, or an empty link laid on top), so the image, excerpt, date and
+  tags can be picked. On the card link step, clicking anywhere on the card still picks the link.
+
 ## 1.3.0 (2026-10-23)
 
 - Language switcher: a **dropdown** layout. It shows the current language only (text, flag or

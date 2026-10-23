@@ -4,13 +4,19 @@
  * a click reports it to the app. The app draws already-picked parts with labels.
  *
  *   → parent: ready, picked { n }
- *   ← parent: marks { marks: [{ n, label, tone }] }, scope { n | null }, focus { n }
+ *   ← parent: marks { marks: [{ n, label, tone }] }, scope { n | null, links }, focus { n }
+ *
+ * Cards often make the whole card a link with an empty layer over it: the title link's
+ * ::after stretched over the card, or an empty absolutely positioned <a>. Pointing looks
+ * through those layers, so the image, excerpt and date under them can be picked, except
+ * while picking links (scope { links: true }), where clicking anywhere on the card picks it.
  */
 ;(function () {
   'use strict'
 
   const ATTR = 'data-cms-el'
   let scope = null // when set, only elements inside it can be picked
+  let links = false // picking links: whole-card link layers stay in the way
   let hovered = null
 
   const post = (message) => window.parent.postMessage({ source: 'sitecms', ...message }, '*')
@@ -29,6 +35,7 @@
     .cms-mark.tone-scope { border-color: #f5a623; background: rgba(245, 166, 35, .08); }
     .cms-mark.tone-scope span { background: #f5a623; }
     .cms-dim { position: absolute; z-index: 2147483645; pointer-events: none; background: rgba(0, 0, 0, .35); }
+    html.cms-pointing:not(.cms-links) *::before, html.cms-pointing:not(.cms-links) *::after { pointer-events: none !important; }
   `
   document.documentElement.appendChild(style)
   document.documentElement.classList.add('cms-pointing')
@@ -58,6 +65,24 @@
     return `${element.tagName.toLowerCase()}${cls} · ${Math.round(rect.width)}×${Math.round(rect.height)}`
   }
 
+  const MEDIA = 'img, svg, video, picture, canvas, iframe, input, select, textarea, button'
+
+  /** An empty layer laid over other content, like a card's whole-card link. */
+  function isOverlay(element) {
+    if (element === document.body || element === document.documentElement) return false
+    if (element.textContent.trim() || element.matches(MEDIA) || element.querySelector(MEDIA))
+      return false
+    const position = getComputedStyle(element).position
+    return position === 'absolute' || position === 'fixed'
+  }
+
+  /** The element under the pointer, looking through empty overlays unless picking links. */
+  function hitAt(x, y) {
+    const stack = document.elementsFromPoint(x, y)
+    if (links) return stack[0] || null
+    return stack.find((node) => !isOverlay(node)) || stack[0] || null
+  }
+
   function pickable(element) {
     const target = element && element.closest(`[${ATTR}]`)
     if (!target) return null
@@ -82,7 +107,7 @@
   document.addEventListener(
     'mousemove',
     (event) => {
-      const target = pickable(event.target)
+      const target = pickable(hitAt(event.clientX, event.clientY))
       if (target === hovered) return
       hovered = target
       if (!target) return hoverBox.remove()
@@ -98,7 +123,7 @@
     (event) => {
       event.preventDefault()
       event.stopPropagation()
-      const target = pickable(event.target)
+      const target = pickable(hitAt(event.clientX, event.clientY))
       if (target) post({ type: 'picked', n: Number(target.getAttribute(ATTR)) })
     },
     true
@@ -137,6 +162,8 @@
       drawMarks()
     } else if (message.type === 'scope') {
       scope = message.n ? byNumber(message.n) : null
+      links = Boolean(message.links)
+      document.documentElement.classList.toggle('cms-links', links)
       hovered = null
       hoverBox.remove()
     } else if (message.type === 'focus') {
