@@ -45,6 +45,11 @@ Lists every CraftForms embed on the site's pages. **Edit** a form to swap it for
 change the website it's made for, its language or loading label, or remove it. Removing a
 form from a page gives back the page exactly as it was before.
 
+A form speaks the language of the page it's on (the page's `<html lang>`), so on a site in
+several languages ([[Sites in several languages]]) the same form shows Italian buttons and
+messages on `/it/` and German on `/de/`. Set a language in **Edit** only when a page says the
+wrong language, or none. Your own questions stay as you wrote them.
+
 Forms in blog posts are changed in the post's **Form** block.
 
 ## For your AI

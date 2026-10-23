@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Explainer, Field, Notice } from '../components/Field'
 import { useT, type Key } from '../i18n'
 import { errorMessage } from '../lib/api'
+import { defaultLabel } from '../../../shared/languages'
 import type {
   IconPosition,
   PickedElement,
@@ -32,6 +33,14 @@ const DISPLAYS: { id: SwitcherLook['display']; label: Key }[] = [
   { id: 'text', label: 'languages.displayText' },
   { id: 'flag', label: 'languages.displayFlag' },
   { id: 'both', label: 'languages.displayBoth' }
+]
+const LAYOUTS: { id: SwitcherLook['layout']; label: Key }[] = [
+  { id: 'row', label: 'languages.layoutRow' },
+  { id: 'dropdown', label: 'languages.layoutDropdown' }
+]
+const MISSING: { id: SwitcherLook['missing']; label: Key }[] = [
+  { id: 'hide', label: 'languages.missingHide' },
+  { id: 'home', label: 'languages.missingHome' }
 ]
 
 const VOID = new Set(['img', 'input', 'br', 'hr', 'meta', 'link', 'source', 'wbr', 'area', 'col'])
@@ -340,6 +349,20 @@ export default function SwitcherSetup({
         ) : (
           <div className="switcher-look">
             <fieldset className="radio-list">
+              <legend className="field__label">{t('languages.layoutLegend')}</legend>
+              {LAYOUTS.map((option) => (
+                <label key={option.id} className="check">
+                  <input
+                    type="radio"
+                    name="layout"
+                    checked={look.layout === option.id}
+                    onChange={() => setLook({ ...look, layout: option.id })}
+                  />
+                  {t(option.label)}
+                </label>
+              ))}
+            </fieldset>
+            <fieldset className="radio-list">
               <legend className="field__label">{t('languages.displayLegend')}</legend>
               {DISPLAYS.map((option) => (
                 <label key={option.id} className="check">
@@ -365,16 +388,32 @@ export default function SwitcherSetup({
                   onChange={(e) => setLook({ ...look, size: Number(e.target.value) || 0 })}
                 />
               </Field>
-              <Field label={t('languages.gapLabel')}>
-                <input
-                  type="number"
-                  min={0}
-                  max={48}
-                  value={look.gap}
-                  onChange={(e) => setLook({ ...look, gap: Number(e.target.value) })}
-                />
-              </Field>
+              {look.layout === 'row' && (
+                <Field label={t('languages.gapLabel')}>
+                  <input
+                    type="number"
+                    min={0}
+                    max={48}
+                    value={look.gap}
+                    onChange={(e) => setLook({ ...look, gap: Number(e.target.value) })}
+                  />
+                </Field>
+              )}
             </div>
+            <fieldset className="radio-list">
+              <legend className="field__label">{t('languages.missingLegend')}</legend>
+              {MISSING.map((option) => (
+                <label key={option.id} className="check">
+                  <input
+                    type="radio"
+                    name="missing"
+                    checked={look.missing === option.id}
+                    onChange={() => setLook({ ...look, missing: option.id })}
+                  />
+                  {t(option.label)}
+                </label>
+              ))}
+            </fieldset>
             <table className="list switcher-look__languages">
               <thead>
                 <tr>
@@ -392,7 +431,7 @@ export default function SwitcherSetup({
                         <input
                           aria-label={t('languages.labelFor', { language: language.name })}
                           value={language.label ?? ''}
-                          placeholder={language.code.toUpperCase()}
+                          placeholder={defaultLabel(language, languages)}
                           onChange={(e) => setLanguage(language.code, { label: e.target.value })}
                         />
                       </td>
@@ -462,7 +501,7 @@ export default function SwitcherSetup({
                 {busy
                   ? t('common.saving')
                   : mode === 'restyle'
-                    ? t('search.applyAll')
+                    ? t('languages.switcherApply')
                     : t('languages.switcherPlace')}
               </button>
             </>

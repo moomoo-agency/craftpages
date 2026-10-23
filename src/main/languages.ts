@@ -33,6 +33,7 @@ import type {
   SeoIssue,
   SiteLanguage,
   SiteSettings,
+  SwitcherLinks,
   TranslationGroup
 } from '../shared/types'
 
@@ -517,14 +518,17 @@ const homeOf = (analysis: Analysis, language: SiteLanguage): string | null => {
 
 /**
  * Where a page's switcher points: its own version in each language, or that language's
- * home page when it has none (languages with neither are left out).
+ * home page when it has none, as a stand-in the switcher's look may leave out (languages
+ * with neither are left out).
  */
-export function switcherLinks(analysis: Analysis, path: string): Map<string, string> {
+export function switcherLinks(analysis: Analysis, path: string): SwitcherLinks {
   const group = analysis.groupOf.get(path)
-  const links = new Map<string, string>()
+  const links: SwitcherLinks = new Map()
   for (const language of analysis.languages) {
-    const page = group?.pages[language.code] ?? homeOf(analysis, language)
-    if (page) links.set(language.code, urlOfPage(page))
+    const own =
+      group?.pages[language.code] ?? (language.code === analysis.codeOf.get(path) ? path : null)
+    const page = own ?? homeOf(analysis, language)
+    if (page) links.set(language.code, { url: urlOfPage(page), exact: Boolean(own) })
   }
   return links
 }
@@ -532,7 +536,7 @@ export function switcherLinks(analysis: Analysis, path: string): Map<string, str
 /** For placing a switcher on any page (layout and blog pages too): its language and links. */
 export function switcherTarget(
   analysis: Analysis
-): (path: string) => { code: string; links: Map<string, string> } {
+): (path: string) => { code: string; links: SwitcherLinks } {
   return (path) => ({
     code:
       analysis.codeOf.get(path) ??

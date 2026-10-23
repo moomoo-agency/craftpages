@@ -54,6 +54,7 @@ import type {
   PostLayout,
   PostRecord,
   SiteSettings,
+  SwitcherLinks,
   BlogTemplates
 } from '../shared/types'
 import blocksCss from './blog-blocks.css?raw'
@@ -773,10 +774,11 @@ export async function generateBlog(
     }
   }
 
-  // Language switchers on blog pages: a post's own translations, else each language's blog
-  // (when it has posts) or its home page.
+  // Language switchers on blog pages: a post's own translations (a list: the same list in
+  // the other blogs), else, as a stand-in, each language's blog (when it has posts) or its
+  // home page.
   const withPosts = new Set(live.map((post) => blogOf(post).code))
-  const switcherLinks = (members?: { code: string; url: string }[]): Map<string, string> =>
+  const switcherLinks = (members?: { code: string; url: string }[]): SwitcherLinks =>
     new Map(
       site.languages.map((language) => {
         const code = language.path ? language.code : ''
@@ -785,7 +787,8 @@ export async function generateBlog(
           blog && (!code || withPosts.has(code))
             ? listPath(blog.site.blog.listPath)
             : '/' + language.path
-        return [language.code, members?.find((m) => m.code === language.code)?.url ?? fallback]
+        const own = members?.find((m) => m.code === language.code)?.url
+        return [language.code, { url: own ?? fallback, exact: Boolean(own) }]
       })
     )
   const withSwitcher = (
@@ -858,18 +861,19 @@ export async function generateBlog(
   const perPage = site.blog.postsPerPage
   // A language's blog exists once it has a post; the root one always does.
   const listed = [...blogs.values()].filter((blog) => !blog.code || datas.get(blog.code)!.length)
-  const homeAlternates = alternateLines(
-    listed.map((blog) => ({
-      code: blog.code || rootCode,
-      url: listPath(blog.site.blog.listPath)
-    }))
-  )
+  const homeMembers = listed.map((blog) => ({
+    code: blog.code || rootCode,
+    url: listPath(blog.site.blog.listPath)
+  }))
+  const homeAlternates = alternateLines(homeMembers)
   const addList = (
     blog: LanguageBlog,
     items: PostData[],
     urlOf: (page: number) => string,
     heading: string,
-    alternates: string[] = []
+    alternates: string[] = [],
+    // The lists that translate this one (the blogs' first pages), for the switcher.
+    members?: { code: string; url: string }[]
   ): void => {
     const { site: own, ctx: blogCtx } = blog
     const total = Math.max(1, Math.ceil(items.length / perPage))
@@ -905,7 +909,8 @@ export async function generateBlog(
             fallbackSiteNodes: blogCtx.homeNodes,
             lang: multi ? own.locale : undefined
           }),
-          blog
+          blog,
+          page === 1 ? members : undefined
         )
       )
       if (items.length) blogUrls.push(url)
@@ -914,7 +919,14 @@ export async function generateBlog(
   for (const blog of listed) {
     const own = blog.site
     const items = datas.get(blog.code)!
-    addList(blog, items, (n) => listPath(own.blog.listPath, n), own.blog.title, homeAlternates)
+    addList(
+      blog,
+      items,
+      (n) => listPath(own.blog.listPath, n),
+      own.blog.title,
+      homeAlternates,
+      homeMembers
+    )
     const tags = new Map<string, { name: string; posts: PostData[] }>()
     for (const data of items) {
       for (const tag of data.tags ?? []) {

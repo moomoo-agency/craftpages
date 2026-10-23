@@ -138,12 +138,19 @@ const messages: Translation['languages'] = {
   },
   switcherAdd: 'Aggiungi il selettore della lingua',
   switcherRestyle: 'Aspetto del selettore della lingua',
+  switcherApply: 'Applica a tutti i selettori',
   switcherPlace: 'Aggiungi il selettore',
   whereTitle: 'Fai clic dove va il selettore',
   whereHint:
     'Di solito nell’intestazione o nel menu. Scegli l’elemento, poi dove va rispetto a esso.',
   markLabel: 'Selettore',
   scopeAll: 'Ogni pagina con questa parte, in ogni lingua',
+  layoutLegend: 'Disposizione',
+  layoutRow: 'Tutte le lingue in fila',
+  layoutDropdown: 'Menu a tendina: la lingua attuale, che apre le altre',
+  missingLegend: 'Lingue in cui questa pagina non è tradotta',
+  missingHide: 'Non mostrarle',
+  missingHome: 'Link alla home di quella lingua',
   displayLegend: 'Mostra',
   displayText: 'Testo',
   displayFlag: 'Bandiera',
@@ -158,7 +165,7 @@ const messages: Translation['languages'] = {
   flagFor: 'Bandiera per {language}',
   flagDefault: 'Predefinita',
   switcherExplain:
-    'Ogni link va alla stessa pagina in quella lingua, o alla home della lingua se la pagina non ha una versione lì. CraftPages tiene i link aggiornati man mano che le pagine vengono tradotte.',
+    'Ogni link va alla stessa pagina in quella lingua. Una lingua in cui la pagina non è tradotta non viene mostrata o porta alla sua home, come scelto sopra; se non resta nessun’altra lingua, il selettore si nasconde su quella pagina. CraftPages tiene i link aggiornati man mano che le pagine vengono tradotte.',
   setInLanguages: 'La lingua predefinita: cambiala in Lingue qui sotto.'
 }
 

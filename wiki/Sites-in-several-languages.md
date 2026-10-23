@@ -55,17 +55,25 @@ Search engines want full addresses in the links between translations. Fill in **
 
 ## Language switcher
 
-**Project settings → Languages → Add to the site…** puts a row of links on your pages, one
-per language, each going to the same page in that language (or to the language's home page
-when the page has no version there).
+**Project settings → Languages → Add to the site…** puts a language switcher on your pages.
+Each link goes to the same page in that language.
 
 1. **Where:** click where it goes in your header or menu, then choose before, after or inside.
    Add it to every page with that part, in every language, or to this page only.
-2. **Look:** text, flag, or flag and text, with your own labels.
+2. **Look:**
+   - **Layout:** all languages in a row, or a **dropdown** that shows only the current
+     language and opens a list of the others.
+   - **Show:** text, flag, or flag and text, with your own labels (EN, IT… by default).
+   - **Languages this page isn't translated into:** leave them out (the default), or link to
+     that language's home page. A page with no translation at all shows no switcher, until one
+     is added.
 
 The switcher is plain HTML with its styles inline, and the flags are small files in
-`assets/craftpages-flags/`. It updates itself when you add a page or a language. **Change
-look…** restyles every switcher; **Remove** takes them all off.
+`assets/craftpages-flags/`. The dropdown works without JavaScript; a few lines of script close
+it on a click elsewhere or Escape. Its list is white with dark text; set
+`--craftpages-languages-bg` and `--craftpages-languages-fg` in your CSS to change that. It
+updates itself when you add a page or a language. **Change look…** restyles every switcher;
+**Remove** takes them all off.
 
 ## Blog and search
 

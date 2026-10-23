@@ -891,11 +891,24 @@ export interface SiteLanguage {
 /** How the site's language switchers look (kept on each one, in its own markup). */
 export interface SwitcherLook {
   display: 'text' | 'flag' | 'both'
+  /** Every language in a row, or only the current one, opening a list of the others. */
+  layout: 'row' | 'dropdown'
+  /**
+   * A language the page has no version in: left out, or linked to that language's home page.
+   * Switchers placed before this choice existed link to the home page.
+   */
+  missing: 'hide' | 'home'
   /** Text size and flag height, in px; 0 keeps the site's text size. */
   size: number
   /** Space between the languages, in px. */
   gap: number
 }
+
+/**
+ * Where a page's switcher points, by language code. `exact`: the page's own version (or the
+ * same blog list) in that language; otherwise a stand-in, that language's home page or blog.
+ */
+export type SwitcherLinks = Map<string, { url: string; exact: boolean }>
 
 export interface SwitcherState {
   /** Pages that have a switcher. */

@@ -128,3 +128,19 @@ export const siteForPost = (site: SiteSettings, post: Pick<PostRecord, 'lang'>):
 /** The id posts that translate each other share. */
 export const postGroup = (post: Pick<PostRecord, 'id' | 'translationOf'>): string =>
   post.translationOf || post.id
+
+/**
+ * A language's switcher label when none is set: its primary subtag in capitals (EN for
+ * en-US), the whole code only when another of the site's languages shares that subtag
+ * (EN-US and EN-GB).
+ */
+export function defaultLabel(
+  language: Pick<SiteLanguage, 'code'>,
+  languages: SiteLanguage[]
+): string {
+  const primary = language.code.toLowerCase().split('-')[0]
+  const shared = languages.some(
+    (other) => other.code !== language.code && other.code.toLowerCase().split('-')[0] === primary
+  )
+  return (shared ? language.code : primary).toUpperCase()
+}

@@ -140,11 +140,18 @@ export default {
   } satisfies Msg,
   switcherAdd: 'Add the language switcher',
   switcherRestyle: 'Language switcher look',
+  switcherApply: 'Apply to every switcher',
   switcherPlace: 'Add the switcher',
   whereTitle: 'Click where the switcher goes',
   whereHint: 'Usually in the header or the menu. Pick the element, then where it goes around it.',
   markLabel: 'Switcher',
   scopeAll: 'Every page with this part, in every language',
+  layoutLegend: 'Layout',
+  layoutRow: 'All languages in a row',
+  layoutDropdown: 'Dropdown: the current language, opening the others',
+  missingLegend: 'Languages this page isn’t translated into',
+  missingHide: 'Leave them out',
+  missingHome: 'Link to that language’s home page',
   displayLegend: 'Show',
   displayText: 'Text',
   displayFlag: 'Flag',
@@ -159,6 +166,6 @@ export default {
   flagFor: 'Flag for {language}',
   flagDefault: 'Default',
   switcherExplain:
-    'Each link goes to the same page in that language, or to the language’s home page when the page has no version there. CraftPages keeps the links up to date as pages are translated.',
+    'Each link goes to the same page in that language. A language the page isn’t translated into is left out or goes to its home page, as chosen above; with no other language left, the switcher hides itself on that page. CraftPages keeps the links up to date as pages are translated.',
   setInLanguages: 'The default language: change it under Languages below.'
 }
