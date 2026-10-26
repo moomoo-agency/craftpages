@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Explainer, Field, Notice, Section } from '../components/Field'
 import RemoteFolder from '../components/RemoteFolder'
+import SpeedSection from '../components/SpeedSection'
 import SyncSection from '../components/SyncSection'
 import LanguagesSection from '../components/LanguagesSection'
 import { languageName } from '../../../shared/languages'
@@ -578,6 +579,18 @@ export default function ProjectSettingsView({
           {show('cloudflare')}
         </Section>
       )}
+
+      <SpeedSection
+        optimize={savedSite?.optimize ?? site.optimize}
+        onServer={onServer}
+        onSaved={(optimize) => {
+          // Only the speed settings, so unsaved edits elsewhere stay.
+          const apply = (s: SiteSettings | null): SiteSettings | null =>
+            s ? { ...s, optimize } : s
+          setSite(apply)
+          setSavedSite(apply)
+        }}
+      />
 
       <SyncSection status={sync} />
     </div>

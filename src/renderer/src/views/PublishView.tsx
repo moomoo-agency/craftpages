@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Explainer, Notice, Section } from '../components/Field'
 import ScheduledSection from '../components/ScheduledSection'
 import VersionsSection from '../components/VersionsSection'
@@ -53,10 +53,23 @@ export default function PublishView({
   /** Set after a publish to the live site finishes: the moment the job is done. */
   const [live, setLive] = useState(false)
 
-  const refresh = useCallback(async () => {
-    if (!workspace) return
+  const root = workspace?.root
+  // Only the latest status ask counts (one asked mid-publish can come back last).
+  const statusAsk = useRef(0)
+  /** What changed since the last publish: cheap, asked again whenever files change. */
+  const refreshStatus = useCallback(() => {
+    if (!root) return
+    const ask = ++statusAsk.current
     window.api.getSiteSettings().then(setSite)
-    window.api.deployStatus().then(setStatus, (e) => setError(errorMessage(e)))
+    window.api.deployStatus().then(
+      (next) => ask === statusAsk.current && setStatus(next),
+      (e) => ask === statusAsk.current && setError(errorMessage(e))
+    )
+  }, [root])
+  /** Status plus the versions Cloudflare keeps (a network call): on opening and after a publish. */
+  const refresh = useCallback(async () => {
+    if (!root) return
+    refreshStatus()
     window.api.listDeployments().then(
       (list) => {
         setDeployments(list)
@@ -64,11 +77,22 @@ export default function PublishView({
       },
       (e) => setListError(errorMessage(e))
     )
-  }, [workspace])
+  }, [root, refreshStatus])
 
   useEffect(() => {
     refresh()
   }, [refresh])
+
+  // Files changed (a save, the code editor, an editor outside the app): the workspace is
+  // rescanned and comes back as a new object. A burst of changes asks once.
+  const seen = useRef(workspace)
+  useEffect(() => {
+    if (seen.current === workspace) return
+    seen.current = workspace
+    const timer = setTimeout(refreshStatus, 400)
+    return () => clearTimeout(timer)
+  }, [workspace, refreshStatus])
+  const [showAllFiles, setShowAllFiles] = useState(false)
 
   // CraftForms embeds that won't work once published: made for another website, or no loader.
   const [formIssues, setFormIssues] = useState<FormsEmbed[]>([])
@@ -92,11 +116,37 @@ export default function PublishView({
     }
   }, [workspace])
 
+  // A publish started here runs in the app, not in this screen: coming back mid-way (or to one
+  // the scheduler started) shows it running, and its end arrives as an event.
+  const started = useRef(false)
+  useEffect(() => {
+    if (!root) return
+    let current = true
+    window.api.publishRun().then((run) => {
+      if (!current || !run || started.current) return
+      setRunning(true)
+      setProgress(run.progress)
+    })
+    return () => {
+      current = false
+    }
+  }, [root])
+
   useAppEvent((event) => {
-    if (event.type === 'deploy') setProgress(event.progress)
+    if (event.type === 'deploy') {
+      setProgress(event.progress)
+      if (event.progress.phase !== 'done' && event.progress.phase !== 'error') setRunning(true)
+    } else if (event.type === 'deploy-end' && event.root === root && !started.current) {
+      setRunning(false)
+      if (event.error) setError(event.error)
+      else if (event.target === 'production') setLive(true)
+      setVersionsToken((n) => n + 1)
+      refresh()
+    }
   })
 
   const deploy = async (target: DeployTarget, force = false, saveFirst = false): Promise<void> => {
+    started.current = true
     setRunning(true)
     setError(null)
     setForeign(null)
@@ -117,6 +167,7 @@ export default function PublishView({
     } catch (e) {
       setError(errorMessage(e))
     } finally {
+      started.current = false
       setRunning(false)
     }
   }
@@ -160,15 +211,20 @@ export default function PublishView({
           ? t('publish.titlePages', { name: site.deploy.projectName })
           : t('publish.titleAnyPages')
 
-  // Pages first: what visitors will see change. Other files (images, styles) are counted.
-  const otherFiles = status ? status.changed - status.changedPages.length : 0
+  // Pages first: what visitors will see change. Other files (images, styles) are listed below them.
+  const otherChanges = status
+    ? status.changes.filter((change) => !/\.html?$/i.test(change.path))
+    : []
+  const otherFiles = otherChanges.length
   const summary = status
     ? [
         status.changedPages.length
           ? t('publish.pagesChange', { count: status.changedPages.length })
           : otherFiles > 0
             ? t('publish.filesOnly', { count: otherFiles })
-            : t('publish.upToDate'),
+            : status.optimizeChanged
+              ? t('publish.speedOnly')
+              : t('publish.upToDate'),
         status.changedPages.length > 0 && otherFiles > 0
           ? t('publish.plusFiles', { count: otherFiles })
           : null,
@@ -288,6 +344,41 @@ export default function PublishView({
               </li>
             )}
           </ul>
+        )}
+        {otherFiles > 0 && (
+          <>
+            <h3 className="publish__files-title">
+              {t('publish.otherFilesTitle', { count: otherFiles })}
+            </h3>
+            <ul
+              className="publish__files"
+              aria-label={t('publish.otherFilesTitle', { count: otherFiles })}
+            >
+              {(showAllFiles ? otherChanges : otherChanges.slice(0, SHOWN)).map((change) => (
+                <li key={change.path}>
+                  <span className="mono">{change.path}</span>
+                  {change.change !== 'changed' && (
+                    <span className="muted">
+                      {' '}
+                      {t(change.change === 'added' ? 'publish.fileAdded' : 'publish.fileRemoved')}
+                    </span>
+                  )}
+                </li>
+              ))}
+              {otherFiles > SHOWN && (
+                <li>
+                  <button className="link" onClick={() => setShowAllFiles((all) => !all)}>
+                    {showAllFiles
+                      ? t('publish.fewerFiles')
+                      : t('publish.morePages', { count: otherFiles - SHOWN })}
+                  </button>
+                </li>
+              )}
+            </ul>
+          </>
+        )}
+        {status?.optimizeChanged && (
+          <p className="publish__note muted">{t('publish.speedChanged')}</p>
         )}
         {site && !site.baseUrl && (
           <p className="publish__note muted">

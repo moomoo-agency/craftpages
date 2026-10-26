@@ -45,9 +45,14 @@ function App(): React.JSX.Element {
    * unknown or when publishing isn't set up, so nothing nags a client whose agency publishes.
    */
   const [pendingPublish, setPendingPublish] = useState<PendingPublish | null>(null)
+  // Only the latest ask counts: a status asked mid-publish can come back after the one asked
+  // when it finished (with speed settings on it takes a while), and would bring back the old count.
+  const pendingAsk = useRef(0)
   const refreshPending = useCallback((): void => {
+    const ask = ++pendingAsk.current
     Promise.all([window.api.getSiteSettings(), window.api.deployStatus()]).then(
       ([site, status]) => {
+        if (ask !== pendingAsk.current) return
         const { deploy } = site
         const target =
           deploy.target === 'server'
@@ -61,7 +66,7 @@ function App(): React.JSX.Element {
             : null
         )
       },
-      () => setPendingPublish(null)
+      () => ask === pendingAsk.current && setPendingPublish(null)
     )
   }, [])
   const [projectsOpen, setProjectsOpen] = useState(false)
@@ -126,7 +131,7 @@ function App(): React.JSX.Element {
         setReloadToken((n) => n + 1)
         refreshPending()
       }
-    } else if (event.type === 'deploy' && event.progress.phase === 'done') {
+    } else if (event.type === 'deploy-end' && event.root === workspace?.root) {
       // A publish finished, maybe after leaving the Publish view: the live site caught up.
       refreshPending()
     } else if (event.type === 'drafts') {
@@ -141,6 +146,19 @@ function App(): React.JSX.Element {
   useEffect(() => {
     if (workspace) refreshPending()
   }, [workspace?.root, refreshPending]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Any change to the site's files (the code editor, media, SEO, a sync, an undo, an editor
+  // outside the app) rescans the workspace into a new object: "ready to publish" follows.
+  // Saving from here and publishing refresh it on their own; this covers everything else.
+  const lastWorkspace = useRef(workspace)
+  useEffect(() => {
+    if (!workspace || lastWorkspace.current === workspace) return
+    const sameProject = lastWorkspace.current?.root === workspace.root
+    lastWorkspace.current = workspace
+    if (!sameProject) return
+    const timer = setTimeout(refreshPending, 500)
+    return () => clearTimeout(timer)
+  }, [workspace, refreshPending])
 
   useEffect(() => {
     if (workspace)

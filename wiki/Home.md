@@ -10,7 +10,7 @@ your own design, and publishes to Cloudflare or any web host over FTP / SFTP.
 2. [[Your site folder]]: where your site lives and what gets published.
 3. Where to publish: [[Setting up Cloudflare]] (free hosting; account, Account ID and API
    token, step by step) or [[Publishing to a web host]] (your hosting, over FTP or SFTP).
-4. [[Publishing]]: publish, publish history and rolling back.
+4. [[Publishing]]: publish, faster pages (Speed), publish history and rolling back.
 
 ## More
 

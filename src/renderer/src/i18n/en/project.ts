@@ -96,5 +96,36 @@ export default {
   codeEditor: 'Show the code editor',
   codeEditorHint:
     'Adds Code next to Edit and Preview, to change the page’s HTML, CSS and JavaScript. Leave it off for people who only edit content.',
-  unsavedChanges: 'Unsaved changes'
+  unsavedChanges: 'Unsaved changes',
+  // Speed
+  speed: 'Speed',
+  speedDescription:
+    'What publishing does to the copy it uploads, so pages show sooner. The files in your folder stay exactly as they are.',
+  speedSaved: 'Speed settings saved. They apply from the next publish.',
+  minify: 'Minify CSS and JavaScript',
+  minifyHint:
+    'Strips spaces and comments from stylesheets and scripts. A file that can’t be minified goes up as it is.',
+  longCache: 'Let browsers keep styles, fonts and images for a year',
+  longCacheHint:
+    'They’re published under addresses that change whenever the file does (/_v/…), so visitors never see an old copy. Scripts keep their address.',
+  longCacheHintServer:
+    'They’re published under addresses that change whenever the file does (/_v/…), so visitors never see an old copy. The year of caching needs Apache’s mod_headers on the server; without it, the copies just work like the originals.',
+  inlineCss: 'Put stylesheets into the pages',
+  inlineCssHint:
+    'A page then shows without waiting for its stylesheets. Best for small ones: every page gets heavier by what it carries, and it isn’t cached between pages. Measured gzipped, per page.',
+  inlineCssOff: 'Off',
+  inlineCssUpTo: 'Up to {kb} KB per page',
+  externalFonts: 'Fonts from other websites',
+  noExternalFonts: 'This site doesn’t load fonts from Google Fonts or Bunny Fonts.',
+  externalFontsExplain:
+    'Each font service costs the first visit two extra connections before any text shows. Self-hosting copies the fonts into assets/fonts and links them from your site instead. They look the same, and the fonts are free to self-host. It’s one step you can undo. Pairs well with putting stylesheets into the pages.',
+  fontsFrom: {
+    one: 'from {service}, linked by {count} page',
+    other: 'from {service}, linked by {count} pages'
+  } satisfies Msg,
+  fontsHost: 'Self-host',
+  fontsHosting: 'Downloading…',
+  fontsHosted:
+    'Done: {files} font files, declared in {stylesheet}, now linked from {pages} pages and stylesheets. It goes live with the next publish.',
+  fontsUndone: 'Undone: the pages link the font service again.'
 } satisfies Record<string, Msg>

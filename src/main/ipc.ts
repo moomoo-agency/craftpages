@@ -14,6 +14,7 @@ import {
   credentialsFor,
   deployProject,
   listDeploymentsFor,
+  publishRun,
   rollbackFor
 } from './publish'
 import * as workers from './deploy/workers'
@@ -63,6 +64,7 @@ import { scanWorkspace } from './workspace'
 import { excludedBy, pagePattern } from './deploy/exclude'
 import { checkServer } from './deploy/server'
 import * as code from './code'
+import { detectExternalFonts, selfHostFonts } from './fonts'
 import * as snapshots from './sync/snapshots'
 import * as sync from './sync/engine'
 import type {
@@ -797,9 +799,16 @@ export function registerIpc(appIcon: string): void {
       const root = requireRoot()
       return cloudflare.deployStatus(root, await settings.getSiteSettings(root))
     },
+    'fonts:detect': () => detectExternalFonts(requireRoot()),
+    'fonts:self-host': async (_event, url: string) => {
+      const result = await selfHostFonts(requireRoot(), url)
+      setWorkspace(await scanWorkspace(requireRoot()))
+      return result
+    },
     'cf:deploy': (_event, target: DeployTarget, force?: boolean) =>
       deployProject(requireRoot(), target, force === true),
     'cf:check-live': () => checkLive(requireRoot()),
+    'cf:run': () => publishRun(requireRoot()),
     'update:get': () => updateState(),
     'update:check': () => checkForUpdate(),
     'update:install': () => installUpdate(),

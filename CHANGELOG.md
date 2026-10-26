@@ -1,5 +1,32 @@
 # Changelog
 
+## 1.4.0 (2026-10-26)
+
+- **Speed** (Project settings): what publishing does to the copy it uploads; the folder's
+  files stay as written. All off until switched on.
+  - **Minify CSS and JavaScript** (csso with the structure kept, terser). A file that can't be
+    minified goes up as it is.
+  - **A year of browser caching for styles, fonts and images**: each one a page or stylesheet
+    points at also goes up as `_v/<hash>/<path>`, an address that changes with the file, and
+    pages and stylesheets point there (`_headers` on Cloudflare, `.htaccess` with mod_headers on
+    a server). Originals stay where they were. Scripts keep their address, since some find their
+    sibling files from it.
+  - **Put stylesheets into the pages**, up to a gzipped budget per page, so the first paint
+    doesn't wait for them. Their `url()`s are rebased onto each page.
+  - **Fonts from other websites**: finds Google Fonts and Bunny Fonts stylesheets the site
+    links and, on request, copies the fonts into `assets/fonts/` with a stylesheet declaring
+    them, and links that instead (preconnect hints go too). One step, with Undo.
+- Publish: lists every file that changes, not only pages: styles, scripts and images by path,
+  marked new or removed. A change to the speed settings counts as something to publish.
+- Publish and the sidebar's "ready to publish" follow changes to the site's files as they happen
+  (the code editor, media, SEO, a sync, an undo, an editor outside the app), instead of only
+  after saving or publishing.
+- Change detection reuses a file's hash while its size and modification time stay the same.
+- Publish keeps running when you leave the Publish screen, and coming back shows it running
+  (also one the scheduler started) and then its result. Asking whether the live site came from
+  elsewhere while this folder is publishing no longer warns about its own new version.
+- "Ready to publish" no longer shows the count from before a publish that just finished.
+
 ## 1.3.1 (2026-10-23)
 
 - Blog setup: pointing at a card's parts looks through a link stretched over the whole card

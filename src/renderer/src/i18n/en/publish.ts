@@ -116,5 +116,15 @@ export default {
   morePages: 'and {count} more',
   noWebAddress:
     'Your site’s web address isn’t set yet, so the sitemap and social previews can’t use full links. Add it in {settings}.',
-  openProjectSettings: 'Project settings'
+  openProjectSettings: 'Project settings',
+  speedOnly: 'Only the speed settings changed',
+  speedChanged:
+    'The speed settings changed since the last publish: the next one sends new optimized copies.',
+  otherFilesTitle: {
+    one: '{count} other file (styles, scripts, images…)',
+    other: '{count} other files (styles, scripts, images…)'
+  } satisfies Msg,
+  fileAdded: '(new)',
+  fileRemoved: '(removed)',
+  fewerFiles: 'Show fewer'
 } satisfies Record<string, Msg>

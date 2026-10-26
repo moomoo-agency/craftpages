@@ -97,7 +97,38 @@ const messages: Translation['project'] = {
   codeEditor: 'Mostra l’editor di codice',
   codeEditorHint:
     'Aggiunge Codice accanto a Modifica e Anteprima, per cambiare HTML, CSS e JavaScript della pagina. Lascialo disattivato per chi modifica solo i contenuti.',
-  unsavedChanges: 'Modifiche non salvate'
+  unsavedChanges: 'Modifiche non salvate',
+  // Velocità
+  speed: 'Velocità',
+  speedDescription:
+    'Cosa fa la pubblicazione alla copia che carica, perché le pagine si mostrino prima. I file nella tua cartella restano esattamente come sono.',
+  speedSaved: 'Impostazioni di velocità salvate. Valgono dalla prossima pubblicazione.',
+  minify: 'Minimizza CSS e JavaScript',
+  minifyHint:
+    'Toglie spazi e commenti da fogli di stile e script. Un file che non si riesce a minimizzare viene caricato così com’è.',
+  longCache: 'Fai conservare ai browser stili, font e immagini per un anno',
+  longCacheHint:
+    'Vengono pubblicati a indirizzi che cambiano ogni volta che cambia il file (/_v/…), quindi nessuno vede una copia vecchia. Gli script mantengono il loro indirizzo.',
+  longCacheHintServer:
+    'Vengono pubblicati a indirizzi che cambiano ogni volta che cambia il file (/_v/…), quindi nessuno vede una copia vecchia. L’anno di cache richiede mod_headers di Apache sul server; senza, le copie funzionano come gli originali.',
+  inlineCss: 'Inserisci i fogli di stile nelle pagine',
+  inlineCssHint:
+    'Così una pagina si mostra senza aspettare i suoi fogli di stile. Meglio per quelli piccoli: ogni pagina diventa più pesante di quanto contiene, e non resta in cache tra una pagina e l’altra. Misurato compresso (gzip), per pagina.',
+  inlineCssOff: 'No',
+  inlineCssUpTo: 'Fino a {kb} KB per pagina',
+  externalFonts: 'Font da altri siti',
+  noExternalFonts: 'Questo sito non carica font da Google Fonts o Bunny Fonts.',
+  externalFontsExplain:
+    'Ogni servizio di font costa alla prima visita due connessioni in più prima che appaia il testo. Ospitarli copia i font in assets/fonts e li collega dal tuo sito. Hanno lo stesso aspetto e si possono ospitare gratis. È un solo passaggio, annullabile. Funziona bene insieme ai fogli di stile nelle pagine.',
+  fontsFrom: {
+    one: 'da {service}, collegato da {count} pagina',
+    other: 'da {service}, collegato da {count} pagine'
+  },
+  fontsHost: 'Ospita sul sito',
+  fontsHosting: 'Download…',
+  fontsHosted:
+    'Fatto: {files} file di font, dichiarati in {stylesheet}, ora collegati da {pages} pagine e fogli di stile. Va online con la prossima pubblicazione.',
+  fontsUndone: 'Annullato: le pagine tornano a collegare il servizio di font.'
 }
 
 export default messages

@@ -1,16 +1,17 @@
 import { createHash } from 'crypto'
-import { readFile } from 'fs/promises'
-import { extname, join } from 'path'
+import { extname } from 'path'
 import { contentType } from '../preview/server'
 import {
   call,
   collect,
   CONFIG_FILES,
+  fileContent,
   inBatches,
   request,
   saveState,
   type Credentials
 } from './cloudflare'
+import { optimizeSignature } from './optimize'
 import type {
   CloudflareWorker,
   Deployment,
@@ -122,13 +123,13 @@ export async function deployWorker(
   }
 
   onProgress({ phase: 'scan', message: 'Hashing site files…' })
-  const files = await collect(root, site)
+  const files = await collect(root, site, { optimize: true })
   const assets = await Promise.all(
     files
       .filter((file) => !CONFIG_FILES.has(file.path))
       .map(async (file) => ({
         ...file,
-        workerHash: workerHash(await readFile(join(root, file.path)), file.path)
+        workerHash: workerHash(await fileContent(root, file), file.path)
       }))
   )
 
@@ -157,7 +158,7 @@ export async function deployWorker(
     for (const hash of bucket) {
       const file = byHash.get(hash)
       if (!file) throw new Error('Cloudflare asked for a file that is not in the site')
-      const base64 = (await readFile(join(root, file.path))).toString('base64')
+      const base64 = (await fileContent(root, file)).toString('base64')
       form.append(
         hash,
         new File([base64], hash, { type: contentType(file.path).split(';')[0] }),
@@ -181,8 +182,10 @@ export async function deployWorker(
   })
 
   onProgress({ phase: 'deploy', message: `Publishing the Worker “${name}”…` })
-  const read = async (path: string): Promise<string | undefined> =>
-    files.some((file) => file.path === path) ? await readFile(join(root, path), 'utf8') : undefined
+  const read = async (path: string): Promise<string | undefined> => {
+    const config = files.find((file) => file.path === path)
+    return config ? (await fileContent(root, config)).toString('utf8') : undefined
+  }
   const config = {
     html_handling: 'auto-trailing-slash',
     // Like Pages: a 404.html is served for unknown addresses.
@@ -212,7 +215,12 @@ export async function deployWorker(
 
   const deployments = await listWorkerDeployments(creds, name).catch(() => [])
   const id = deployments[0]?.id ?? name
-  await saveState(root, files, { id, url, branch: 'production' })
+  await saveState(
+    root,
+    files,
+    { id, url, branch: 'production' },
+    optimizeSignature(site.optimize, false)
+  )
   onProgress({
     phase: 'done',
     message: url

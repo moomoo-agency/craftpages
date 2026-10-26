@@ -95,6 +95,12 @@ body,
   margin: 0;
 }
 
+/* The window never scrolls: the content area and panes do. */
+html,
+body {
+  overflow: hidden;
+}
+
 body {
   background: var(--bg);
   color: var(--text);
@@ -219,7 +225,12 @@ button {
   -webkit-app-region: no-drag;
 }
 
+/* position: relative makes this the box absolutely positioned children (.visually-hidden
+   labels) are placed in. Without it they were placed against the page, at their spot deep
+   in a long screen, and made the window scroll as well as the content (Pages, Blog,
+   Project settings). */
 .content {
+  position: relative;
   flex: 1;
   overflow: auto;
   padding: 28px 32px 40px;
@@ -5045,6 +5056,43 @@ div.media-card:has(.media-card__open:hover) {
   margin: 0 0 16px;
   padding: 0;
   list-style: none;
+}
+
+/* Publish: the other files that change (styles, scripts, images), by path. */
+.publish__files-title {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.publish__files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  margin: 0 0 16px;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+}
+
+.publish__files .mono {
+  font-size: 12px;
+}
+
+/* Project settings → Speed: fonts the site loads from a font service. */
+.speed__fonts {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+}
+
+.speed__font {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 /* Draft bar at rest: where things stand, quietly. */

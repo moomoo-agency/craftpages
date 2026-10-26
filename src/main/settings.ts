@@ -453,6 +453,7 @@ function defaultSite(root: string): SiteSettings {
       exclude: ['.DS_Store', 'Thumbs.db', '*.bak*']
     },
     images: { maxWidth: 2400, quality: 80, pngToJpeg: true, dir: 'assets/img' },
+    optimize: { minify: false, cache: false, inlineCssKb: 0 },
     editing: { codeEditor: false },
     forms: { account: '', accountHint: '', domain: '' },
     seo: {
@@ -596,6 +597,10 @@ export async function saveSiteSettings(
   next.seo.defaultImage = next.seo.defaultImage.trim()
   next.seo.sitemapExclude = next.seo.sitemapExclude.map((p) => p.trim()).filter(Boolean)
   next.deploy.exclude = next.deploy.exclude.map((pattern) => pattern.trim()).filter(Boolean)
+  next.optimize.inlineCssKb = Math.min(
+    100,
+    Math.max(0, Math.round(Number(next.optimize.inlineCssKb) || 0))
+  )
   next.deploy.remoteDir = normalizeRemoteDir(next.deploy.remoteDir)
   const connection = (await getAppSettings()).connections.find(
     (c) => c.id === next.deploy.connection

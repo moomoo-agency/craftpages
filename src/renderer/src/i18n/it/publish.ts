@@ -115,7 +115,17 @@ const messages: Translation['publish'] = {
   morePages: 'e altre {count}',
   noWebAddress:
     'L’indirizzo web del sito non è ancora impostato, quindi sitemap e anteprime social non possono usare link completi. Aggiungilo in {settings}.',
-  openProjectSettings: 'Impostazioni progetto'
+  openProjectSettings: 'Impostazioni progetto',
+  speedOnly: 'Sono cambiate solo le impostazioni di velocità',
+  speedChanged:
+    'Le impostazioni di velocità sono cambiate dall’ultima pubblicazione: la prossima invia nuove copie ottimizzate.',
+  otherFilesTitle: {
+    one: '{count} altro file (stili, script, immagini…)',
+    other: '{count} altri file (stili, script, immagini…)'
+  },
+  fileAdded: '(nuovo)',
+  fileRemoved: '(rimosso)',
+  fewerFiles: 'Mostra meno'
 }
 
 export default messages

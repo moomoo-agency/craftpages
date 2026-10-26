@@ -6,6 +6,7 @@ import { PassThrough, Readable } from 'stream'
 import { Client as FtpClient } from 'basic-ftp'
 import SftpClient from 'ssh2-sftp-client'
 import { collect, saveState, type SiteFile } from './cloudflare'
+import { optimizeSignature } from './optimize'
 import { syncHtaccess } from '../blog-generate'
 import type {
   DeployConnection,
@@ -373,7 +374,7 @@ export async function deployServer(
   onProgress({ phase: 'scan', message: 'Hashing site files…' })
   // Apache reads redirects from .htaccess, not _redirects.
   await syncHtaccess(root)
-  const files = await collect(root, site, { server: true })
+  const files = await collect(root, site, { server: true, optimize: true })
 
   onProgress({ phase: 'check', message: `Connecting to ${connection.host}…` })
   const remote = await openRemote(connection, onHostKey)
@@ -394,18 +395,23 @@ export async function deployServer(
     // Folders holding files of the last publish are there already (removals come
     // last), so only new folders cost a round trip.
     const made = new Set(Object.keys(previous).map((path) => posix.dirname(posix.join(base, path))))
+    // Optimized bytes go up from memory; the rest straight from the folder.
+    const send = (file: SiteFile, target: string): Promise<void> =>
+      file.content
+        ? remote.writeBytes(target, file.content)
+        : remote.upload(join(root, file.from ?? file.path), target)
     for (const file of changed) {
       const target = posix.join(base, file.path)
       const dir = posix.dirname(target)
       if (!made.has(dir)) {
         await remote.ensureDir(dir)
         made.add(dir)
-        await remote.upload(join(root, file.path), target)
+        await send(file, target)
       } else {
         // Someone may have deleted the folder on the server by hand since.
-        await remote.upload(join(root, file.path), target).catch(async () => {
+        await send(file, target).catch(async () => {
           await remote.ensureDir(dir)
-          await remote.upload(join(root, file.path), target)
+          await send(file, target)
         })
       }
       done += 1
@@ -429,7 +435,12 @@ export async function deployServer(
     await remote.replace(posix.join(base, MANIFEST), Buffer.from(JSON.stringify(manifest, null, 2)))
 
     const url = site.baseUrl || ''
-    await saveState(root, files, { id: manifest.id, url, branch: 'production' })
+    await saveState(
+      root,
+      files,
+      { id: manifest.id, url, branch: 'production' },
+      optimizeSignature(site.optimize, true)
+    )
     onProgress({
       phase: 'done',
       message: `Published to ${connection.host}${base}: ${changed.length} uploaded, ${removed.length} removed.`

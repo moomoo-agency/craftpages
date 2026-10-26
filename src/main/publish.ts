@@ -14,12 +14,19 @@ import type {
   Deployment,
   DeployResult,
   DeployTarget,
-  ForeignDeploy
+  ForeignDeploy,
+  PublishRun
 } from '../shared/types'
 
 let deploying: string | null = null
+/** The running publish, kept here so a Publish screen opened mid-way can show it. */
+let run: (PublishRun & { root: string }) | null = null
 
 export const isDeploying = (): boolean => deploying !== null
+
+/** The publish running for this project, or null. */
+export const publishRun = (root: string): PublishRun | null =>
+  run && run.root === root ? { target: run.target, progress: run.progress } : null
 
 /** A project's deploy connection (each project can deploy to a different account). */
 export async function credentialsFor(root: string): Promise<cloudflare.Credentials> {
@@ -52,6 +59,8 @@ const trust =
  * Publishing over it would replace their changes, since Cloudflare can't give files back.
  */
 export async function checkLive(root: string): Promise<ForeignDeploy | null> {
+  // Mid-publish, the version going live is this folder's own, not remembered yet.
+  if (deploying === root) return null
   const site = await getSiteSettings(root)
   if (site.deploy.target === 'server') {
     const connection = await serverConnection(root)
@@ -88,11 +97,19 @@ export async function deployProject(
   target: DeployTarget,
   force = false
 ): Promise<DeployResult> {
-  if (deploying) throw new Error('A deploy is already running')
+  if (deploying)
+    throw new Error(
+      deploying === root
+        ? 'This site is being published already. Wait for it to finish.'
+        : 'Another project is being published. Wait for it to finish.'
+    )
   deploying = root
-  const report = (progress: Extract<AppEvent, { type: 'deploy' }>): void => {
-    if (getWorkspace()?.root === root) broadcast(progress)
+  run = { root, target, progress: null }
+  const report = (event: Extract<AppEvent, { type: 'deploy' }>): void => {
+    if (run?.root === root) run.progress = event.progress
+    if (getWorkspace()?.root === root) broadcast(event)
   }
+  let failure: string | null = null
   try {
     // With sync on, publish on top of what the other computers have, never over it.
     const synced = target === 'production' && (await isSyncOn(root))
@@ -166,10 +183,15 @@ export async function deployProject(
     return result
   } catch (error) {
     log.error('publish', 'Publish failed', error)
-    report({ type: 'deploy', progress: { phase: 'error', message: (error as Error).message } })
+    failure = (error as Error).message
+    report({ type: 'deploy', progress: { phase: 'error', message: failure } })
     throw error
   } finally {
     deploying = null
+    run = null
+    // After the deploy state and the published list are written: "ready to publish" and a
+    // Publish screen that didn't start this publish can ask again now, and get the truth.
+    broadcast({ type: 'deploy-end', root, target, error: failure })
   }
 }
 

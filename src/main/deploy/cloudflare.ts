@@ -7,6 +7,7 @@ import { APP_DIR } from '../settings'
 import { contentType } from '../preview/server'
 import { listFiles, type FileEntry } from '../workspace'
 import { excluder } from './exclude'
+import { optimizeSignature, optimizeSite, optimizing } from './optimize'
 import type {
   CloudflareProject,
   DeployProgress,
@@ -14,6 +15,7 @@ import type {
   DeployStatus,
   DeployTarget,
   Deployment,
+  FileChange,
   ForeignDeploy,
   SiteSettings
 } from '../../shared/types'
@@ -251,8 +253,23 @@ export async function rollback(
 
 export interface SiteFile {
   path: string
+  /** The hash of the bytes that go up. */
   hash: string
   bytes: number
+  /**
+   * The hash of the folder's file, what the next publish compares against; unset for a
+   * file only the publish makes (a versioned copy).
+   */
+  source?: string
+  /** The bytes that go up, when the publish changed them (optimize). */
+  content?: Buffer
+  /** The folder file whose bytes go up, when it isn't `path` (a versioned copy). */
+  from?: string
+}
+
+/** The bytes a publish sends for a file. */
+export async function fileContent(root: string, file: SiteFile): Promise<Buffer> {
+  return file.content ?? (await readFile(join(root, file.from ?? file.path)))
 }
 
 /** The hash Pages uses to dedupe assets (same as wrangler): blake3(base64 + extension), 32 hex chars. */
@@ -287,28 +304,89 @@ export async function publishedFiles(
   })
 }
 
-/** The files a publish sends, with their hashes (and, on Cloudflare, its 25 MiB cap). */
+// A server only needs to tell versions apart: native SHA-256 is far faster than BLAKE3.
+const hashOf = (content: Buffer, path: string, server: boolean): string =>
+  server
+    ? createHash('sha256').update(content).digest('hex').slice(0, 32)
+    : assetHash(content, path)
+
+/**
+ * Hashes of folder files while their size and modification time stay the same: the
+ * Publish screen and the sidebar ask often, and most files never change.
+ */
+const hashCache = new Map<string, { bytes: number; modified: number; hash: string }>()
+
+async function folderHash(root: string, entry: FileEntry, server: boolean): Promise<string> {
+  const key = `${server ? 's' : 'c'}\0${root}\0${entry.path}`
+  const known = hashCache.get(key)
+  if (
+    known &&
+    entry.modified !== undefined &&
+    known.bytes === entry.bytes &&
+    known.modified === entry.modified
+  )
+    return known.hash
+  const hash = hashOf(await readFile(join(root, entry.path)), entry.path, server)
+  if (entry.modified !== undefined)
+    hashCache.set(key, { bytes: entry.bytes, modified: entry.modified, hash })
+  return hash
+}
+
+/**
+ * The files a publish sends, with their hashes (and, on Cloudflare, its 25 MiB cap).
+ * With `optimize`, the project's speed settings shape what goes up (see optimize.ts);
+ * `source` stays the folder file's hash either way.
+ */
 export async function collect(
   root: string,
   site: SiteSettings,
-  { server = false }: { server?: boolean } = {}
+  { server = false, optimize = false }: { server?: boolean; optimize?: boolean } = {}
 ): Promise<SiteFile[]> {
   const files = await publishedFiles(root, site, { server })
-  const out: SiteFile[] = []
-  for (const file of files) {
-    if (!server && file.bytes > MAX_FILE_BYTES)
-      throw new Error(`${file.path} is over Cloudflare's 25 MiB file limit`)
-    const content = await readFile(join(root, file.path))
-    out.push({
-      path: file.path,
-      bytes: file.bytes,
-      // A server only needs to tell versions apart: native SHA-256 is far faster than BLAKE3.
-      hash: server
-        ? createHash('sha256').update(content).digest('hex').slice(0, 32)
-        : assetHash(content, file.path)
-    })
+  const sources = new Map<string, string>()
+  const sizes = new Map<string, number>()
+  for (const entry of files) {
+    if (!server && entry.bytes > MAX_FILE_BYTES)
+      throw new Error(`${entry.path} is over Cloudflare's 25 MiB file limit`)
+    sources.set(entry.path, await folderHash(root, entry, server))
+    sizes.set(entry.path, entry.bytes)
   }
-  return out
+  if (!optimize || !optimizing(site.optimize))
+    return files.map((entry) => {
+      const hash = sources.get(entry.path)!
+      return { path: entry.path, bytes: entry.bytes, hash, source: hash }
+    })
+
+  const output = await optimizeSite({
+    paths: files.map((entry) => entry.path),
+    read: (path) => readFile(join(root, path)),
+    settings: site.optimize,
+    server
+  })
+  return output.map((out): SiteFile => {
+    const source = sources.get(out.path)
+    if (!out.content) {
+      // The folder's bytes, under this path or (a versioned copy) another one. A copy keeps
+      // the file name, so the same bytes and extension give the same hash.
+      const from = out.from ?? out.path
+      return {
+        path: out.path,
+        bytes: sizes.get(from) ?? 0,
+        hash: sources.get(from)!,
+        ...(source !== undefined ? { source } : {}),
+        ...(from !== out.path ? { from } : {})
+      }
+    }
+    if (!server && out.content.length > MAX_FILE_BYTES)
+      throw new Error(`${out.path} is over Cloudflare's 25 MiB file limit once optimized`)
+    return {
+      path: out.path,
+      bytes: out.content.length,
+      hash: hashOf(out.content, out.path, server),
+      content: out.content,
+      ...(source !== undefined ? { source } : {})
+    }
+  })
 }
 
 // ---------- Deploy state ----------
@@ -322,6 +400,8 @@ export interface DeployState {
    * published from somewhere else.
    */
   published?: string[]
+  /** The speed settings the last publish used (optimizeSignature); null = none. */
+  optimize?: string | null
 }
 
 const stateFile = (root: string): string => join(root, APP_DIR, 'deploy-state.json')
@@ -334,16 +414,23 @@ export async function readState(root: string): Promise<DeployState> {
   }
 }
 
-/** Remembers what was deployed, so the next deploy can say what changed. */
+/**
+ * Remembers what was deployed, so the next deploy can say what changed: the folder
+ * files' hashes (not the optimized copies'), and the speed settings used.
+ */
 export async function saveState(
   root: string,
   files: SiteFile[],
-  deployed: { id: string; url: string; branch: string }
+  deployed: { id: string; url: string; branch: string },
+  optimize: string | null = null
 ): Promise<void> {
   const state: DeployState = {
     lastDeploy: { ...deployed, at: new Date().toISOString() },
-    files: Object.fromEntries(files.map((file) => [file.path, file.hash])),
-    published: (await readState(root)).published
+    files: Object.fromEntries(
+      files.flatMap((file) => (file.source !== undefined ? [[file.path, file.source]] : []))
+    ),
+    published: (await readState(root)).published,
+    optimize
   }
   await mkdir(join(root, APP_DIR), { recursive: true })
   await writeFile(stateFile(root), JSON.stringify(state, null, 2))
@@ -363,23 +450,30 @@ export function publishedHere(state: DeployState, id: string): boolean {
 }
 
 export async function deployStatus(root: string, site: SiteSettings): Promise<DeployStatus> {
-  const [files, state] = await Promise.all([
-    collect(root, site, { server: site.deploy.target === 'server' }),
-    readState(root)
-  ])
-  const current = new Map(files.map((file) => [file.path, file.hash]))
-  const changedPaths = [
-    ...files.filter((file) => state.files[file.path] !== file.hash).map((file) => file.path),
-    ...Object.keys(state.files).filter((path) => !current.has(path))
+  const server = site.deploy.target === 'server'
+  const [files, state] = await Promise.all([collect(root, site, { server }), readState(root)])
+  const current = new Set(files.map((file) => file.path))
+  const changes: FileChange[] = [
+    ...files
+      .filter((file) => state.files[file.path] !== file.source)
+      .map((file): FileChange => ({
+        path: file.path,
+        change: state.files[file.path] === undefined ? 'added' : 'changed'
+      })),
+    ...Object.keys(state.files)
+      .filter((path) => !current.has(path))
+      .map((path): FileChange => ({ path, change: 'removed' }))
   ]
-  const changedPages = changedPaths
-    .map((path) => path.replace(/^\/+/, ''))
-    .filter((path) => /\.html?$/i.test(path))
-    .sort()
+    .map((change) => ({ ...change, path: change.path.replace(/^\/+/, '') }))
+    .sort((a, b) => a.path.localeCompare(b.path))
   return {
     files: files.length,
-    changed: changedPaths.length,
-    changedPages,
+    changed: changes.length,
+    changedPages: changes.map((change) => change.path).filter((path) => /\.html?$/i.test(path)),
+    changes,
+    optimizeChanged:
+      state.lastDeploy !== null &&
+      (state.optimize ?? null) !== optimizeSignature(site.optimize, server),
     lastDeploy: state.lastDeploy
   }
 }
@@ -416,7 +510,7 @@ export async function deployPages(
   const branch = target === 'production' ? site.deploy.productionBranch : site.deploy.previewBranch
 
   onProgress({ phase: 'scan', message: 'Hashing site files…' })
-  const files = await collect(root, site)
+  const files = await collect(root, site, { optimize: true })
   const assets = files.filter((file) => !CONFIG_FILES.has(file.path))
 
   onProgress({ phase: 'check', message: 'Checking what Cloudflare already has…' })
@@ -466,7 +560,7 @@ export async function deployPages(
     const payload = await Promise.all(
       group.map(async (file) => ({
         key: file.hash,
-        value: (await readFile(join(root, file.path))).toString('base64'),
+        value: (await fileContent(root, file)).toString('base64'),
         metadata: { contentType: contentType(file.path).split(';')[0] },
         base64: true
       }))
@@ -493,9 +587,8 @@ export async function deployPages(
   form.append('commit_message', `CraftPages · ${new Date().toISOString()}`)
   form.append('commit_dirty', 'true')
   for (const name of CONFIG_FILES) {
-    if (files.some((file) => file.path === name)) {
-      form.append(name, new Blob([await readFile(join(root, name))]), name)
-    }
+    const config = files.find((file) => file.path === name)
+    if (config) form.append(name, new Blob([new Uint8Array(await fileContent(root, config))]), name)
   }
   const deployment = await call<{ id: string; url: string }>(
     creds.token,
@@ -506,7 +599,12 @@ export async function deployPages(
     }
   )
 
-  await saveState(root, files, { id: deployment.id, url: deployment.url, branch })
+  await saveState(
+    root,
+    files,
+    { id: deployment.id, url: deployment.url, branch },
+    optimizeSignature(site.optimize, false)
+  )
 
   onProgress({ phase: 'done', message: `Deployed: ${deployment.url}` })
   return { id: deployment.id, url: deployment.url, uploaded: toUpload.length, total: files.length }

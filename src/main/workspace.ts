@@ -11,6 +11,8 @@ export interface FileEntry {
   /** Relative to the workspace root, forward slashes. */
   path: string
   bytes: number
+  /** Last modified (ms), to reuse a hash while the file hasn't changed. */
+  modified?: number
 }
 
 /** Every site file (not app data or tooling), sorted by path. */
@@ -21,7 +23,8 @@ export async function listFiles(root: string, dir = ''): Promise<FileEntry[]> {
       const path = dir ? `${dir}/${entry.name}` : entry.name
       if (entry.isDirectory()) return SKIP_DIRS.has(entry.name) ? [] : listFiles(root, path)
       if (!entry.isFile() || entry.name === '.DS_Store') return []
-      return [{ path, bytes: (await stat(join(root, path))).size }]
+      const info = await stat(join(root, path))
+      return [{ path, bytes: info.size, modified: info.mtimeMs }]
     })
   )
   return nested.flat().sort((a, b) => a.path.localeCompare(b.path))

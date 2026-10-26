@@ -281,6 +281,18 @@ export interface SiteSettings {
     exclude: string[]
   }
   images: { maxWidth: number; quality: number; pngToJpeg: boolean; dir: string }
+  /**
+   * Speed work done on the published copy only; the folder's files stay as written.
+   * All off for new projects.
+   */
+  optimize: {
+    /** Minify CSS and JavaScript. */
+    minify: boolean
+    /** Versioned copies of stylesheets, fonts and images, cached by browsers for a year. */
+    cache: boolean
+    /** Stylesheets go into each page while their gzipped size fits this many KB; 0 = off. */
+    inlineCssKb: number
+  }
   /** CraftForms (optional): where this project's forms come from, and for which website. */
   forms: {
     /** The CraftForms account (app-wide, by id) this project uses; '' = none. */
@@ -1157,6 +1169,12 @@ export interface DeployProgress {
   total?: number
 }
 
+/** A publish under way: which kind, and the last thing it reported. */
+export interface PublishRun {
+  target: DeployTarget
+  progress: DeployProgress | null
+}
+
 export interface DeployResult {
   id: string
   url: string
@@ -1169,7 +1187,41 @@ export interface DeployStatus {
   changed: number
   /** HTML pages among the changed files (added, edited or removed), site-relative. */
   changedPages: string[]
+  /** Every changed file, site-relative and sorted: what the next publish sends or removes. */
+  changes: FileChange[]
+  /**
+   * The speed settings differ from the last publish's: the next publish sends new
+   * optimized copies even if no file changed.
+   */
+  optimizeChanged: boolean
   lastDeploy: { id: string; url: string; branch: string; at: string } | null
+}
+
+export interface FileChange {
+  path: string
+  change: 'added' | 'changed' | 'removed'
+}
+
+/** A font service stylesheet the site loads, and who links it. */
+export interface ExternalFonts {
+  /** The stylesheet address as written (`&amp;` decoded). */
+  url: string
+  service: 'Google Fonts' | 'Bunny Fonts'
+  families: string[]
+  /** Pages (site-relative) that link it. */
+  pages: string[]
+  /** Stylesheets that @import it. */
+  stylesheets: string[]
+}
+
+export interface SelfHostResult {
+  /** Undo puts every file back. */
+  historyId: string
+  /** The new stylesheet, e.g. assets/fonts/google-fonts.css. */
+  stylesheet: string
+  fontFiles: number
+  /** Pages and stylesheets now linking the copy. */
+  pages: number
 }
 
 export type DeployKind = 'workers' | 'pages' | 'server'
@@ -1292,6 +1344,8 @@ export type AppEvent =
   | { type: 'mcp'; status: McpStatus }
   | { type: 'proposals'; proposals: Proposal[] }
   | { type: 'deploy'; progress: DeployProgress }
+  /** A publish finished (error null) or failed, after everything it records was written. */
+  | { type: 'deploy-end'; root: string; target: DeployTarget; error: string | null }
   | { type: 'drafts'; drafts: DraftState }
   | { type: 'scheduled'; run: ScheduledRun }
   /** Something scheduled changed in the open project (created, released, cancelled). */
@@ -1589,10 +1643,16 @@ export interface Api {
   listCloudflareWorkers: () => Promise<CloudflareWorker[] | null>
   createCloudflareProject: (name: string) => Promise<CloudflareProject>
   deployStatus: () => Promise<DeployStatus>
+  /** Font-service stylesheets (Google Fonts, Bunny Fonts) the site links. */
+  detectExternalFonts: () => Promise<ExternalFonts[]>
+  /** Downloads one service stylesheet's fonts into the site and links them instead. */
+  selfHostFonts: (url: string) => Promise<SelfHostResult>
   /** Pass force to publish over a version that wasn't published from this folder. */
   deploy: (target: DeployTarget, force?: boolean) => Promise<DeployResult>
   /** The live version, if it wasn't published from this folder; null when it was (or none is live). */
   checkLive: () => Promise<ForeignDeploy | null>
+  /** The publish running for the open project (started here, elsewhere or by the scheduler). */
+  publishRun: () => Promise<PublishRun | null>
 
   // Updates
   getUpdate: () => Promise<UpdateState>

@@ -6,11 +6,41 @@ set up, click **Publish site** at the bottom of the sidebar, then **Publish to t
 site**.
 
 - **Only changed files are uploaded.** The Publish screen lists the pages that change with
-  the next publish. The first publish uploads everything.
+  the next publish, then the other files (styles, scripts, images) by path. It follows your
+  edits as you make them, in CraftPages or in another editor. The first publish uploads
+  everything.
 - **Before uploading,** CraftPages refreshes the sitemap (if automatic) and the site-search
   index.
 - **Unsaved edits aren't published.** If some pages have unsaved edits, the Publish screen
   names them and offers **Save all and publish**, or **Publish without them**.
+- **You can leave the Publish screen while it publishes.** The publish carries on, and coming
+  back shows its progress, then the result. A publish the scheduler started shows the same way.
+  One publish runs at a time.
+
+## Speed
+
+**Project settings → Speed** decides what publishing does to the copy it uploads, so pages show
+sooner. The files in your folder stay exactly as they are, so nothing gets harder to edit.
+Everything is off until you switch it on.
+
+- **Minify CSS and JavaScript**: spaces and comments go. A file that can't be minified is sent
+  as it is.
+- **Let browsers keep styles, fonts and images for a year**: they're also published under an
+  address that changes whenever the file does (`/_v/…`), and your pages point there, so visitors
+  never see an old copy. The originals stay where they were. Scripts keep their address. On a
+  web host, the year of caching needs Apache's `mod_headers`.
+- **Put stylesheets into the pages**: a page then shows without waiting for its stylesheets.
+  Best for small ones, since every page carries them. The size is measured gzipped, per page.
+- **Fonts from other websites**: if the site loads fonts from Google Fonts or Bunny Fonts,
+  **Self-host** copies them into `assets/fonts/` and links them from your site instead. They
+  look the same, and the first visit saves two connections. You can undo it.
+
+Changing a speed setting counts as a change: the Publish screen says the next publish sends
+new optimized copies.
+
+A good start for most sites: minify and long caching on, stylesheets into the pages up to
+30 KB. If the site uses Google Fonts, self-host them first. Check the result with
+[PageSpeed Insights](https://pagespeed.web.dev/) after publishing.
 
 ## Publish history
 
