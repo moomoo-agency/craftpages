@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components -- block edit/save components are registered imperatively, not rendered by module */
 import { InspectorControls, useBlockProps, useInnerBlocksProps } from '@wordpress/block-editor'
 import { __experimentalGetCoreBlocks, registerCoreBlocks } from '@wordpress/block-library'
-import { getBlockType, registerBlockType } from '@wordpress/blocks'
+import { createBlock, getBlockType, parse, registerBlockType, type Block } from '@wordpress/blocks'
 import { PanelBody, SelectControl } from '@wordpress/components'
 import { translate, useT } from '../i18n'
 import { CODE_BLOCK, hideCoreCode, registerCodeBlock } from './code-block'
@@ -150,3 +150,21 @@ export function registerBlocks(): void {
   if (!getBlockType(GIST_BLOCK)) registerGistBlock()
   if (!getBlockType(FORM_BLOCK)) registerFormBlock()
 }
+
+/**
+ * Blocks whose stored HTML isn't what their save() writes (a post made outside
+ * the editor, or by an older Gutenberg) open as "invalid content". Rebuild each
+ * one from its parsed attributes, as WordPress's "Attempt Block Recovery" does.
+ * Unknown blocks (core/missing) and classic HTML are left as they are.
+ */
+export function recoverBlocks(blocks: Block[]): Block[] {
+  return blocks.map((block) => {
+    const inner = recoverBlocks(block.innerBlocks ?? [])
+    if (block.isValid !== false || block.name === 'core/missing' || block.name === 'core/freeform')
+      return inner === block.innerBlocks ? block : { ...block, innerBlocks: inner }
+    return createBlock(block.name, block.attributes, inner)
+  })
+}
+
+/** parse() with invalid blocks recovered: what the editor works on. */
+export const parseBlocks = (content: string): Block[] => recoverBlocks(parse(content))

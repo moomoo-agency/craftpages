@@ -36,6 +36,7 @@ import {
 import { APP_DIR, getSiteSettings, saveSiteSettings } from './settings'
 import { isPublished, pagePattern } from './deploy/exclude'
 import { listFiles, resolveInWorkspace } from './workspace'
+import { sizeBodyImages } from './media'
 import { SocialImages, focusOf, type SocialImage } from './social-image'
 import { fillSwitchers, withFlags } from './language-switcher'
 import { applyPatches, escapeAttr, escapeText, parseWithLocations, type Patch } from './html/dom'
@@ -507,7 +508,9 @@ export async function buildPostPage(root: string, post: PostRecord): Promise<str
     shareSource(post, ctx.site),
     post.shareFocus
   )
-  return postPage(post, toPostData(post, blog.site), blog.ctx, false, social)
+  const data = toPostData(post, blog.site)
+  data.html = await sizeBodyImages(root, data.html, fileOfPath(data.url), ctx.site)
+  return postPage(post, data, blog.ctx, false, social)
 }
 
 function rss(site: SiteSettings, posts: PostData[]): string {
@@ -813,9 +816,11 @@ export async function generateBlog(
   // Posts: live ones on the site, the rest as drafts.
   const datas = new Map<string, PostData[]>([...blogs.keys()].map((code) => [code, []]))
   const socials = new SocialImages(root, site)
+  const siteFiles = new Map((await listFiles(root)).map((file) => [file.path, file]))
   for (const post of records) {
     const blog = blogOf(post)
     const data = dataOf(post)
+    data.html = await sizeBodyImages(root, data.html, fileOfPath(data.url), site, siteFiles)
     const isOn = isLive(post, now)
     const target = isOn ? fileOfPath(data.url) : draftFile(post.id)
     const before = byId.get(post.id)

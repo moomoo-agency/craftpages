@@ -385,6 +385,45 @@ export async function deleteImage(root: string, path: string): Promise<MediaChan
 }
 
 /**
+ * A post body as published: an image from the site gets its file's width and
+ * height (so the page doesn't jump while it loads) and lazy loading, where the
+ * tag has none. The editor's image block writes neither, and the stored post
+ * keeps the editor's markup; only the published page gets them.
+ */
+export async function sizeBodyImages(
+  root: string,
+  html: string,
+  pagePath: string,
+  site: SiteSettings,
+  files?: Map<string, FileEntry>
+): Promise<string> {
+  if (!/<img\b/i.test(html)) return html
+  const byPath = files ?? new Map((await listFiles(root)).map((file) => [file.path, file]))
+  const patches: Patch[] = []
+  const pending: Promise<void>[] = []
+  walk(parseWithLocations(html), (element) => {
+    if (element.tagName !== 'img' || !element.sourceCodeLocation?.startTag) return true
+    const sized = attr(element, 'width') !== undefined || attr(element, 'height') !== undefined
+    const target = sized ? null : resolveToken(attr(element, 'src') ?? '', pagePath, site)
+    const entry = target ? byPath.get(target) : undefined
+    pending.push(
+      (entry ? sizeOf(root, entry) : Promise.resolve(null)).then((size) => {
+        const values: Record<string, string> = {}
+        if (size?.width && size.height) {
+          values.width = String(size.width)
+          values.height = String(size.height)
+        }
+        if (attr(element, 'loading') === undefined) values.loading = 'lazy'
+        if (Object.keys(values).length) patches.push(...attrPatches(html, element, values))
+      })
+    )
+    return true
+  })
+  await Promise.all(pending)
+  return patches.length ? applyPatches(html, patches) : html
+}
+
+/**
  * Adds the missing width/height to <img> tags (from the image files), so the
  * page doesn't jump while images load. Tags with one of the two set are left
  * alone; pages with unsaved edits are skipped.

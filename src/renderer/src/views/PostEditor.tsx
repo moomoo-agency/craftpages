@@ -7,13 +7,13 @@ import {
   WritingFlow,
   ObserveTyping
 } from '@wordpress/block-editor'
-import { createBlock, parse, serialize, type Block } from '@wordpress/blocks'
+import { createBlock, serialize, type Block } from '@wordpress/blocks'
 import { Popover, SlotFillProvider } from '@wordpress/components'
 import '@wordpress/format-library'
 import { Field, Notice } from '../components/Field'
 import MediaPicker from '../components/MediaPicker'
 import StatusPill from '../components/StatusPill'
-import { BREAK_BLOCK, COLUMNS_BLOCK, CORE_BLOCKS, registerBlocks } from '../lib/blocks'
+import { BREAK_BLOCK, COLUMNS_BLOCK, CORE_BLOCKS, parseBlocks, registerBlocks } from '../lib/blocks'
 import { CODE_BLOCK } from '../lib/code-block'
 import { GIST_BLOCK } from '../lib/gist-block'
 import { FORM_BLOCK } from '../lib/form-block'
@@ -86,12 +86,12 @@ export default function PostEditor({
   // Compare against the editor's own serialization, so opening a post doesn't mark it changed.
   const normalize = (record: PostRecord): PostRecord => ({
     ...record,
-    content: record.content ? serialize(parse(record.content)) : record.content
+    content: record.content ? serialize(parseBlocks(record.content)) : record.content
   })
   const [saved, setSaved] = useState<PostRecord>(() => normalize(initial))
   // An empty post starts with one empty paragraph so there's somewhere to type.
   const [blocks, setBlocks] = useState<Block[]>(() => {
-    const parsed = parse(initial.content)
+    const parsed = parseBlocks(initial.content)
     return parsed.length ? parsed : [createBlock('core/paragraph')]
   })
   const [slugTouched, setSlugTouched] = useState(Boolean(initial.slug))
@@ -157,7 +157,7 @@ export default function PostEditor({
       const result = await window.api.savePost({ ...current, slug, status })
       setPost(result.post)
       setSaved(normalize(result.post))
-      setBlocks(parse(result.post.content))
+      setBlocks(parseBlocks(result.post.content))
       setSlugTouched(true)
       const g = result.generated
       const savedAt = Date.now()

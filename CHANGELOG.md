@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.4.1 (2026-10-29)
+
+- Blog: a post made outside the editor (a hand-written draft, an import, an older Gutenberg)
+  no longer opens with "This block contains unexpected or invalid content" on its blocks. Each
+  such block is rebuilt from its attributes when the post opens, as WordPress's "Attempt Block
+  Recovery" does. Unknown blocks and classic HTML stay as they are.
+- Blog: images in a published post get their file's width and height and `loading="lazy"`
+  where the tag has none, so the page doesn't jump while they load. The image block itself
+  writes neither, and the saved post keeps the editor's markup.
+
 ## 1.4.0 (2026-10-26)
 
 - **Speed** (Project settings): what publishing does to the copy it uploads; the folder's
