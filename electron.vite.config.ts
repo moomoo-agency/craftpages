@@ -10,9 +10,15 @@ export default defineConfig({
   preload: {},
   renderer: {
     resolve: {
-      alias: {
-        '@renderer': resolve('src/renderer/src')
-      }
+      alias: [
+        { find: '@renderer', replacement: resolve('src/renderer/src') },
+        // Gutenberg's in-browser image processing (wasm-vips, 13 MB), never enabled here:
+        // see the stub.
+        {
+          find: /^@wordpress\/vips\/worker$/,
+          replacement: resolve('src/renderer/src/lib/stubs/vips-worker.ts')
+        }
+      ]
     },
     plugins: [react()]
   }

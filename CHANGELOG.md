@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.4.2 (2026-10-29)
+
+- Blog: images in a post show in the editor. The editor's page is the app itself, so a site
+  path such as `/assets/blog/cover.jpg` pointed at the disk (or the dev server) and every
+  image in a post appeared broken, uploads included. Those requests now go to the preview
+  server, which serves the open site; the post keeps its site paths.
+- A smaller app: about 75 MB less on a Mac (395 MB to 322 MB installed), 20 to 30 MB less
+  elsewhere. Chromium's own translations are kept only for the app's languages (English,
+  Italian, Ukrainian); each Mac app carries only its own CPU's image library; the WebAssembly
+  image fallback and Gutenberg's unused in-browser image processing are left out.
+
 ## 1.4.1 (2026-10-29)
 
 - Blog: a post made outside the editor (a hand-written draft, an import, an older Gutenberg)

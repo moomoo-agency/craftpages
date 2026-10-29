@@ -12,10 +12,19 @@ files:
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
   - '!{.github,scripts,docs,wiki}/*'
+  # sharp's WebAssembly fallback (8.8 MB), installed on every platform but used only where no
+  # native binary exists; each build ships its native one.
+  - '!**/node_modules/@img/sharp-wasm32/**'
 asarUnpack:
   - resources/**
   - '**/node_modules/sharp/**/*'
   - '**/node_modules/@img/**/*'
+# Chromium's own translations (menus, dialogs): only the app's languages. The other ~50
+# were 45 MB of the Mac app. "en" keeps en-US, en-GB and the rest.
+electronLanguages: [en, it, uk]
+# Mac: each app keeps only its own CPU's sharp binary (scripts/mac-sharp.mjs installs both).
+# build:linux replaces this hook for the AppImage (-c.afterPack); elsewhere it does nothing.
+afterPack: scripts/after-pack.mjs
 # Installer names carry no version (CraftPages-arm64.dmg), so
 # github.com/moomoo-agency/craftpages/releases/latest/download/<name> always gets the newest.
 artifactName: ${productName}-${arch}.${ext}

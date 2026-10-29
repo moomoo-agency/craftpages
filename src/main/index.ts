@@ -1,5 +1,6 @@
 import { app, shell, BrowserWindow, nativeTheme, session } from 'electron'
 import { join } from 'path'
+import { pathToFileURL } from 'url'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { allowExternalScripts, applyMcpSettings, openWorkspace, registerIpc } from './ipc'
@@ -12,6 +13,7 @@ import { isFormsHost } from './craftforms'
 import { getAppSettings } from './settings'
 import { setupUpdates } from './updates'
 import { log, startLog } from './log'
+import { previewUrl } from './editing'
 
 // Development keeps its own settings folder ("CraftPages Dev"), so `npm run dev` and an
 // installed CraftPages can run side by side without sharing settings, tokens or recent
@@ -79,6 +81,35 @@ function showApp(): void {
   window.focus()
 }
 
+/**
+ * The post editor shows the site's images by their site path ("/assets/blog/x.jpg"), and the
+ * app's own page is file:// (or the dev server), so that path pointed at the disk's root (or at
+ * the dev server) and every image in a post showed broken. Such an image request goes to the
+ * preview server instead, which serves the open site. The post keeps its site path.
+ */
+const rendererBase =
+  is.dev && process.env['ELECTRON_RENDERER_URL']
+    ? new URL(process.env['ELECTRON_RENDERER_URL']).origin + '/'
+    : pathToFileURL(join(__dirname, '../renderer')).href + '/'
+/** Paths the dev server answers itself (Vite's modules), never a site's. */
+const DEV_OWN = /^\/(src|@|node_modules)\//
+
+function siteImage(url: string, resourceType: string): Promise<string | null> | null {
+  if (resourceType !== 'image') return null
+  let parsed: URL
+  try {
+    parsed = new URL(url)
+  } catch {
+    return null
+  }
+  const fromApp = rendererBase.startsWith('file:')
+    ? parsed.protocol === 'file:' && !parsed.href.startsWith(rendererBase)
+    : parsed.origin + '/' === rendererBase && !DEV_OWN.test(parsed.pathname)
+  if (!fromApp) return null
+  // No folder open: previewUrl() throws, and the request goes on as it was.
+  return previewUrl(decodeURIComponent(parsed.pathname)).then((to) => to + parsed.search)
+}
+
 app.whenReady().then(() => {
   electronApp.setAppUserModelId('app.craftpages')
   // A packaged build has it from icon.icns; in development the dock would show Electron's.
@@ -90,7 +121,11 @@ app.whenReady().then(() => {
   })
 
   // Preview iframes run the site's CSS and images, but never remote scripts or beacons.
-  blockRemoteScripts(session.defaultSession, (host) => allowExternalScripts() || isFormsHost(host))
+  blockRemoteScripts(
+    session.defaultSession,
+    (host) => allowExternalScripts() || isFormsHost(host),
+    siteImage
+  )
 
   startLog()
   registerIpc(icon)

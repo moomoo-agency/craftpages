@@ -21,8 +21,10 @@ const BLOCKED_TYPES = new Set([
  */
 export function blockRemoteScripts(
   target: Session,
-  allow: (host: string) => boolean = () => false
+  allow: (host: string) => boolean = () => false,
+  redirect?: (url: string, resourceType: string) => Promise<string | null> | null
 ): void {
+  // A session has one onBeforeRequest listener, so `redirect` shares this one.
   target.webRequest.onBeforeRequest((details, callback) => {
     let host = ''
     try {
@@ -31,7 +33,19 @@ export function blockRemoteScripts(
       // data:, blob: and similar have no host and are local anyway.
     }
     const remote = /^(https?|wss?):/.test(details.url) && !LOCAL_HOSTS.has(host)
-    callback({ cancel: remote && BLOCKED_TYPES.has(details.resourceType) && !allow(host) })
+    if (remote && BLOCKED_TYPES.has(details.resourceType) && !allow(host)) {
+      callback({ cancel: true })
+      return
+    }
+    const to = redirect?.(details.url, details.resourceType)
+    if (!to) {
+      callback({})
+      return
+    }
+    to.then(
+      (url) => callback(url ? { redirectURL: url } : {}),
+      () => callback({})
+    )
   })
 }
 
