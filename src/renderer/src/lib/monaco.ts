@@ -8,17 +8,44 @@ import EditorWorker from 'monaco-editor/editor/editor.worker?worker'
 import CssWorker from 'monaco-editor/language/css/css.worker?worker'
 import HtmlWorker from 'monaco-editor/language/html/html.worker?worker'
 import JsonWorker from 'monaco-editor/language/json/json.worker?worker'
-import TsWorker from 'monaco-editor/language/typescript/ts.worker?worker'
 
 self.MonacoEnvironment = {
   getWorker(_id: string, label: string): Worker {
     if (label === 'html' || label === 'handlebars' || label === 'razor') return new HtmlWorker()
     if (label === 'css' || label === 'scss' || label === 'less') return new CssWorker()
     if (label === 'json') return new JsonWorker()
-    if (label === 'typescript' || label === 'javascript') return new TsWorker()
+    // No TypeScript worker: see lib/stubs/monaco-ts-mode.ts.
     return new EditorWorker()
   }
 }
+
+// Without the TypeScript service, .js files would have no formatter (HTML, CSS and JSON
+// bring their own). Prettier's browser build formats them instead, loaded on first use.
+monaco.languages.registerDocumentFormattingEditProvider('javascript', {
+  async provideDocumentFormattingEdits(model, options) {
+    const [prettier, babel, estree] = await Promise.all([
+      import('prettier/standalone'),
+      import('prettier/plugins/babel'),
+      import('prettier/plugins/estree')
+    ])
+    const source = model.getValue()
+    // Prettier rewrites quotes; keep the file's own (Monaco's old formatter left them alone).
+    const single = (source.match(/'/g)?.length ?? 0) > (source.match(/"/g)?.length ?? 0)
+    try {
+      const text = await prettier.format(source, {
+        parser: 'babel',
+        plugins: [babel, estree],
+        singleQuote: single,
+        tabWidth: options.tabSize,
+        useTabs: !options.insertSpaces
+      })
+      return [{ range: model.getFullModelRange(), text }]
+    } catch {
+      // A syntax error: nothing to format until it's fixed.
+      return []
+    }
+  }
+})
 
 /** Monaco's language id for a file. */
 export function languageOf(path: string): string {

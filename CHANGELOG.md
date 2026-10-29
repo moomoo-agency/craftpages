@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.4.3 (2026-10-29)
+
+- Code mode: JavaScript files no longer load VS Code's TypeScript service (13 MB of the app,
+  about 85 MB less on a Mac since 1.4.1: 395 MB to 310 MB). They keep their colours and
+  Monaco's editing; autocomplete, hovers and error underlines go. ⌥⇧F (Format) still works on
+  them, now through Prettier, keeping the file's own quote style.
+
 ## 1.4.2 (2026-10-29)
 
 - Blog: images in a post show in the editor. The editor's page is the app itself, so a site

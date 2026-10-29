@@ -1,6 +1,23 @@
 import { resolve } from 'path'
 import { defineConfig } from 'electron-vite'
 import react from '@vitejs/plugin-react'
+import type { Plugin } from 'vite'
+
+/**
+ * Monaco's JavaScript/TypeScript service (tsMode.js) starts ts.worker, 13 MB of the app,
+ * for autocomplete and error underlines in .js files. It is swapped for a stub; see it.
+ */
+function withoutMonacoTypeScript(): Plugin {
+  const stub = resolve('src/renderer/src/lib/stubs/monaco-ts-mode.ts')
+  return {
+    name: 'craftpages:without-monaco-typescript',
+    enforce: 'pre',
+    resolveId(source, importer) {
+      const fromMonaco = importer?.replace(/\\/g, '/').includes('/features/typescript/')
+      return source === './tsMode.js' && fromMonaco ? stub : null
+    }
+  }
+}
 
 export default defineConfig({
   main: {
@@ -20,6 +37,6 @@ export default defineConfig({
         }
       ]
     },
-    plugins: [react()]
+    plugins: [react(), withoutMonacoTypeScript()]
   }
 })
