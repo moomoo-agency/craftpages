@@ -114,6 +114,12 @@ const messages: Translation['connections'] = {
   type_sftp: 'SFTP (рекомендовано)',
   type_ftp: 'FTP / FTPS',
   namePlaceholderServer: 'Мій хостинг',
+  webHost: 'Хостинг',
+  webHostHint: 'Заповнює сервер і порт для хостингів зі списку.',
+  webHostOther: 'Виберіть свій хостинг або заповніть нижче',
+  hostGuide: 'Інструкція {host}',
+  hostNote_pagehaus:
+    'Ім’я користувача: назва вашого сайту. У Налаштуваннях проєкту → Деплой залиште Папку на сервері порожньою.',
   host: 'Сервер',
   hostHint: 'З панелі керування хостингом, напр. ftp.example.com.',
   port: 'Порт',

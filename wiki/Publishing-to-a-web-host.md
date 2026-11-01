@@ -7,6 +7,9 @@ Cloudflare.
 ## 1. Add the server
 
 1. **App settings → Deploy connections → Add FTP / SFTP server…**
+   If your host is in the **Web host** list ([Pagehaus](https://pagehaus.app/guides/publish-from-craftpages)),
+   pick it: it fills in the type, server and port, and says what goes in the user name and
+   the server folder. Then go on from step 4.
 2. **Type:** choose **SFTP** if your host offers it (most do), otherwise **FTP / FTPS**.
    Keep **Encrypt (FTPS)** on unless the server refuses it: plain FTP sends your password
    and files readable by anyone on the network.

@@ -103,6 +103,12 @@ const messages: Translation['connections'] = {
   type_sftp: 'SFTP (consigliato)',
   type_ftp: 'FTP / FTPS',
   namePlaceholderServer: 'Il mio hosting',
+  webHost: 'Hosting',
+  webHostHint: 'Compila server e porta per gli hosting in elenco.',
+  webHostOther: 'Scegli il tuo hosting o compila qui sotto',
+  hostGuide: 'Guida di {host}',
+  hostNote_pagehaus:
+    'Nome utente: il nome del tuo sito. In Impostazioni progetto → Deploy, lascia vuota la Cartella sul server.',
   host: 'Server',
   hostHint: 'Dal pannello del tuo hosting, es. ftp.example.com.',
   port: 'Porta',

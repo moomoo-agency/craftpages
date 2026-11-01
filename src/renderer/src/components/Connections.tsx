@@ -3,6 +3,7 @@ import { Explainer, Field, Notice, Section } from './Field'
 import { translate, useT, type Key } from '../i18n'
 import { errorMessage } from '../lib/api'
 import { tokenTemplateUrl } from '../lib/cloudflare'
+import { HOSTS } from '../lib/hosts'
 import TokenUpgrade from './TokenUpgrade'
 import { FEATURES } from '../../../shared/features'
 import { isServerConnection } from '../../../shared/types'
@@ -94,6 +95,8 @@ export default function Connections({ view, onChange }: Props): React.JSX.Elemen
   /** SFTP: signing in with a key file instead of a password. */
   const [useKey, setUseKey] = useState(false)
   const [checked, setChecked] = useState<ServerCheck | null>(null)
+  /** The web host picked from HOSTS for a new server connection, or '' for any other. */
+  const [preset, setPreset] = useState('')
   /** What each Cloudflare token can do (publish, sync), checked when the list shows. */
   const [checks, setChecks] = useState<Record<string, TokenCheck | null>>({})
   const [upgrading, setUpgrading] = useState<string | null>(null)
@@ -118,9 +121,11 @@ export default function Connections({ view, onChange }: Props): React.JSX.Elemen
     setUseKey(Boolean(input?.keyPath))
     setChecked(null)
     setStatus(null)
+    setPreset('')
   }
 
   const server = editing ? isServerConnection(editing.type) : false
+  const hostPreset = HOSTS.find((host) => host.id === preset)
   /** The form as it will be saved: the key path only when signing in with a key. */
   const formInput = (): ConnectionInput => ({
     ...editing!,
@@ -413,6 +418,51 @@ export default function Connections({ view, onChange }: Props): React.JSX.Elemen
           </div>
           {server && (
             <>
+              {!editing.id && (
+                <Field
+                  label={t('connections.webHost')}
+                  hint={
+                    hostPreset ? (
+                      <>
+                        {t(hostPreset.note)}{' '}
+                        <button
+                          type="button"
+                          className="link"
+                          onClick={() => window.api.openExternal(hostPreset.guide)}
+                        >
+                          {t('connections.hostGuide', { host: hostPreset.name })}
+                        </button>
+                      </>
+                    ) : (
+                      t('connections.webHostHint')
+                    )
+                  }
+                >
+                  <select
+                    value={preset}
+                    onChange={(e) => {
+                      const host = HOSTS.find((h) => h.id === e.target.value)
+                      setPreset(host?.id ?? '')
+                      if (!host) return
+                      setEditing({
+                        ...(host.type === editing.type ? editing : blank(host.type)),
+                        name: editing.name || host.name,
+                        token: editing.token,
+                        username: editing.username,
+                        host: host.host,
+                        port: host.port
+                      })
+                    }}
+                  >
+                    <option value="">{t('connections.webHostOther')}</option>
+                    {HOSTS.map((host) => (
+                      <option key={host.id} value={host.id}>
+                        {host.name}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              )}
               <div className="grid-server">
                 <Field label={t('connections.host')} hint={t('connections.hostHint')}>
                   <input

@@ -103,6 +103,12 @@ export default {
   type_sftp: 'SFTP (recommended)',
   type_ftp: 'FTP / FTPS',
   namePlaceholderServer: 'My hosting',
+  webHost: 'Web host',
+  webHostHint: 'Fills in the server and port for the hosts listed.',
+  webHostOther: 'Choose your host, or fill in below',
+  hostGuide: '{host}’s guide',
+  hostNote_pagehaus:
+    'User name: your site’s name. In Project settings → Deploy, leave Folder on the server empty.',
   host: 'Server',
   hostHint: 'From your hosting control panel, e.g. ftp.example.com.',
   port: 'Port',
