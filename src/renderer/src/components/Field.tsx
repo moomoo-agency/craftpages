@@ -1,5 +1,7 @@
-import { cloneElement, isValidElement, useId } from 'react'
+import { cloneElement, isValidElement, useId, useState } from 'react'
 import { Icon, info } from '@wordpress/icons'
+import { useT } from '../i18n'
+import { stampLabel, type SectionState } from '../lib/stamps'
 
 interface FieldProps {
   label: string
@@ -60,20 +62,51 @@ interface SectionProps {
   title: string
   description?: React.ReactNode
   actions?: React.ReactNode
+  /** Stamped by the title; the section list repeats it. */
+  state?: SectionState
+  /** The page's status section: opens the page, set larger. */
+  lead?: boolean
   children: React.ReactNode
+}
+
+/** A state stamp. It presses in when the state changes while the page is open. */
+export function Stamp({ state }: { state: SectionState }): React.JSX.Element {
+  const t = useT()
+  const [shown, setShown] = useState(state)
+  const [presses, setPresses] = useState(0)
+  if (shown !== state) {
+    setShown(state)
+    setPresses((n) => n + 1)
+  }
+  return (
+    <span key={presses} className={`stamp stamp--${state}${presses ? ' stamp--pressed' : ''}`}>
+      {t(stampLabel(state))}
+    </span>
+  )
 }
 
 export function Section({
   title,
   description,
   actions,
+  state,
+  lead,
   children
 }: SectionProps): React.JSX.Element {
+  const id = useId()
   return (
-    <section className="panel">
+    <section
+      className={`panel${lead ? ' panel--lead' : ''}`}
+      aria-labelledby={id}
+      data-section-title={title}
+      data-section-state={state}
+    >
       <header className="panel__head">
-        <div>
-          <h2>{title}</h2>
+        <div className="panel__title">
+          <div className="panel__heading">
+            <h2 id={id}>{title}</h2>
+            {state && <Stamp state={state} />}
+          </div>
           {description && <p className="muted">{description}</p>}
         </div>
         {actions && <div className="panel__actions">{actions}</div>}

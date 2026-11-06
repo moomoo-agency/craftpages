@@ -18,6 +18,12 @@ interface Props {
   onReady?: (ready: boolean) => void
 }
 
+/**
+ * The sync folder a new setup starts with. It's a real value, not a placeholder: an empty
+ * field means the folder the login starts in, which on many hosts is the public web folder.
+ */
+export const DEFAULT_SYNC_DIR = '/craftpages-sync'
+
 /** Where sync data lives: a Cloudflare account, or a folder on an FTP / SFTP server. */
 export default function SyncSourceForm({
   value,
@@ -131,7 +137,7 @@ export default function SyncSourceForm({
             onChange={(dir) => onChange({ ...value, dir })}
             label={t('sync.folder')}
             hint={t('sync.folderHint')}
-            placeholder="/craftpages-sync"
+            placeholder={DEFAULT_SYNC_DIR}
           />
           <div className={choosing ? 'grid-2' : undefined}>
             <Field

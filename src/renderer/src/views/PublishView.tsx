@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Explainer, Notice, Section } from '../components/Field'
+import { Pagination } from '../components/ListControls'
+import { useFilteredList } from '../lib/list'
 import ScheduledSection from '../components/ScheduledSection'
 import VersionsSection from '../components/VersionsSection'
 import { FEATURES } from '../../../shared/features'
@@ -8,6 +10,7 @@ import { useT } from '../i18n'
 import { errorMessage, formatDate, useAppEvent } from '../lib/api'
 import type {
   ForeignDeploy,
+  PublishCheck,
   DeployProgress,
   DeployStatus,
   Deployment,
@@ -40,6 +43,7 @@ export default function PublishView({
   const t = useT()
   const [status, setStatus] = useState<DeployStatus | null>(null)
   const [deployments, setDeployments] = useState<Deployment[] | null>(null)
+  const deployList = useFilteredList('deployments', deployments ?? [], () => [], 10)
   const [progress, setProgress] = useState<DeployProgress | null>(null)
   const [running, setRunning] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -52,6 +56,8 @@ export default function PublishView({
   const [versionsToken, setVersionsToken] = useState(0)
   /** Set after a publish to the live site finishes: the moment the job is done. */
   const [live, setLive] = useState(false)
+  /** With sync on: the other computers' changes that came in before the last publish. */
+  const [brought, setBrought] = useState<PublishCheck['brought']>(null)
 
   const root = workspace?.root
   // Only the latest status ask counts (one asked mid-publish can come back last).
@@ -151,12 +157,16 @@ export default function PublishView({
     setError(null)
     setForeign(null)
     setLive(false)
+    setBrought(null)
     try {
       if (saveFirst && !(await onSaveAll())) return
       if (target === 'production' && !force) {
-        const live = await window.api.checkLive()
-        if (live) {
-          setForeign(live)
+        setProgress({ phase: 'scan', message: t('publish.checkingLive') })
+        const check = await window.api.checkBeforePublish()
+        setProgress(null)
+        setBrought(check.brought)
+        if (check.foreign) {
+          setForeign(check.foreign)
           return
         }
       }
@@ -252,6 +262,7 @@ export default function PublishView({
   return (
     <div className="publish">
       <Section
+        lead
         title={title}
         description={summary}
         actions={
@@ -431,6 +442,16 @@ export default function PublishView({
             <Notice kind="success">
               <strong>{t('publish.liveTitle')}</strong>
               <p>{t('publish.liveBody')}</p>
+              {brought && (
+                <p>
+                  {t('publish.brought', {
+                    count: brought.files,
+                    device: brought.from || t('publish.anotherComputer')
+                  })}
+                  {brought.merged.length > 0 &&
+                    ` ${t('publish.broughtMerged', { files: brought.merged.join(', ') })}`}
+                </p>
+              )}
               {(site?.baseUrl || status?.lastDeploy?.url) && (
                 <button
                   className="btn btn--small"
@@ -516,72 +537,85 @@ export default function PublishView({
           ) : deployments.length === 0 ? (
             <p className="muted">{t('publish.noDeployments')}</p>
           ) : (
-            <table className="list deployments">
-              <thead>
-                <tr>
-                  <th scope="col">{t('publish.colWhen')}</th>
-                  <th scope="col">{t('publish.colEnvironment')}</th>
-                  {/* Workers have no branches: the column would only say "main". */}
-                  {!isWorker && (
-                    <th scope="col">{t(onServer ? 'publish.colComputer' : 'publish.colBranch')}</th>
-                  )}
-                  <th scope="col">{t('publish.colStatus')}</th>
-                  <th scope="col">
-                    <span className="visually-hidden">{t('publish.colActions')}</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {deployments.map((deployment) => (
-                  <tr key={deployment.id}>
-                    <td>
-                      <button
-                        className="link"
-                        title={t('publish.openDeployment')}
-                        onClick={() => window.api.openExternal(deployment.url)}
-                      >
-                        {formatDate(deployment.createdOn)}
-                      </button>
-                    </td>
-                    <td>
-                      {environment(deployment.environment)}
-                      {deployment === current && <span className="badge">{t('publish.live')}</span>}
-                    </td>
-                    {!isWorker && <td className="mono muted">{deployment.branch}</td>}
-                    <td className="muted">{deployment.status}</td>
-                    <td className="num">
-                      {deployment.environment === 'production' &&
-                        deployment !== current &&
-                        (confirming === deployment.id ? (
-                          <span className="deployments__confirm">
-                            <span className="small">{t('publish.rollBackConfirm')}</span>
+            <>
+              <table className="list deployments">
+                <thead>
+                  <tr>
+                    <th scope="col">{t('publish.colWhen')}</th>
+                    <th scope="col">{t('publish.colEnvironment')}</th>
+                    {/* Workers have no branches: the column would only say "main". */}
+                    {!isWorker && (
+                      <th scope="col">
+                        {t(onServer ? 'publish.colComputer' : 'publish.colBranch')}
+                      </th>
+                    )}
+                    <th scope="col">{t('publish.colStatus')}</th>
+                    <th scope="col">
+                      <span className="visually-hidden">{t('publish.colActions')}</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {deployList.rows.map((deployment) => (
+                    <tr key={deployment.id}>
+                      <td>
+                        <button
+                          className="link"
+                          title={t('publish.openDeployment')}
+                          onClick={() => window.api.openExternal(deployment.url)}
+                        >
+                          {formatDate(deployment.createdOn)}
+                        </button>
+                      </td>
+                      <td>
+                        {environment(deployment.environment)}
+                        {deployment === current && (
+                          <span className="badge">{t('publish.live')}</span>
+                        )}
+                      </td>
+                      {!isWorker && <td className="mono muted">{deployment.branch}</td>}
+                      <td className="muted">{deployment.status}</td>
+                      <td className="num">
+                        {deployment.environment === 'production' &&
+                          deployment !== current &&
+                          (confirming === deployment.id ? (
+                            <span className="deployments__confirm">
+                              <span className="small">{t('publish.rollBackConfirm')}</span>
+                              <button
+                                className="btn btn--small"
+                                autoFocus
+                                onClick={() => setConfirming(null)}
+                              >
+                                {t('common.cancel')}
+                              </button>
+                              <button
+                                className="btn btn--small btn--primary"
+                                onClick={() => rollback(deployment)}
+                              >
+                                {t('publish.rollBackYes')}
+                              </button>
+                            </span>
+                          ) : (
                             <button
                               className="btn btn--small"
-                              autoFocus
-                              onClick={() => setConfirming(null)}
+                              onClick={() => setConfirming(deployment.id)}
                             >
-                              {t('common.cancel')}
+                              {t('publish.rollBack')}
                             </button>
-                            <button
-                              className="btn btn--small btn--primary"
-                              onClick={() => rollback(deployment)}
-                            >
-                              {t('publish.rollBackYes')}
-                            </button>
-                          </span>
-                        ) : (
-                          <button
-                            className="btn btn--small"
-                            onClick={() => setConfirming(deployment.id)}
-                          >
-                            {t('publish.rollBack')}
-                          </button>
-                        ))}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                          ))}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <Pagination
+                page={deployList.page}
+                pages={deployList.pages}
+                total={deployList.matched}
+                onPage={deployList.setPage}
+                pageSize={deployList.pageSize}
+              />
+            </>
           )}
         </Section>
       )}

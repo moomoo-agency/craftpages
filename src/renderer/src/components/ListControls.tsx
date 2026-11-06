@@ -62,12 +62,15 @@ export function Pagination({
   page,
   pages,
   total,
-  onPage
+  onPage,
+  pageSize = PAGE_SIZE
 }: {
   page: number
   pages: number
   total: number
   onPage: (page: number) => void
+  /** Rows per page, when the list doesn't use the default. */
+  pageSize?: number
 }): React.JSX.Element | null {
   const t = useT()
   if (pages <= 1) return null
@@ -75,8 +78,8 @@ export function Pagination({
     <nav className="pagination" aria-label={t('common.pagination')}>
       <span className="muted small" aria-live="polite">
         {t('common.showing', {
-          from: (page - 1) * PAGE_SIZE + 1,
-          to: Math.min(page * PAGE_SIZE, total),
+          from: (page - 1) * pageSize + 1,
+          to: Math.min(page * pageSize, total),
           total
         })}
       </span>

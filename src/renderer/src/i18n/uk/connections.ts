@@ -137,6 +137,19 @@ const messages: Translation['connections'] = {
     'Ключ сервера {key}: відтепер довірений. Якщо він зміниться, CraftPages зупиниться й запитає.',
   addConnection: 'Додати підключення',
 
+  // Відомі хостинги (шаблони)
+  addPreset: 'Додати {name}…',
+  presetTitle: 'Публікація на {name}',
+  presetBody:
+    'Сервер і порт уже заповнено. Як ім’я користувача введіть назву свого сайту на {name}, а далі пароль {name} (або файл ключа, публічну частину якого ви додали до сайту).',
+  presetGuide: 'Їхня інструкція',
+  presetUsernameHint: 'Назва вашого сайту на {name}, напр. yoursite.',
+  presetUsernamePlaceholder: 'yoursite',
+  hostKeyPinned:
+    'Ключ сервера {key}: збігається з ключем, який публікує {name}, тож підключення справжнє.',
+  savedPreset:
+    '«{name}» збережено, вхід успішний. Виберіть його в Налаштуваннях проєкту → Деплой і залиште папку порожньою.',
+
   // Акаунти CraftForms
   formsTitle: 'Акаунти CraftForms',
   formsDescription:

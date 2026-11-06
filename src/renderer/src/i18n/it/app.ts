@@ -7,6 +7,7 @@ const messages: Translation['app'] = {
   viewMedia: 'Media',
   viewSeo: 'SEO',
   viewSearch: 'Ricerca nel sito',
+  viewConsent: 'Tracciamento e consenso',
   viewForms: 'Moduli',
   viewAi: 'Modifica template (IA)',
   viewPublish: 'Pubblica',

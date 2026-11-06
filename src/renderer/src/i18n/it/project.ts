@@ -30,6 +30,12 @@ const messages: Translation['project'] = {
   listWorkers: 'Elenca i Worker',
   listPages: 'Elenca i progetti Pages',
   savedDeploy: 'Impostazioni di deploy salvate per questo progetto.',
+  savedDeployAddress:
+    'Impostazioni di deploy salvate. L’URL di base ora è {address} (puoi cambiarlo sopra, in Sito).',
+  remoteDirPreset:
+    'Lascia vuoto: l’accesso a {name} parte già dalla cartella del tuo sito. CraftPages elimina solo i file che ha caricato lui.',
+  remoteDirPresetAddress:
+    'Lascia vuoto: l’accesso a {name} parte già dalla cartella del tuo sito. Salvando, l’URL di base diventa {address}.',
   connection: 'Connessione',
   noConnections: 'Ancora nessuna connessione: aggiungine una in {settings}.',
   noToken: 'Questa connessione non ha ancora un API token.',

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Explainer, Notice, Section } from '../components/Field'
+import SectionPage from '../components/SectionPage'
 import { useT } from '../i18n'
 import { copyText, errorMessage } from '../lib/api'
 import FormPlacer from './FormPlacer'
@@ -283,13 +284,14 @@ export default function FormsView({ workspace, onEditPage, focusPath }: Props): 
   const askDomain = !domain || editingDomain
 
   return (
-    <div className="settings">
+    <SectionPage className="settings">
       <p className="muted">{t('forms.intro')}</p>
       {status && <Notice kind={status.kind}>{status.text}</Notice>}
 
       {/* ---------- Account ---------- */}
       <Section
         title={t('forms.accountTitle')}
+        state={account ? (listError ? 'problem' : 'on') : 'setup'}
         description={project.accounts.length ? t('forms.chooseAccount') : t('forms.noAccounts')}
         actions={
           connecting ? (
@@ -674,6 +676,6 @@ export default function FormsView({ workspace, onEditPage, focusPath }: Props): 
           </ul>
         )}
       </Section>
-    </div>
+    </SectionPage>
   )
 }

@@ -6,6 +6,7 @@ import PageEditor, { type EditorMode, type Viewport } from './views/PageEditor'
 import BlogView from './views/BlogView'
 import SeoView from './views/SeoView'
 import SearchView from './views/SearchView'
+import ConsentView from './views/ConsentView'
 import FormsView from './views/FormsView'
 import ProjectsModal from './components/ProjectsModal'
 import MediaView from './views/MediaView'
@@ -132,7 +133,9 @@ function App(): React.JSX.Element {
         refreshPending()
       }
     } else if (event.type === 'deploy-end' && event.root === workspace?.root) {
-      // A publish finished, maybe after leaving the Publish view: the live site caught up.
+      // A publish finished, maybe after leaving the Publish view: the live site caught up,
+      // so "saved · not online yet" from the last save isn't true any more.
+      if (event.target === 'production' && !event.error) setLastSave(null)
       refreshPending()
     } else if (event.type === 'drafts') {
       setDrafts(event.drafts)
@@ -382,6 +385,7 @@ function App(): React.JSX.Element {
             <SeoView workspace={workspace} onEditPage={(path) => editPage(path)} />
           )}
           {view === 'search' && <SearchView key={workspace?.root} workspace={workspace} />}
+          {view === 'consent' && <ConsentView key={workspace?.root} workspace={workspace} />}
           {view === 'forms' && (
             <FormsView
               key={`${workspace?.root}#${formsFocus ?? ''}`}

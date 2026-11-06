@@ -1,12 +1,8 @@
-# Sync between computers (beta)
+# Sync between computers
 
 Sync lets you work on one project from several computers, or with several people. Every
 computer gets the others' saved changes, unsaved edits and publish history, and sees who has
 which page open.
-
-> **Beta.** Sync is new in 1.1. Keep a backup of the site folder (git, or a copy saved from
-> **Publish history**) while it settles, and
-> [tell us](https://github.com/moomoo-agency/craftpages/issues) how it goes.
 
 ## Where the sync data lives
 
@@ -29,7 +25,7 @@ anywhere else: there's no CraftPages server in between.
 ## Getting the project on another computer
 
 1. Add the same connection there (**App settings → Deploy connections**).
-2. **Projects → From another computer (beta)…**, choose where the sync data is, then
+2. **Projects → From another computer…**, choose where the sync data is, then
    **Find projects**.
 3. **Download…** the project into an empty folder.
 
@@ -39,9 +35,21 @@ The pill above **Publish site** shows where you are: **Synced**, **Get changes f
 or **Sync your changes**. One click syncs. Every publish syncs too.
 
 When another computer has the same project open, CraftPages says so ("Also open on …").
-Edits to the same page on two computers are merged when you sync. If both changed the same
-file, this folder keeps its own version, the other computer's copy is saved in
-`.sitecms/conflicts/`, and **Project settings → Sync** lists the file with **Use theirs**.
+Give each computer a name in **Project settings → Sync** ("Rosa's laptop", "Office PC"):
+it's shown there, in the pill and in **Publish history**.
+
+Edits to the same page on two computers are combined when you sync, line by line: a new
+headline here and a changed paragraph there both stay. Only when both computers changed the
+same line does CraftPages stop and ask. Everything else is still combined, and
+**Project settings → Sync** lists the file with **Compare** (what each version would lose),
+**Keep mine** and **Use theirs**. Until you choose, publishing waits.
+
+Publishing always syncs first: the other computers' work comes into this folder, then the
+site goes up, so nobody's changes are overwritten.
+
+The sync folder on a web host should sit next to the site's folder, not in it (the default
+is `/craftpages-sync`). CraftPages refuses a sync folder inside the folder the site is
+published to.
 
 ## Turning it off
 

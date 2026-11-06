@@ -1,6 +1,14 @@
 import type { Translation } from '../types'
 
 const messages: Translation['common'] = {
+  stampOn: 'Attivo',
+  stampOff: 'Spento',
+  stampSetup: 'Da configurare',
+  stampImprove: 'Da migliorare',
+  stampProblem: 'Problema',
+  stampBeta: 'Beta',
+  stampDone: 'Fatto',
+  pageSections: 'Sezioni di questa pagina',
   save: 'Salva',
 
   saving: 'Salvataggio…',

@@ -30,6 +30,12 @@ export default {
   listWorkers: 'List Workers',
   listPages: 'List Pages projects',
   savedDeploy: 'Deploy settings saved for this project.',
+  savedDeployAddress:
+    'Deploy settings saved. The base URL is now {address} (change it under Site above).',
+  remoteDirPreset:
+    'Leave empty: the {name} login already starts in your site’s folder. CraftPages only ever deletes files it uploaded itself.',
+  remoteDirPresetAddress:
+    'Leave empty: the {name} login already starts in your site’s folder. Saving also sets the base URL to {address}.',
   connection: 'Connection',
   noConnections: 'No connections yet: add one in {settings}.',
   noToken: 'This connection has no API token yet.',

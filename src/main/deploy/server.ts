@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from 'crypto'
 import { readFile } from 'fs/promises'
-import { hostname } from 'os'
+import { computerName } from '../computer-name'
 import { join, posix } from 'path'
 import { PassThrough, Readable } from 'stream'
 import { Client as FtpClient } from 'basic-ftp'
@@ -8,6 +8,8 @@ import SftpClient from 'ssh2-sftp-client'
 import { collect, saveState, type SiteFile } from './cloudflare'
 import { optimizeSignature } from './optimize'
 import { syncHtaccess } from '../blog-generate'
+import { syncServerRules } from '../redirects-site'
+import { hostPreset } from '../../shared/hosts'
 import type {
   DeployConnection,
   Deployment,
@@ -170,6 +172,8 @@ async function openSftp(
 ): Promise<Remote> {
   const client = new SftpClient('craftpages')
   let seen = ''
+  // A known host (Pagehaus) must show one of its published keys, even the first time.
+  const pinned = hostPreset({ type: 'sftp', host: connection.host })?.hostKeys
   try {
     await client.connect({
       host: connection.host,
@@ -185,12 +189,18 @@ async function openSftp(
       // Trust on first use: afterwards the key must match what was trusted.
       hostVerifier: (key: Buffer) => {
         seen = fingerprint(key)
+        if (pinned) return pinned.includes(seen)
         return !connection.hostKey || connection.hostKey === seen
       }
     })
   } catch (error) {
     await client.end().catch(() => null)
-    if (connection.hostKey && seen && seen !== connection.hostKey)
+    if (pinned && seen && !pinned.includes(seen))
+      throw new Error(
+        `The server ${connection.host} identifies itself with a key (${seen}) that isn’t ` +
+          'one its host publishes. Don’t publish until this is cleared up: someone may be in between.'
+      )
+    if (!pinned && connection.hostKey && seen && seen !== connection.hostKey)
       throw new Error(
         `The server ${connection.host} identifies itself with a different key than before ` +
           `(${seen}, was ${connection.hostKey}). If the host changed its server, edit the ` +
@@ -374,6 +384,7 @@ export async function deployServer(
   onProgress({ phase: 'scan', message: 'Hashing site files…' })
   // Apache reads redirects from .htaccess, not _redirects.
   await syncHtaccess(root)
+  await syncServerRules(root)
   const files = await collect(root, site, { server: true, optimize: true })
 
   onProgress({ phase: 'check', message: `Connecting to ${connection.host}…` })
@@ -428,7 +439,7 @@ export async function deployServer(
       version: 1,
       id: `${new Date().toISOString().replace(/[:.]/g, '-')}-${randomBytes(3).toString('hex')}`,
       at: new Date().toISOString(),
-      device: hostname(),
+      device: computerName(),
       files: Object.fromEntries(local)
     }
     await remote.ensureDir(posix.join(base, MANIFEST_DIR))

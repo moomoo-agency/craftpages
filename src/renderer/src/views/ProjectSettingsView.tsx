@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Explainer, Field, Notice, Section } from '../components/Field'
 import RemoteFolder from '../components/RemoteFolder'
+import SectionPage from '../components/SectionPage'
 import SpeedSection from '../components/SpeedSection'
 import SyncSection from '../components/SyncSection'
 import LanguagesSection from '../components/LanguagesSection'
@@ -10,6 +11,7 @@ import { useT } from '../i18n'
 import { errorMessage } from '../lib/api'
 import { FEATURES } from '../../../shared/features'
 import { isServerConnection } from '../../../shared/types'
+import { hostPreset } from '../../../shared/hosts'
 import type {
   CloudflareProject,
   CloudflareWorker,
@@ -145,8 +147,15 @@ export default function ProjectSettingsView({
 
   const saveCloudflare = (): Promise<void> =>
     run('cloudflare', async () => {
-      loaded(await window.api.saveSiteSettings({ deploy: site!.deploy }))
-      return t('project.savedDeploy')
+      // A known host (Pagehaus) tells us the live address: use it when the site has none yet.
+      const address =
+        presetAddress && !site!.baseUrl.trim() && !savedSite?.baseUrl ? presetAddress : null
+      const next = await window.api.saveSiteSettings(
+        address ? { deploy: site!.deploy, baseUrl: address } : { deploy: site!.deploy }
+      )
+      if (address) setLanguagesKey((key) => key + 1)
+      loaded(next)
+      return address ? t('project.savedDeployAddress', { address }) : t('project.savedDeploy')
     })
 
   const loadProjects = (): Promise<void> =>
@@ -184,6 +193,8 @@ export default function ProjectSettingsView({
     })
 
   const chosen = connections?.connections.find((c) => c.id === site?.deploy.connection)
+  const preset = chosen ? hostPreset(chosen) : undefined
+  const presetAddress = preset && chosen?.username ? preset.siteUrl(chosen.username) : null
   const onServer = site.deploy.target === 'server'
   const cloudflareConnections =
     connections?.connections.filter((c) => !isServerConnection(c.type)) ?? []
@@ -197,9 +208,10 @@ export default function ProjectSettingsView({
     setSite((s) => (s ? { ...s, [key]: value } : s))
 
   return (
-    <div className="settings">
+    <SectionPage className="settings">
       <Section
         title={t('project.site')}
+        state={savedSite && !savedSite.baseUrl ? 'setup' : undefined}
         description={t.rich('project.siteDescription', {
           path: <code>{`${workspace.folder}/.sitecms/site.json`}</code>
         })}
@@ -339,6 +351,7 @@ export default function ProjectSettingsView({
       {site && connections && (
         <Section
           title={t('project.deploy')}
+          state={!site.deploy.connection || !chosen ? 'setup' : undefined}
           description={t.rich('project.deployDescription', {
             settings: (
               <button className="link" onClick={onOpenAppSettings}>
@@ -426,6 +439,17 @@ export default function ProjectSettingsView({
           {onServer && chosen && (
             <RemoteFolder
               connection={chosen}
+              placeholder={preset ? '/' : undefined}
+              hint={
+                preset
+                  ? t(
+                      presetAddress && !site.baseUrl.trim()
+                        ? 'project.remoteDirPresetAddress'
+                        : 'project.remoteDirPreset',
+                      { name: preset.name, address: presetAddress ?? '' }
+                    )
+                  : undefined
+              }
               value={site.deploy.remoteDir}
               onChange={(remoteDir) => setSiteField('deploy', { ...site.deploy, remoteDir })}
             />
@@ -593,6 +617,6 @@ export default function ProjectSettingsView({
       />
 
       <SyncSection status={sync} />
-    </div>
+    </SectionPage>
   )
 }

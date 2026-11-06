@@ -5,6 +5,8 @@ import { isSyncOn, syncNow } from './sync/engine'
 import { createSnapshot } from './sync/snapshots'
 import { listFiles } from './workspace'
 import { refreshSearch } from './search-site'
+import { refreshConsent } from './consent-site'
+import { refreshTracking } from './tracking-site'
 import { writeSitemap } from './seo-site'
 import { connectionById, getSiteSettings, trustHostKey } from './settings'
 import { log } from './log'
@@ -15,7 +17,9 @@ import type {
   DeployResult,
   DeployTarget,
   ForeignDeploy,
-  PublishRun
+  PublishCheck,
+  PublishRun,
+  SyncResult
 } from '../shared/types'
 
 let deploying: string | null = null
@@ -59,6 +63,36 @@ const trust =
  * Publishing over it would replace their changes, since Cloudflare can't give files back.
  */
 export async function checkLive(root: string): Promise<ForeignDeploy | null> {
+  return (await checkBeforePublish(root, false)).foreign
+}
+
+/** Files changed both here and on another computer stop a publish, with what to do next. */
+function conflictError(sync: SyncResult): Error {
+  const files = `${sync.conflicts.slice(0, 3).join(', ')}${sync.conflicts.length > 3 ? '…' : ''}`
+  return new Error(
+    `Not published: ${sync.conflicts.length === 1 ? 'a page was' : `${sync.conflicts.length} files were`} changed both here and on ` +
+      `${sync.from ?? 'another computer'} (${files}), in the same place. ` +
+      'Choose which version to keep in Project settings → Sync, then publish again.'
+  )
+}
+
+/**
+ * Before a publish: with sync on, the other computers' work comes in first (merged, never
+ * overwritten), so their publishes count as known and only a publish from outside
+ * CraftPages, or from a computer that isn't syncing, is reported as foreign.
+ */
+export async function checkBeforePublish(root: string, sync = true): Promise<PublishCheck> {
+  let brought: PublishCheck['brought'] = null
+  if (sync && deploying !== root && (await isSyncOn(root))) {
+    const result = await syncNow(root)
+    if (result.conflicts.length) throw conflictError(result)
+    const files = result.files ?? result.pulled
+    if (files) brought = { from: result.from ?? '', files, merged: result.merged ?? [] }
+  }
+  return { foreign: await liveElsewhere(root), brought }
+}
+
+async function liveElsewhere(root: string): Promise<ForeignDeploy | null> {
   // Mid-publish, the version going live is this folder's own, not remembered yet.
   if (deploying === root) return null
   const site = await getSiteSettings(root)
@@ -119,15 +153,12 @@ export async function deployProject(
         progress: { phase: 'scan', message: 'Syncing with your other computers…' }
       })
       const sync = await syncNow(root)
-      if (sync.conflicts.length)
-        throw new Error(
-          `Not published: ${sync.conflicts.length} file(s) were changed both here and on ${sync.from ?? 'another computer'} ` +
-            `(${sync.conflicts.slice(0, 3).join(', ')}${sync.conflicts.length > 3 ? '…' : ''}). ` +
-            'Check them in Project settings → Sync, then publish again.'
-        )
+      if (sync.conflicts.length) throw conflictError(sync)
     }
     if ((await getSiteSettings(root)).seo.sitemapAuto) await writeSitemap(root)
     await refreshSearch(root)
+    await refreshTracking(root)
+    await refreshConsent(root)
     const site = await getSiteSettings(root)
     const onProgress = (progress: Parameters<typeof report>[0]['progress']): void =>
       report({ type: 'deploy', progress })

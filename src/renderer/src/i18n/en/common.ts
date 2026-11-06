@@ -2,6 +2,14 @@ import type { Msg } from '../types'
 
 /** Words used all over the app. View-specific text lives in its own namespace. */
 export default {
+  stampOn: 'On',
+  stampOff: 'Off',
+  stampSetup: 'Needs setup',
+  stampImprove: 'To improve',
+  stampProblem: 'Problem',
+  stampBeta: 'Beta',
+  stampDone: 'Done',
+  pageSections: 'Sections on this page',
   save: 'Save',
   saving: 'Saving…',
   saved: 'Saved',

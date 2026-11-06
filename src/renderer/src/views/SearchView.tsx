@@ -1,5 +1,8 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { Explainer, Field, Notice, Section } from '../components/Field'
+import SectionPage from '../components/SectionPage'
+import { ListSearch, NoMatches, Pagination } from '../components/ListControls'
+import { useFilteredList } from '../lib/list'
 import { ColorField } from '../components/SearchIconForm'
 import { translate, useT, type Key } from '../i18n'
 import { copyText, errorMessage, formatBytes } from '../lib/api'
@@ -103,6 +106,14 @@ export default function SearchView({ workspace }: Props): React.JSX.Element {
   useEffect(() => {
     if (tryUrl) tryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }, [tryUrl])
+
+  // The searchable pages, fifteen at a time.
+  const pageList = useFilteredList(
+    `search:${workspace?.folder}`,
+    state?.pages ?? [],
+    (p) => [p.title, p.url],
+    15
+  )
 
   if (!workspace) {
     return (
@@ -214,9 +225,11 @@ export default function SearchView({ workspace }: Props): React.JSX.Element {
   const pagesWithTriggers = state.pages.filter((p) => p.triggers > 0).length
 
   return (
-    <div className="search-view">
+    <SectionPage className="search-view">
       <Section
+        lead
         title={t('search.onTitle')}
+        state="on"
         description={
           <>
             {t('search.installedOn', { with: withScript, count: state.pages.length })}{' '}
@@ -471,6 +484,16 @@ export default function SearchView({ workspace }: Props): React.JSX.Element {
           attr: <code>data-craftpages-search-ignore</code>
         })}
       >
+        {pageList.searchable && (
+          <ListSearch
+            value={pageList.query}
+            onChange={pageList.setQuery}
+            label={t('search.searchPages')}
+          />
+        )}
+        {pageList.query && pageList.matched === 0 && (
+          <NoMatches query={pageList.query} onClear={() => pageList.setQuery('')} />
+        )}
         <table className="list">
           <thead>
             <tr>
@@ -482,7 +505,7 @@ export default function SearchView({ workspace }: Props): React.JSX.Element {
             </tr>
           </thead>
           <tbody>
-            {state.pages.map((p, i) => (
+            {pageList.rows.map((p, i) => (
               <tr key={p.path}>
                 <td id={`${id}-page-${i}`}>
                   {p.title}
@@ -522,11 +545,18 @@ export default function SearchView({ workspace }: Props): React.JSX.Element {
             ))}
           </tbody>
         </table>
+        <Pagination
+          page={pageList.page}
+          pages={pageList.pages}
+          total={pageList.matched}
+          onPage={pageList.setPage}
+          pageSize={pageList.pageSize}
+        />
         <Explainer>
           {t.rich('search.leaveOutHelp', { meta: <code>craftpages:search</code> })}
         </Explainer>
         {show('pages')}
       </Section>
-    </div>
+    </SectionPage>
   )
 }

@@ -1,3 +1,4 @@
+import type { TrackingInput, TrackingState } from './tracking'
 export type ThemeSource = 'system' | 'light' | 'dark'
 
 export interface PageEntry {
@@ -27,6 +28,8 @@ export interface RecentProject {
 /** App-wide settings, stored in the user data folder. Secrets live in the keychain. */
 export interface AppSettings {
   mcp: { enabled: boolean; port: number }
+  /** This computer's name in sync and publish history; empty: the system's host name. */
+  computerName: string
   lastWorkspace: string | null
   recentProjects: RecentProject[]
   /** Deploy connections (accounts); each project picks one. */
@@ -1019,6 +1022,7 @@ export interface SeoIssue {
     | 'social'
     | 'language'
     | 'indexing'
+    | 'site'
   message: string
   /** Examples: the images, links or files concerned. */
   detail?: string[]
@@ -1026,8 +1030,117 @@ export interface SeoIssue {
 
 export interface SeoReport {
   pages: number
+  /** The last check of links to other sites: how many, when. null: not checked yet. */
+  external: { links: number; at: string } | null
   issues: SeoIssue[]
   counts: { error: number; warning: number; info: number }
+}
+
+// ---------- Redirects, 404 page, site icon ----------
+
+export interface SiteRedirect {
+  /** Old address on this site: /old-page, /old-folder/, or /old-folder/* for everything in it. */
+  from: string
+  /** New address: a path on this site (with :splat for what * matched) or a full URL. */
+  to: string
+  status: 301 | 302
+}
+
+export interface RedirectsState {
+  rules: SiteRedirect[]
+  /** Redirects the blog keeps for moved posts (its own block, not editable here). */
+  blog: number
+  /** Rules in _redirects that CraftPages didn't write. */
+  other: number
+  target: DeployKind
+  /** Whether .htaccess is written too (publishing to a server). */
+  htaccess: boolean
+  warnings: { index: number; code: 'page-exists' | 'target-missing' | 'chain'; detail?: string }[]
+}
+
+export interface NotFoundState {
+  exists: boolean
+  title: string
+  target: DeployKind
+  /** False when publishing to a server whose .htaccess doesn't point at the page yet. */
+  serverReady: boolean
+}
+
+export interface NotFoundOptions {
+  /** The page whose header, footer and styles the 404 page takes. */
+  from: string
+  title: string
+  heading: string
+  message: string
+  linkText: string
+  /** Text of a "search the site" button, added when site search is on; empty: none. */
+  searchText: string
+}
+
+export interface FaviconState {
+  /** The icon the home page points at, as written there; null: none. */
+  icon: string | null
+  /** Whether that icon is the set CraftPages made. */
+  ours: boolean
+  hasIco: boolean
+  pages: number
+  /** Pages without the icon (made after it, or with no icon at all). */
+  missing: string[]
+}
+
+/** What a change to many pages did: the pages written, the ones skipped (and why). */
+export interface SiteChange {
+  pages: string[]
+  skipped: { path: string; reason: string }[]
+  historyId: string | null
+}
+
+// ---------- Cookie consent ----------
+
+/** What a visitor agrees to, besides what the site needs to work. */
+export type ConsentCategory = 'necessary' | 'analytics' | 'marketing' | 'embeds'
+
+export interface ConsentItem {
+  /** A recognised script's id, or host:<name> for one CraftPages doesn't know. */
+  key: string
+  name: string
+  /** As the site's files have it: held until consent for this category, or necessary. */
+  category: ConsentCategory | null
+  /** What CraftPages suggests; cookieless analytics need no consent. null: unknown. */
+  suggested: ConsentCategory | 'cookieless' | null
+  /** Places (on all pages) held until consent / running without it. */
+  held: number
+  open: number
+  pages: string[]
+}
+
+/** The banner's words in one language; empty fields use the built-in text for the page's language. */
+export interface ConsentTexts {
+  title: string
+  message: string
+  accept: string
+  reject: string
+  choose: string
+  save: string
+  privacyText: string
+  privacyUrl: string
+}
+
+export interface ConsentBanner {
+  position: 'bar' | 'box'
+  /** A small button in the corner that opens the choices again. */
+  button: boolean
+  /** By language code ('' for a site in one language). */
+  texts: Record<string, ConsentTexts>
+}
+
+export interface ConsentState {
+  enabled: boolean
+  pages: number
+  /** Pages with the consent script. */
+  withScript: number
+  items: ConsentItem[]
+  banner: ConsentBanner
 }
 
 export interface SiteIdentity {
@@ -1099,6 +1212,16 @@ export interface SyncSetup {
   passphrase?: string
 }
 
+/** A file changed on both computers in the same place: what each version has. */
+export interface ConflictComparison {
+  path: string
+  /** Lines (for a page: its text) only in this folder's version / only in the other one. */
+  onlyMine: string[]
+  onlyTheirs: string[]
+  mineDeleted: boolean
+  theirsDeleted: boolean
+}
+
 export interface SyncStatus {
   mode: SyncMode
   connection: string
@@ -1119,11 +1242,17 @@ export interface SyncStatus {
   busy: boolean
   /** The last sync failed with this. */
   error: string | null
+  /** Server sync data sits inside the folder the site is published to (publicly reachable). */
+  exposed?: boolean
 }
 
 export interface SyncResult {
   /** Files that came in from other computers. */
   pulled: number
+  /** Of those, files changed on both computers whose changes were combined. */
+  merged?: string[]
+  /** Site files among them (the rest is project data: settings, unsaved edits). */
+  files?: number
   /** This folder's changes went up. */
   pushed: boolean
   conflicts: string[]
@@ -1253,6 +1382,14 @@ export interface ForeignDeploy {
   source: string
   /** The account email that published it, when Cloudflare says (Workers only). */
   author: string
+}
+
+/** What the Publish screen learns before publishing. */
+export interface PublishCheck {
+  /** The live site came from somewhere this folder doesn't know (outside CraftPages). */
+  foreign: ForeignDeploy | null
+  /** With sync on: the other computers' changes brought in first. */
+  brought: { from: string; files: number; merged: string[] } | null
 }
 
 export interface Deployment {
@@ -1400,6 +1537,8 @@ export interface Api {
   getSyncProject: (source: SyncSource, project: string) => Promise<Workspace | null>
   /** Uses the other computer's copy of a file that conflicted. */
   takeTheirs: (path: string) => Promise<void>
+  keepMine: (path: string) => Promise<void>
+  compareConflict: (path: string) => Promise<ConflictComparison>
 
   // Code mode
   readSource: (path: string) => Promise<SourceFile>
@@ -1612,6 +1751,29 @@ export interface Api {
     domain: string
   ) => Promise<{ path: string; key: string; historyId: string }>
 
+  // Cookie consent
+  getConsent: () => Promise<ConsentState>
+  enableConsent: (banner: ConsentBanner) => Promise<SiteChange>
+  disableConsent: () => Promise<SiteChange>
+  setConsentCategory: (key: string, category: ConsentCategory) => Promise<SiteChange>
+  saveConsentBanner: (banner: ConsentBanner) => Promise<SiteChange>
+  // Analytics & tracking tags
+  getTracking: () => Promise<TrackingState>
+  saveTracking: (input: TrackingInput) => Promise<SiteChange>
+  removeTracking: (key: string) => Promise<SiteChange>
+  setTrackingExcluded: (path: string, excluded: boolean) => Promise<SiteChange>
+
+  // Redirects, 404 page, site icon, links to other sites
+  getRedirects: () => Promise<RedirectsState>
+  /** The history id of the change, or null when nothing changed. */
+  saveRedirects: (rules: SiteRedirect[]) => Promise<string | null>
+  getNotFound: () => Promise<NotFoundState>
+  createNotFound: (options: NotFoundOptions) => Promise<string>
+  getFavicon: () => Promise<FaviconState>
+  setFavicon: (path: string, background: string) => Promise<SiteChange>
+  addFaviconToPages: () => Promise<SiteChange>
+  checkExternalLinks: () => Promise<{ links: number; broken: number }>
+
   // Site search
   getSearch: () => Promise<SearchState>
   /** Adds (or updates) the script on every page and writes the assets and index. */
@@ -1651,6 +1813,8 @@ export interface Api {
   deploy: (target: DeployTarget, force?: boolean) => Promise<DeployResult>
   /** The live version, if it wasn't published from this folder; null when it was (or none is live). */
   checkLive: () => Promise<ForeignDeploy | null>
+  /** Syncs first (when on), then checks the live site. */
+  checkBeforePublish: () => Promise<PublishCheck>
   /** The publish running for the open project (started here, elsewhere or by the scheduler). */
   publishRun: () => Promise<PublishRun | null>
 

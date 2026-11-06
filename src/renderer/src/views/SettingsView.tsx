@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import Connections from '../components/Connections'
 import FormsAccounts from '../components/FormsAccounts'
 import { Explainer, Field, Notice, Section } from '../components/Field'
+import SectionPage from '../components/SectionPage'
 import { LOCALES, useLocale, useT, type Key, type Locale } from '../i18n'
 import { FEATURES } from '../../../shared/features'
 import { copyText, errorMessage, formatDate, isMac } from '../lib/api'
@@ -87,7 +88,7 @@ export default function SettingsView({
     })
 
   return (
-    <div className="settings">
+    <SectionPage className="settings">
       <p className="muted settings__group-note">{t('settings.intro')}</p>
 
       {/* ---------- Appearance ---------- */}
@@ -159,6 +160,7 @@ export default function SettingsView({
       {/* ---------- AI connection ---------- */}
       <Section
         title={t('settings.mcp')}
+        state={mcp ? (mcp.running ? 'on' : 'off') : undefined}
         description={t('settings.mcpHint')}
         actions={
           <button className="btn btn--primary" onClick={saveMcp} disabled={busy === 'mcp'}>
@@ -321,7 +323,7 @@ export default function SettingsView({
         <Explainer>{t('settings.logPrivacy')}</Explainer>
         {show('log')}
       </Section>
-    </div>
+    </SectionPage>
   )
 }
 

@@ -14,6 +14,7 @@ import { getAppSettings } from './settings'
 import { setupUpdates } from './updates'
 import { log, startLog } from './log'
 import { previewUrl } from './editing'
+import { initialBounds, MIN_HEIGHT, MIN_WIDTH, trackWindowState } from './window-state'
 
 // Development keeps its own settings folder ("CraftPages Dev"), so `npm run dev` and an
 // installed CraftPages can run side by side without sharing settings, tokens or recent
@@ -28,11 +29,11 @@ if (is.dev)
   )
 
 function createWindow(): BrowserWindow {
+  const { maximized, ...bounds } = initialBounds()
   const mainWindow = new BrowserWindow({
-    width: 1280,
-    height: 820,
-    minWidth: 900,
-    minHeight: 600,
+    ...bounds,
+    minWidth: MIN_WIDTH,
+    minHeight: MIN_HEIGHT,
     show: false,
     autoHideMenuBar: true,
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
@@ -47,7 +48,9 @@ function createWindow(): BrowserWindow {
     }
   })
 
+  trackWindowState(mainWindow)
   mainWindow.on('ready-to-show', () => {
+    if (maximized) mainWindow.maximize()
     mainWindow.show()
   })
 

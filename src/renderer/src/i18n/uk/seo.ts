@@ -3,6 +3,7 @@ import type { Translation } from '../types'
 const messages: Translation['seo'] = {
   title: 'SEO',
 
+  searchPages: 'Шукати сторінки',
   checkTitle: 'Перевірка сайту',
   checking: 'Перевіряємо всі сторінки…',
   checkingShort: 'Перевірка…',
@@ -32,6 +33,23 @@ const messages: Translation['seo'] = {
   kindSocial: 'Соцмережі',
   kindLanguage: 'Мова',
   kindIndexing: 'Індексація',
+  kindSite: 'Увесь сайт',
+  externalCheck: 'Перевірити посилання на інші сайти',
+  externalChecking: 'Перевіряємо посилання…',
+  externalHint:
+    'Відкриває кожне посилання на інший сайт. Повідомляє лише про явні збої: сторінки, яких уже немає (404), і сайти, яких не існує.',
+  externalDone: {
+    one: 'Перевірено {count} посилання на інші сайти: не працюють {broken}.',
+    few: 'Перевірено {count} посилання на інші сайти: не працюють {broken}.',
+    many: 'Перевірено {count} посилань на інші сайти: не працюють {broken}.',
+    other: 'Перевірено {count} посилання на інші сайти: не працюють {broken}.'
+  },
+  externalLast: {
+    one: 'Посилання на інші сайти: {count} перевірено о {time}.',
+    few: 'Посилання на інші сайти: {count} перевірено о {time}.',
+    many: 'Посилання на інші сайти: {count} перевірено о {time}.',
+    other: 'Посилання на інші сайти: {count} перевірено о {time}.'
+  },
   nothingInFilter: 'За цим фільтром нічого немає.',
   noIssues: 'Проблем не знайдено.',
   openPage: 'Відкрити сторінку',

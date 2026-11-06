@@ -125,6 +125,19 @@ export default {
   hostKey: 'Server key {key}: trusted from now on. If it ever changes, CraftPages stops and asks.',
   addConnection: 'Add connection',
 
+  // Known hosts (presets)
+  addPreset: 'Add {name}…',
+  presetTitle: 'Publishing to {name}',
+  presetBody:
+    'The server and port are filled in. Enter your {name} site name as the user name, and your {name} password (or a key file whose public half you added to the site).',
+  presetGuide: 'Their guide',
+  presetUsernameHint: 'Your {name} site name, e.g. yoursite.',
+  presetUsernamePlaceholder: 'yoursite',
+  hostKeyPinned:
+    'Server key {key}: it matches the key {name} publishes, so the connection is genuine.',
+  savedPreset:
+    'Saved “{name}” and logged in. Choose it in Project settings → Deploy and leave the folder empty.',
+
   // CraftForms accounts
   formsTitle: 'CraftForms accounts',
   formsDescription:

@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Notice, Section } from './Field'
+import { Pagination } from './ListControls'
+import { useFilteredList } from '../lib/list'
 import { useT } from '../i18n'
 import { errorMessage, formatDate } from '../lib/api'
 import type { SnapshotDetails, SnapshotSummary } from '../../../shared/types'
@@ -20,6 +22,7 @@ type Status = { kind: 'error' | 'success' | 'info'; text: string; undo?: string 
 export default function VersionsSection({ refreshToken, liveId }: Props): React.JSX.Element {
   const t = useT()
   const [versions, setVersions] = useState<SnapshotSummary[] | null>(null)
+  const history = useFilteredList('versions', versions ?? [], () => [], 10)
   const [open, setOpen] = useState<string | null>(null)
   const [details, setDetails] = useState<SnapshotDetails | null>(null)
   const [confirming, setConfirming] = useState<string | null>(null)
@@ -117,7 +120,7 @@ export default function VersionsSection({ refreshToken, liveId }: Props): React.
         <p className="muted">{t('versions.empty')}</p>
       ) : (
         <ol className="versions">
-          {versions.map((version) => (
+          {history.rows.map((version) => (
             <li key={version.id} className={open === version.id ? 'is-open' : undefined}>
               <div className="versions__row">
                 <button
@@ -200,6 +203,15 @@ export default function VersionsSection({ refreshToken, liveId }: Props): React.
             </li>
           ))}
         </ol>
+      )}
+      {versions && (
+        <Pagination
+          page={history.page}
+          pages={history.pages}
+          total={history.matched}
+          onPage={history.setPage}
+          pageSize={history.pageSize}
+        />
       )}
     </Section>
   )

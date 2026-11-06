@@ -126,6 +126,19 @@ const messages: Translation['connections'] = {
     'Chiave del server {key}: d’ora in poi è fidata. Se cambia, CraftPages si ferma e chiede.',
   addConnection: 'Aggiungi connessione',
 
+  // Host noti (preimpostati)
+  addPreset: 'Aggiungi {name}…',
+  presetTitle: 'Pubblicare su {name}',
+  presetBody:
+    'Server e porta sono già compilati. Come nome utente inserisci il nome del tuo sito {name}, poi la password {name} (o un file chiave la cui parte pubblica hai aggiunto al sito).',
+  presetGuide: 'La loro guida',
+  presetUsernameHint: 'Il nome del tuo sito {name}, ad es. tuosito.',
+  presetUsernamePlaceholder: 'tuosito',
+  hostKeyPinned:
+    'Chiave del server {key}: corrisponde a quella pubblicata da {name}, quindi la connessione è autentica.',
+  savedPreset:
+    '“{name}” salvata e accesso riuscito. Sceglila in Impostazioni progetto → Deploy e lascia vuota la cartella.',
+
   // Account CraftForms
   formsTitle: 'Account CraftForms',
   formsDescription:

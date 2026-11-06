@@ -19,7 +19,7 @@ your own design, and publishes to Cloudflare or any web host over FTP / SFTP.
 - [[Forms]]: contact and booking forms from CraftForms (optional).
 - [[Editing code]]: a page's HTML, CSS and JS, when clicking isn't enough.
 - [[Working with others]]: several people, computers or tools publishing one site.
-- [[Sync between computers]] (beta): one project on several computers.
+- [[Sync between computers]]: one project on several computers.
 - [[Upgrading]]: how new versions arrive.
 - [[Connect an AI]]: let Claude, Codex, Cursor or another MCP client propose template changes.
 - [[Building from source]]: development, packaging and releases.

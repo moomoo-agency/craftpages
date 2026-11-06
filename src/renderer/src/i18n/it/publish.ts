@@ -95,6 +95,14 @@ const messages: Translation['publish'] = {
     'Non sono ancora nella cartella del sito, quindi pubblicando ora resterebbero fuori. Scegli Salva tutto e pubblica per includerle.',
   saveAndPublish: 'Salva tutto e pubblica',
   publishSavedOnly: 'Pubblica senza di esse',
+  checkingLive: 'Controllo del sito online e degli altri computer…',
+  brought: {
+    one: 'Prima è arrivata in questa cartella {count} modifica da {device}: nulla del suo lavoro è stato sovrascritto.',
+    other:
+      'Prima sono arrivate in questa cartella {count} modifiche da {device}: nulla del suo lavoro è stato sovrascritto.'
+  },
+  broughtMerged: 'In {files} le modifiche dei due computer sono state unite.',
+  anotherComputer: 'un altro computer',
   liveTitle: 'Il tuo sito è online',
   liveBody:
     'I visitatori ora vedono la versione appena pubblicata. Per tornare indietro, scegli una versione precedente nella Cronologia pubblicazioni qui sotto.',

@@ -2,6 +2,7 @@ import type { Msg } from '../types'
 
 /** Site search: the search view, the guided icon setup and the icon form. */
 export default {
+  searchPages: 'Search pages',
   title: 'Site search',
 
   // Results of a change

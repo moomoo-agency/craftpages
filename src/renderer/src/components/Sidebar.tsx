@@ -10,7 +10,8 @@ import {
   cog,
   settings as projectIcon,
   upload,
-  plugins
+  plugins,
+  shield
 } from '@wordpress/icons'
 import wordmark from '../assets/brand/wordmark.svg?raw'
 import { useT, type Key } from '../i18n'
@@ -29,6 +30,7 @@ export type ViewId =
   | 'media'
   | 'seo'
   | 'search'
+  | 'consent'
   | 'forms'
   | 'ai'
   | 'publish'
@@ -60,6 +62,7 @@ const NAV_GROUPS = [
       { id: 'components', icon: symbol },
       { id: 'search', icon: search },
       { id: 'forms', icon: envelope },
+      { id: 'consent', icon: shield },
       { id: 'ai', icon: plugins }
     ]
   }

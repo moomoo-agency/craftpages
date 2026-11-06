@@ -5,6 +5,7 @@ export default {
   title: 'SEO',
 
   // Site check
+  searchPages: 'Search pages',
   checkTitle: 'Site check',
   checking: 'Checking every page…',
   checkingShort: 'Checking…',
@@ -31,6 +32,19 @@ export default {
   kindSocial: 'Social',
   kindLanguage: 'Language',
   kindIndexing: 'Indexing',
+  kindSite: 'Whole site',
+  externalCheck: 'Check links to other sites',
+  externalChecking: 'Checking links…',
+  externalHint:
+    'Visits every link that leads to another site. Only clear failures are reported: pages that are gone (404) and sites that aren’t there.',
+  externalDone: {
+    one: 'Checked {count} link to other sites: {broken} doesn’t work.',
+    other: 'Checked {count} links to other sites: {broken} don’t work.'
+  } satisfies Msg,
+  externalLast: {
+    one: 'Links to other sites: {count} checked at {time}.',
+    other: 'Links to other sites: {count} checked at {time}.'
+  } satisfies Msg,
   nothingInFilter: 'Nothing matches this filter.',
   noIssues: 'No issues found.',
   openPage: 'Open page',

@@ -30,6 +30,12 @@ const messages: Translation['project'] = {
   listWorkers: 'Показати Workers',
   listPages: 'Показати проєкти Pages',
   savedDeploy: 'Налаштування деплою для цього проєкту збережено.',
+  savedDeployAddress:
+    'Налаштування деплою збережено. Базовий URL тепер {address} (її можна змінити вище, у розділі «Сайт»).',
+  remoteDirPreset:
+    'Залиште порожнім: вхід на {name} уже починається в папці вашого сайту. CraftPages видаляє лише файли, які завантажив сам.',
+  remoteDirPresetAddress:
+    'Залиште порожнім: вхід на {name} уже починається в папці вашого сайту. Після збереження базовим URL стане {address}.',
   connection: 'Підключення',
   noConnections: 'Підключень ще немає: додайте його в розділі {settings}.',
   noToken: 'Для цього підключення ще немає API token.',

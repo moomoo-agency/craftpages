@@ -11,6 +11,7 @@ import * as posts from './posts'
 import { checkForUpdate, installUpdate, updateState } from './updates'
 import {
   checkLive,
+  checkBeforePublish,
   credentialsFor,
   deployProject,
   listDeploymentsFor,
@@ -29,6 +30,13 @@ import * as languages from './languages'
 import * as translations from './translations'
 import * as switcher from './language-switcher'
 import * as search from './search-site'
+import * as consent from './consent-site'
+import * as tracking from './tracking-site'
+import type { TrackingInput } from '../shared/tracking'
+import * as redirects from './redirects-site'
+import * as notFound from './notfound-site'
+import * as favicon from './favicon-site'
+import { checkLinks } from './link-check'
 import { refreshSearch } from './search-site'
 import * as drafts from './drafts'
 import {
@@ -82,6 +90,10 @@ import type {
   IconPosition,
   ListEdits,
   SearchBoxOptions,
+  ConsentBanner,
+  ConsentCategory,
+  SiteRedirect,
+  NotFoundOptions,
   SearchIconOptions,
   NodeChange,
   PageSeo,
@@ -384,6 +396,8 @@ export function registerIpc(appIcon: string): void {
       await openWorkspace(folder)
       return getWorkspace()
     },
+    'sync:keep-mine': (_event, path: string) => sync.keepMine(requireRoot(), path),
+    'sync:compare': (_event, path: string) => sync.compareConflict(requireRoot(), path),
     'sync:take-theirs': async (_event, path: string) => {
       const root = requireRoot()
       await sync.takeTheirs(root, path)
@@ -524,6 +538,37 @@ export function registerIpc(appIcon: string): void {
       search.setExcluded(requireRoot(), path, excluded),
 
     'seo:audit': () => seoSite.auditSite(requireRoot()),
+    'seo:check-external': async () => {
+      const root = requireRoot()
+      const results = await checkLinks(await seoSite.externalLinks(root))
+      seoSite.rememberExternal(root, results)
+      return { links: results.size, broken: [...results.values()].filter(Boolean).length }
+    },
+
+    'consent:get': () => consent.consentState(requireRoot()),
+    'consent:enable': (_event, banner: ConsentBanner) =>
+      consent.enableConsent(requireRoot(), banner),
+    'consent:disable': () => consent.disableConsent(requireRoot()),
+    'tracking:get': () => tracking.trackingState(requireRoot()),
+    'tracking:save': (_event, input: TrackingInput) => tracking.saveTracking(requireRoot(), input),
+    'tracking:remove': (_event, key: string) => tracking.removeTracking(requireRoot(), key),
+    'tracking:exclude': (_event, path: string, excluded: boolean) =>
+      tracking.setTrackingExcluded(requireRoot(), path, excluded),
+    'consent:category': (_event, key: string, category: ConsentCategory) =>
+      consent.setConsentCategory(requireRoot(), key, category),
+    'consent:banner': (_event, banner: ConsentBanner) =>
+      consent.saveConsentBanner(requireRoot(), banner),
+
+    'redirects:get': () => redirects.redirectsState(requireRoot()),
+    'redirects:save': (_event, rules: SiteRedirect[]) =>
+      redirects.saveRedirects(requireRoot(), rules),
+    'notfound:get': () => notFound.notFoundState(requireRoot()),
+    'notfound:create': (_event, options: NotFoundOptions) =>
+      notFound.createNotFound(requireRoot(), options),
+    'favicon:get': () => favicon.faviconState(requireRoot()),
+    'favicon:set': (_event, path: string, background: string) =>
+      favicon.setFavicon(requireRoot(), path, background),
+    'favicon:add-pages': () => favicon.addFaviconToPages(requireRoot()),
     'languages:state': () => languages.languagesState(requireRoot()),
     'languages:save': async (_event, list: SiteLanguage[]) => {
       const root = requireRoot()
@@ -808,6 +853,7 @@ export function registerIpc(appIcon: string): void {
     'cf:deploy': (_event, target: DeployTarget, force?: boolean) =>
       deployProject(requireRoot(), target, force === true),
     'cf:check-live': () => checkLive(requireRoot()),
+    'publish:check': () => checkBeforePublish(requireRoot()),
     'cf:run': () => publishRun(requireRoot()),
     'update:get': () => updateState(),
     'update:check': () => checkForUpdate(),

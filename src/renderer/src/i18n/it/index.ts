@@ -19,6 +19,9 @@ import code from './code'
 import versions from './versions'
 import sync from './sync'
 import languages from './languages'
+import consent from './consent'
+import tracking from './tracking'
+import tools from './tools'
 import type { Translation } from '../types'
 
 export const it: Translation = {
@@ -42,5 +45,8 @@ export const it: Translation = {
   code,
   versions,
   sync,
-  languages
+  languages,
+  consent,
+  tracking,
+  tools
 }

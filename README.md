@@ -30,13 +30,17 @@ for byte: untouched markup stays identical.
 - **Drafts and undo:** nothing is written until **Save all**, and every save can be reverted.
 - **A blog in your own design:** posts and post lists built from your pages, written in the
   WordPress block editor, with tags, RSS and pagination.
-- **SEO and media:** per-page SEO, a site check, sitemap, and batch image optimisation.
+- **SEO and media:** per-page SEO, a site check (including broken outside links), sitemap,
+  site icon, a 404 page, redirects, and batch image optimisation.
 - **Site search:** a fast search box for your site, with no service behind it.
+- **Tracking & consent:** add analytics from an ID; a cookie banner holds every tracker
+  until visitors agree. No outside service, no fee.
 - **Publish anywhere static:** Cloudflare (free hosting) or any web host over FTP, FTPS or
   SFTP. Only changed files are uploaded, and every publish is kept in a history you can
   restore from.
-- **Sync between computers (beta):** one project on several computers, through your own
-  Cloudflare account or your web host.
+- **Sync between computers:** one project on several computers, through your own
+  Cloudflare account or your web host. Edits made on two computers are combined, and
+  publishing never overwrites another computer's work.
 - **Code mode:** a page's HTML, CSS and JS in the editor from VS Code, when clicking isn't
   enough.
 - **Bring your own AI:** Claude, Cursor or any MCP client can propose template changes;

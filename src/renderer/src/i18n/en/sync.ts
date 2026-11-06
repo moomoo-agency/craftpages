@@ -2,9 +2,9 @@ import type { Msg } from '../types'
 
 /** Sync between computers: Project settings → Sync, the sidebar status, getting a project. */
 export default {
-  title: 'Sync between computers (beta)',
+  title: 'Sync between computers',
   description:
-    'Work on this project from several computers. Every computer gets the others’ changes, unsaved edits and publish history, and sees who has which page open. Sync is new: keep a backup of the folder (git, or Publish history) while it settles.',
+    'Work on this project from several computers. Every computer gets the others’ changes, unsaved edits and publish history, and sees who has which page open.',
   where: 'Keep the sync data in',
   modeCloudflare: 'Cloudflare',
   modeServer: 'FTP / SFTP server',
@@ -60,7 +60,26 @@ export default {
   resultNothing: 'Already in step: nothing to sync.',
   conflictsTitle: 'Changed on both computers',
   conflictsHelp:
-    'This folder kept its own version of these files; the other computer’s copy is saved in .sitecms/conflicts. Keep yours (do nothing and sync), or use theirs.',
+    'Both computers changed the same part of these files, so they couldn’t be combined. This folder still has its own version; the other one is kept aside. Compare them, then keep one. To keep something from both, keep one and type the other change in again.',
+  exposed:
+    'The sync folder is inside the folder your site is published to, so it can be downloaded from the web (it’s encrypted, but it shouldn’t be public). Turn sync off, then on again with a folder next to the site’s, e.g. /craftpages-sync.',
+  computerName: 'This computer’s name',
+  computerNameHint: 'How your other computers and the publish history call this one.',
+  computerNamePlaceholder: 'e.g. Rosa’s laptop',
+  compare: 'Compare',
+  keepMine: 'Keep mine',
+  keptMine: 'Keeping this folder’s {path}. It goes to the other computers on the next sync.',
+  onlyMine: 'Only in your version',
+  onlyMineHelp: 'Lost if you use theirs.',
+  onlyTheirs: 'Only in theirs',
+  onlyTheirsHelp: 'Lost if you keep yours.',
+  sameText: 'Same text (only code or layout differs).',
+  deletedHere: 'You deleted this file.',
+  deletedThere: 'They deleted this file.',
+  resultMerged: {
+    one: 'Changes to {files} from both computers were combined.',
+    other: 'Changes from both computers were combined in {count} files ({files}).'
+  } satisfies Msg,
   useTheirs: 'Use theirs',
   tookTheirs: 'Using the other computer’s {path}. Sync to share it.',
   pillOk: 'Synced',
@@ -75,7 +94,7 @@ export default {
   alsoOpen: 'Also open on {names}',
   alsoEditing: 'Also open on {names}. Save often and sync, so your edits don’t collide.',
   openThere: 'Open on {device} right now',
-  getButton: 'From another computer (beta)…',
+  getButton: 'From another computer…',
   getIntro:
     'Get a project that another computer syncs: choose where its sync data is, then download it into an empty folder here.',
   find: 'Find projects',

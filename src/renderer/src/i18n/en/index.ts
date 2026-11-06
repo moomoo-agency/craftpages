@@ -19,6 +19,9 @@ import code from './code'
 import versions from './versions'
 import sync from './sync'
 import languages from './languages'
+import consent from './consent'
+import tracking from './tracking'
+import tools from './tools'
 
 export const en = {
   common,
@@ -41,7 +44,10 @@ export const en = {
   code,
   versions,
   sync,
-  languages
+  languages,
+  consent,
+  tracking,
+  tools
 }
 
 export type Catalog = typeof en

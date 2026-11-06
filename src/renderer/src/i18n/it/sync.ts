@@ -1,9 +1,9 @@
 import type { Translation } from '../types'
 
 const messages: Translation['sync'] = {
-  title: 'Sincronizzazione tra computer (beta)',
+  title: 'Sincronizzazione tra computer',
   description:
-    'Lavora a questo progetto da più computer. Ognuno riceve le modifiche degli altri, le modifiche non salvate e la cronologia delle pubblicazioni, e vede chi ha aperto quale pagina. La sincronizzazione è nuova: tieni un backup della cartella (git, o la cronologia delle pubblicazioni) finché non si assesta.',
+    'Lavora a questo progetto da più computer. Ognuno riceve le modifiche degli altri, le modifiche non salvate e la cronologia delle pubblicazioni, e vede chi ha aperto quale pagina.',
   where: 'Tieni i dati di sincronizzazione in',
   modeCloudflare: 'Cloudflare',
   modeServer: 'Server FTP / SFTP',
@@ -61,7 +61,27 @@ const messages: Translation['sync'] = {
   resultNothing: 'Già allineato: niente da sincronizzare.',
   conflictsTitle: 'Cambiati su entrambi i computer',
   conflictsHelp:
-    'Questa cartella ha tenuto la propria versione di questi file; la copia dell’altro computer è in .sitecms/conflicts. Tieni la tua (non fare nulla e sincronizza) o usa la loro.',
+    'Entrambi i computer hanno cambiato la stessa parte di questi file, quindi non si possono unire. Questa cartella ha ancora la sua versione; l’altra è tenuta da parte. Confrontale, poi tienine una. Per tenere qualcosa da entrambe, tienine una e riscrivi l’altra modifica.',
+  exposed:
+    'La cartella di sincronizzazione è dentro quella in cui pubblichi il sito, quindi si può scaricare dal web (è cifrata, ma non dovrebbe essere pubblica). Disattiva la sincronizzazione e riattivala con una cartella accanto a quella del sito, ad es. /craftpages-sync.',
+  computerName: 'Nome di questo computer',
+  computerNameHint: 'Come lo chiamano gli altri computer e la cronologia delle pubblicazioni.',
+  computerNamePlaceholder: 'ad es. Portatile di Rosa',
+  compare: 'Confronta',
+  keepMine: 'Tieni la mia',
+  keptMine:
+    'Tieni il {path} di questa cartella. Andrà agli altri computer alla prossima sincronizzazione.',
+  onlyMine: 'Solo nella tua versione',
+  onlyMineHelp: 'Si perde se usi la loro.',
+  onlyTheirs: 'Solo nella loro',
+  onlyTheirsHelp: 'Si perde se tieni la tua.',
+  sameText: 'Stesso testo (cambia solo codice o impaginazione).',
+  deletedHere: 'Hai eliminato questo file.',
+  deletedThere: 'L’hanno eliminato sull’altro computer.',
+  resultMerged: {
+    one: 'Le modifiche a {files} dei due computer sono state unite.',
+    other: 'Le modifiche dei due computer sono state unite in {count} file ({files}).'
+  },
   useTheirs: 'Usa la loro',
   tookTheirs: 'Ora usi {path} dell’altro computer. Sincronizza per condividerlo.',
   pillOk: 'Sincronizzato',
@@ -77,7 +97,7 @@ const messages: Translation['sync'] = {
   alsoEditing:
     'Aperta anche su {names}. Salva spesso e sincronizza, così le modifiche non si scontrano.',
   openThere: 'Aperta ora su {device}',
-  getButton: 'Da un altro computer (beta)…',
+  getButton: 'Da un altro computer…',
   getIntro:
     'Prendi un progetto che un altro computer sincronizza: scegli dove sono i suoi dati, poi scaricalo in una cartella vuota qui.',
   find: 'Trova progetti',

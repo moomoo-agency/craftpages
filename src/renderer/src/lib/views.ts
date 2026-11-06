@@ -9,6 +9,7 @@ export const VIEW_TITLES: Record<ViewId, Key> = {
   media: 'app.viewMedia',
   seo: 'app.viewSeo',
   search: 'app.viewSearch',
+  consent: 'app.viewConsent',
   forms: 'app.viewForms',
   ai: 'app.viewAi',
   publish: 'app.viewPublish',

@@ -1,10 +1,10 @@
 import { createHash, randomBytes } from 'crypto'
 import { constants, createReadStream } from 'fs'
 import { copyFile, mkdir, readdir, readFile, rename, stat, writeFile } from 'fs/promises'
-import { hostname } from 'os'
 import { dirname, join } from 'path'
 import { writeFiles, type FileWrite } from '../history'
 import { APP_DIR } from '../settings'
+import { computerName } from '../computer-name'
 import { listFiles } from '../workspace'
 import type { SnapshotDetails, SnapshotKind, SnapshotSummary } from '../../shared/types'
 
@@ -49,8 +49,7 @@ const headPath = (root: string): string => join(store(root), 'head.json')
 const LOCAL_DATA = new Set(['history', 'trash', STORE_DIR, 'deploy-state.json', 'sync.json'])
 
 /** This computer's name as people know it ("Vitalii's MacBook" rather than a domain). */
-export const deviceName = (): string =>
-  hostname().replace(/\.(local|home|lan|localdomain)$/i, '') || 'This computer'
+export const deviceName = (): string => computerName()
 
 // ---------- Hashing (cached by size and modification time) ----------
 
@@ -222,35 +221,56 @@ function diff(
   return { added, changed, removed }
 }
 
+/**
+ * What a version is compared with: a publish with the previous publish (what it put live,
+ * even when syncs came in between), anything else with its parent.
+ */
+async function basisOf(
+  snapshot: Snapshot,
+  find: (id: string) => Promise<Snapshot | null | undefined>
+): Promise<Snapshot | null> {
+  if (snapshot.kind !== 'publish')
+    return snapshot.parent ? ((await find(snapshot.parent)) ?? null) : null
+  let id = snapshot.parent
+  for (let steps = 0; id && steps < 500; steps++) {
+    const earlier = await find(id)
+    if (!earlier) return null
+    if (earlier.kind === 'publish') return earlier
+    id = earlier.parent
+  }
+  return null
+}
+
 export async function summaries(root: string): Promise<SnapshotSummary[]> {
   const list = await history(root)
   const byId = new Map(list.map((snapshot) => [snapshot.id, snapshot]))
-  return list.map((snapshot) => {
-    const parent = snapshot.parent ? byId.get(snapshot.parent) : undefined
-    const { added, changed, removed } = diff(parent?.files ?? {}, snapshot.files)
-    return {
-      id: snapshot.id,
-      kind: snapshot.kind,
-      at: snapshot.at,
-      device: snapshot.device,
-      label: snapshot.label,
-      files: Object.keys(snapshot.files).length,
-      added: added.length,
-      changed: changed.length,
-      removed: removed.length,
-      unpublished: snapshot.unpublished?.length ?? 0,
-      deploy: snapshot.deploy ?? null,
-      first: !parent
-    }
-  })
+  const find = async (id: string): Promise<Snapshot | undefined> => byId.get(id)
+  return Promise.all(
+    list.map(async (snapshot) => {
+      const basis = await basisOf(snapshot, find)
+      const { added, changed, removed } = diff(basis?.files ?? {}, snapshot.files)
+      return {
+        id: snapshot.id,
+        kind: snapshot.kind,
+        at: snapshot.at,
+        device: snapshot.device,
+        label: snapshot.label,
+        files: Object.keys(snapshot.files).length,
+        added: added.length,
+        changed: changed.length,
+        removed: removed.length,
+        unpublished: snapshot.unpublished?.length ?? 0,
+        deploy: snapshot.deploy ?? null,
+        first: !basis
+      }
+    })
+  )
 }
 
 export async function details(root: string, id: string): Promise<SnapshotDetails> {
   const snapshot = await readSnapshot(root, id)
-  const parent = snapshot.parent
-    ? await readSnapshot(root, snapshot.parent).catch(() => null)
-    : null
-  return { ...diff(parent?.files ?? {}, snapshot.files), unpublished: snapshot.unpublished ?? [] }
+  const basis = await basisOf(snapshot, (other) => readSnapshot(root, other).catch(() => null))
+  return { ...diff(basis?.files ?? {}, snapshot.files), unpublished: snapshot.unpublished ?? [] }
 }
 
 // ---------- Writing ----------

@@ -9,6 +9,7 @@ export default {
   viewMedia: 'Media',
   viewSeo: 'SEO',
   viewSearch: 'Site search',
+  viewConsent: 'Tracking & consent',
   viewForms: 'Forms',
   viewAi: 'Template editing (AI)',
   viewPublish: 'Publish',

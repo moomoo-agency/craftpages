@@ -96,6 +96,14 @@ export default {
     'They aren’t in your site folder yet, so publishing now would leave them out. Save all and publish to include them.',
   saveAndPublish: 'Save all and publish',
   publishSavedOnly: 'Publish without them',
+  checkingLive: 'Checking the live site and your other computers…',
+  brought: {
+    one: 'First, {count} change from {device} came into this folder, so nothing of theirs was overwritten.',
+    other:
+      'First, {count} changes from {device} came into this folder, so nothing of theirs was overwritten.'
+  } satisfies Msg,
+  broughtMerged: 'In {files}, both computers’ edits were combined.',
+  anotherComputer: 'another computer',
   liveTitle: 'Your site is live',
   liveBody:
     'Visitors now see the version you just published. To go back, pick an earlier version in Publish history below.',

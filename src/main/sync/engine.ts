@@ -31,6 +31,7 @@ import {
   UnknownKeyError
 } from './cloudflare-store'
 import { listServerProjects, openServerStore, serverLive } from './server-store'
+import { isMergeable, merge3 } from './merge3'
 import {
   chain,
   createSnapshot,
@@ -49,6 +50,7 @@ import {
 } from './snapshots'
 import type { LiveChannel, LiveEvent, RemoteHead, SyncStore } from './store'
 import type {
+  ConflictComparison,
   SiteSettings,
   SyncPresence,
   SyncProjectView,
@@ -268,17 +270,23 @@ async function mergeSiteSettings(mine: Buffer | null, theirs: Buffer): Promise<B
 interface Merged {
   pulled: number
   conflicts: string[]
+  /** Files changed on both computers whose changes were combined. */
+  merged: string[]
+  /** Site files that came in (pulled also counts project data). */
+  files: number
 }
 
 /**
  * Brings the other side's version into the folder: for each file, whoever changed it
- * since the common base wins; when both did, this folder's copy stays and theirs is
- * kept in .sitecms/conflicts/ for "Use theirs".
+ * since the common base wins. When both did, text files are merged line by line (see
+ * merge3.ts); if the changes clash, or the file isn't text, this folder's copy stays and
+ * theirs is kept in .sitecms/conflicts/ to compare, and for "Use theirs".
  */
 async function mergeInto(root: string, base: Snapshot | null, theirs: Snapshot): Promise<Merged> {
   await flushDrafts()
   const now = await scan(root)
   const conflicts: string[] = []
+  const merged: string[] = []
   let pulled = 0
 
   const siteWrites: FileWrite[] = []
@@ -295,16 +303,36 @@ async function mergeInto(root: string, base: Snapshot | null, theirs: Snapshot):
     if (m === b) {
       siteWrites.push({ path, content: t ? await readObject(root, t) : null })
       pulled++
+    } else if (b && t && m && isMergeable(path)) {
+      // Changed on both computers: combined line by line where the changes don't clash.
+      const result = await mergeText(root, path, b, t)
+      if (result?.combined != null) {
+        siteWrites.push({ path, content: result.combined })
+        merged.push(path)
+        pulled++
+        continue
+      }
+      conflicts.push(path)
+      if (!result) {
+        await setAside(root, path, t)
+        continue
+      }
+      // A clash: this folder gets everything else from theirs now, with its own lines
+      // where they clash; theirs is the same with their lines, for Compare / Use theirs.
+      if (result.keepMine !== result.mine) {
+        siteWrites.push({ path, content: result.keepMine })
+        pulled++
+      }
+      const aside = join(conflictDir(root), path)
+      await mkdir(dirname(aside), { recursive: true })
+      await writeFile(aside, result.useTheirs)
     } else {
       conflicts.push(path)
-      if (t) {
-        const aside = join(conflictDir(root), path)
-        await mkdir(dirname(aside), { recursive: true })
-        await writeFile(aside, await readObject(root, t))
-      }
+      if (t) await setAside(root, path, t)
     }
   }
-  if (siteWrites.length) await writeFiles(root, siteWrites, `Sync: changes from ${theirs.device}`)
+  const files = siteWrites.length
+  if (files) await writeFiles(root, siteWrites, `Sync: changes from ${theirs.device}`)
 
   const dataPaths = new Set([
     ...Object.keys(base?.data ?? {}),
@@ -344,7 +372,47 @@ async function mergeInto(root: string, base: Snapshot | null, theirs: Snapshot):
     pulled++
   }
   if (draftsChanged) await reloadDrafts()
-  return { pulled, conflicts }
+  if (merged.length) log.info('sync', 'Combined changes from both computers', { files: merged })
+  return { pulled, conflicts, merged, files }
+}
+
+/**
+ * This folder's file, the common base and theirs, merged: `combined` when nothing clashes,
+ * else the two versions to choose between. null when the files can't be read.
+ */
+async function mergeText(
+  root: string,
+  path: string,
+  base: string,
+  theirs: string
+): Promise<{ combined: string | null; mine: string; keepMine: string; useTheirs: string } | null> {
+  try {
+    const [b, m, t] = (
+      await Promise.all([
+        readObject(root, base),
+        readFile(join(root, path)),
+        readObject(root, theirs)
+      ])
+    ).map((buffer) => buffer.toString('utf8'))
+    const combined = merge3(b, m, t)
+    if (combined !== null) return { combined, mine: m, keepMine: combined, useTheirs: combined }
+    return {
+      combined: null,
+      mine: m,
+      keepMine: merge3(b, m, t, 'mine') ?? m,
+      useTheirs: merge3(b, m, t, 'theirs') ?? t
+    }
+  } catch (error) {
+    log.warn('sync', 'Could not merge, keeping both copies', { path, error: String(error) })
+    return null
+  }
+}
+
+/** The other computer's copy of a conflicted file, kept for "Use theirs" and comparing. */
+async function setAside(root: string, path: string, theirs: string): Promise<void> {
+  const aside = join(conflictDir(root), path)
+  await mkdir(dirname(aside), { recursive: true })
+  await writeFile(aside, await readObject(root, theirs))
 }
 
 /** Whether `ancestor` is reachable from `from`. */
@@ -528,6 +596,21 @@ async function runSync(root: string): Promise<SyncResult> {
 
 // ---------- Turning sync on and off ----------
 
+const trimSlashes = (path: string): string => path.trim().replace(/^\/+|\/+$/g, '')
+
+/**
+ * Whether a server sync folder would sit inside the published site, on the same login.
+ * An empty folder is where the login starts, which is the web folder itself when the site
+ * is published there.
+ */
+export function insidePublished(site: SiteSettings, setup: SyncSetup): boolean {
+  if (setup.mode !== 'server' || site.deploy.target !== 'server') return false
+  if (site.deploy.connection !== setup.connection) return false
+  const published = trimSlashes(site.deploy.remoteDir ?? '')
+  const sync = trimSlashes(setup.dir ?? '')
+  return published === '' || sync === published || sync.startsWith(`${published}/`)
+}
+
 export async function enableSync(root: string, setup: SyncSetup): Promise<SyncResult> {
   log.info('sync', 'Turning sync on', { mode: setup.mode, dir: setup.dir })
   const site = await getSiteSettings(root)
@@ -538,6 +621,14 @@ export async function enableSync(root: string, setup: SyncSetup): Promise<SyncRe
     url = await ensureWorker(connection)
   } else {
     if (!setup.passphrase) throw new Error('Choose a sync passphrase (at least 8 characters).')
+    if (insidePublished(site, setup))
+      throw new Error(
+        trimSlashes(site.deploy.remoteDir ?? '')
+          ? 'That sync folder is inside the folder the site is published to, so anyone could download it ' +
+              '(it’s encrypted, but it shouldn’t be public). Choose a folder next to it, e.g. /craftpages-sync next to public_html.'
+          : 'This site is published to the folder the login starts in, so any sync folder on this login would be public. ' +
+              'Publish to a subfolder (e.g. public_html) in Project settings → Deploy, or keep the sync data in Cloudflare.'
+      )
     // Opening the store checks the passphrase (and creates the folder on first use).
     const store = await openStoreFor(setup, site.id)
     await store.close()
@@ -637,6 +728,53 @@ export async function getProject(
   }
 }
 
+/** Keeps this folder's copy of a conflicted file: the other computer's goes on the next sync. */
+export async function keepMine(root: string, path: string): Promise<void> {
+  const config = await readConfig(root)
+  if (!config?.conflicts.includes(path)) throw new Error(`${path} has no conflict to resolve.`)
+  await rm(join(conflictDir(root), path), { force: true })
+  await writeConfig(root, { ...config, conflicts: config.conflicts.filter((p) => p !== path) })
+  report(root)
+}
+
+/** Readable lines of a file: for a page, its text, one block per line. */
+function readableLines(path: string, content: string): string[] {
+  const text = /\.html?$/i.test(path)
+    ? content
+        .replace(/<(script|style)[\s\S]*?<\/\1>/gi, '\n')
+        .replace(/<[^>]+>/g, '\n')
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;|&rsquo;/g, '’')
+    : content
+  return text
+    .split('\n')
+    .map((line) => line.replace(/\s+/g, ' ').trim())
+    .filter(Boolean)
+}
+
+/** What each side of a conflict has that the other doesn't, to choose with open eyes. */
+export async function compareConflict(root: string, path: string): Promise<ConflictComparison> {
+  const config = await readConfig(root)
+  if (!config?.conflicts.includes(path)) throw new Error(`${path} has no conflict to resolve.`)
+  const mine = await readFile(join(root, path), 'utf8').catch(() => null)
+  const theirs = await readFile(join(conflictDir(root), path), 'utf8').catch(() => null)
+  const a = mine === null ? [] : readableLines(path, mine)
+  const b = theirs === null ? [] : readableLines(path, theirs)
+  const inB = new Set(b)
+  const inA = new Set(a)
+  return {
+    path,
+    onlyMine: a.filter((line) => !inB.has(line)),
+    onlyTheirs: b.filter((line) => !inA.has(line)),
+    mineDeleted: mine === null,
+    theirsDeleted: theirs === null
+  }
+}
+
 /** Replaces this folder's copy of a conflicted file with the other computer's. */
 export async function takeTheirs(root: string, path: string): Promise<void> {
   const config = await readConfig(root)
@@ -674,7 +812,9 @@ export async function syncStatus(root: string): Promise<SyncStatus> {
   const base = config.base ? await readSnapshot(root, config.base).catch(() => null) : null
   const ahead = !base || head !== config.base || !sameContent(await scan(root), base)
   const me = deviceName()
+  const site = await getSiteSettings(root)
   return {
+    exposed: insidePublished(site, config),
     mode: config.mode,
     connection: config.connection,
     where: config.mode === 'cloudflare' ? config.url : config.dir || '/',

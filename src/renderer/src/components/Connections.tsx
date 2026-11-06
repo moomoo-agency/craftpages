@@ -6,6 +6,7 @@ import { tokenTemplateUrl } from '../lib/cloudflare'
 import TokenUpgrade from './TokenUpgrade'
 import { FEATURES } from '../../../shared/features'
 import { isServerConnection } from '../../../shared/types'
+import { HOST_PRESETS, hostPreset, type HostPreset } from '../../../shared/hosts'
 import type {
   ConnectionInput,
   ConnectionsView,
@@ -35,6 +36,14 @@ const blank = (type: DeployConnectionType = 'cloudflare-pages'): ConnectionInput
   accountId: '',
   token: '',
   ...(type === 'ftp' ? { secure: true } : {})
+})
+
+/** A new SFTP connection with a known host's settings filled in. */
+const fromPreset = (preset: HostPreset): ConnectionInput => ({
+  ...blank('sftp'),
+  name: preset.name,
+  host: preset.host,
+  port: preset.port
 })
 
 /** The type picker's wording. */
@@ -121,6 +130,7 @@ export default function Connections({ view, onChange }: Props): React.JSX.Elemen
   }
 
   const server = editing ? isServerConnection(editing.type) : false
+  const preset = editing ? hostPreset(editing) : undefined
   /** The form as it will be saved: the key path only when signing in with a key. */
   const formInput = (): ConnectionInput => ({
     ...editing!,
@@ -167,7 +177,10 @@ export default function Connections({ view, onChange }: Props): React.JSX.Elemen
           throw new Error(
             t('connections.savedServerFailed', { name: saved.name, error: errorMessage(found) })
           )
-        return t('connections.savedServer', { name: saved.name, home: found.home })
+        return t(hostPreset(saved) ? 'connections.savedPreset' : 'connections.savedServer', {
+          name: saved.name,
+          home: found.home
+        })
       }
       const found = await window.api.testConnection(saved.id).catch(() => null)
       setChecks((current) => ({ ...current, [saved.id]: found }))
@@ -200,6 +213,7 @@ export default function Connections({ view, onChange }: Props): React.JSX.Elemen
   return (
     <Section
       title={t('connections.title')}
+      state={view && view.connections.length === 0 ? 'setup' : undefined}
       description={
         view?.keychainAvailable === false
           ? t('connections.descriptionMemory')
@@ -214,6 +228,11 @@ export default function Connections({ view, onChange }: Props): React.JSX.Elemen
             <button className="btn" onClick={() => edit(blank('sftp'))}>
               {t('connections.addServer')}
             </button>
+            {HOST_PRESETS.map((preset) => (
+              <button key={preset.id} className="btn" onClick={() => edit(fromPreset(preset))}>
+                {t('connections.addPreset', { name: preset.name })}
+              </button>
+            ))}
           </div>
         )
       }
@@ -411,6 +430,20 @@ export default function Connections({ view, onChange }: Props): React.JSX.Elemen
               </Field>
             )}
           </div>
+          {preset && (
+            <Explainer title={t('connections.presetTitle', { name: preset.name })}>
+              <p>
+                {t('connections.presetBody', { name: preset.name })}{' '}
+                <button
+                  type="button"
+                  className="link"
+                  onClick={() => window.api.openExternal(preset.guideUrl)}
+                >
+                  {t('connections.presetGuide', { name: preset.name })}
+                </button>
+              </p>
+            </Explainer>
+          )}
           {server && (
             <>
               <div className="grid-server">
@@ -436,11 +469,17 @@ export default function Connections({ view, onChange }: Props): React.JSX.Elemen
                     }
                   />
                 </Field>
-                <Field label={t('connections.username')}>
+                <Field
+                  label={t('connections.username')}
+                  hint={
+                    preset ? t('connections.presetUsernameHint', { name: preset.name }) : undefined
+                  }
+                >
                   <input
                     className="mono"
                     autoComplete="off"
                     spellCheck={false}
+                    placeholder={preset ? t('connections.presetUsernamePlaceholder') : undefined}
                     value={editing.username ?? ''}
                     onChange={(e) => setEditing({ ...editing, username: e.target.value })}
                   />
@@ -565,7 +604,10 @@ export default function Connections({ view, onChange }: Props): React.JSX.Elemen
           </Field>
           {checked?.hostKey && (
             <Explainer>
-              {t.rich('connections.hostKey', { key: <code>{checked.hostKey}</code> })}
+              {t.rich(preset ? 'connections.hostKeyPinned' : 'connections.hostKey', {
+                key: <code>{checked.hostKey}</code>,
+                name: preset?.name ?? ''
+              })}
             </Explainer>
           )}
           <div className="panel__actions connection-form__actions">

@@ -42,6 +42,8 @@ interface PageInfo {
   ids: Set<string>
   links: string[]
   images: { src: string; alt: string | undefined; sized: boolean }[]
+  /** Files the page loads: images (`image`) and styles, scripts, icons (`file`). */
+  assets: { src: string; type: 'image' | 'file' }[]
   isPost: boolean
 }
 
@@ -49,6 +51,39 @@ function metaContent(head: Element | null, key: 'name' | 'property', value: stri
   const found =
     head && find(head, (e) => e.tagName === 'meta' && (attr(e, key) ?? '').toLowerCase() === value)
   return (found && attr(found, 'content')) ?? ''
+}
+
+const srcsetUrls = (value: string | undefined): string[] =>
+  (value ?? '')
+    .split(',')
+    .map((part) => part.trim().split(/\s+/)[0])
+    .filter(Boolean)
+
+/** The files an element makes the browser load. */
+function assetsOf(element: Element): PageInfo['assets'] {
+  const image = (src: string | undefined): PageInfo['assets'] =>
+    src ? [{ src, type: 'image' }] : []
+  switch (element.tagName) {
+    case 'img':
+      return [...image(attr(element, 'src')), ...srcsetUrls(attr(element, 'srcset')).flatMap(image)]
+    case 'source':
+      return [...image(attr(element, 'src')), ...srcsetUrls(attr(element, 'srcset')).flatMap(image)]
+    case 'video':
+      return image(attr(element, 'poster'))
+    case 'script': {
+      const src = attr(element, 'src')
+      return src ? [{ src, type: 'file' }] : []
+    }
+    case 'link': {
+      const rel = (attr(element, 'rel') ?? '').toLowerCase()
+      const href = attr(element, 'href')
+      return href && /(^|\s)(stylesheet|icon|apple-touch-icon|manifest)(\s|$)/.test(rel)
+        ? [{ src: href, type: 'file' }]
+        : []
+    }
+    default:
+      return []
+  }
 }
 
 async function readPages(root: string): Promise<PageInfo[]> {
@@ -76,8 +111,14 @@ async function readPages(root: string): Promise<PageInfo[]> {
       ids: new Set(),
       links: [],
       images: [],
+      assets: [],
       isPost: html.includes(POST_META)
     }
+    walk(document, (element) => {
+      if (element.tagName === 'template' || element.tagName === 'noscript') return false
+      for (const asset of assetsOf(element)) info.assets.push(asset)
+      return true
+    })
     const body = find(document, (e) => e.tagName === 'body')
     walk(body ?? document, (element) => {
       if (element.tagName === 'template' || element.tagName === 'noscript') return false
@@ -100,6 +141,46 @@ async function readPages(root: string): Promise<PageInfo[]> {
     pages.push(info)
   }
   return pages
+}
+
+// ---------- Links to other sites ----------
+
+/** Why a link to another site failed: its HTTP status, or that the site wasn't there. */
+const externalChecks = new Map<string, { at: string; results: Map<string, string | null> }>()
+
+/** Kept for this long; after that the check panel stops reporting them until checked again. */
+const EXTERNAL_FRESH = 6 * 60 * 60 * 1000
+
+function externalBroken(root: string, links: string[]): string[] {
+  const checked = externalChecks.get(root)
+  if (!checked || Date.now() - Date.parse(checked.at) > EXTERNAL_FRESH) return []
+  return [
+    ...new Set(
+      links
+        .map((href) => href.trim())
+        .filter((href) => checked.results.get(href))
+        .map((href) => `${href} · ${checked.results.get(href)}`)
+    )
+  ]
+}
+
+/** Every link to another site, from the pages that go live. */
+export async function externalLinks(root: string): Promise<string[]> {
+  const site = await getSiteSettings(root)
+  const pages = (await readPages(root)).filter((page) => isPublished(site, page.path))
+  const links = new Set<string>()
+  for (const page of pages)
+    for (const href of page.links) {
+      const value = href.trim()
+      if (/^https?:\/\//i.test(value) && !(site.baseUrl && value.startsWith(site.baseUrl)))
+        links.add(value)
+    }
+  return [...links]
+}
+
+/** Remembers a check's results so the check panel reports them. */
+export function rememberExternal(root: string, results: Map<string, string | null>): void {
+  externalChecks.set(root, { at: new Date().toISOString(), results })
 }
 
 export async function auditSite(root: string): Promise<SeoReport> {
@@ -310,6 +391,39 @@ export async function auditSite(root: string): Promise<SeoReport> {
         detail: big.map((p) => `${p} · ${Math.round((sizes.get(p) ?? 0) / 1024)} KB`)
       })
 
+    // Files the page loads that aren't in the site (or are kept off it).
+    const missing = { image: new Set<string>(), file: new Set<string>() }
+    for (const asset of page.assets) {
+      if (/^data:/i.test(asset.src) || asset.src.includes('{')) continue
+      const target = resolveLink(asset.src, page.path, site)
+      if (target && target.path && !fileSet.has(target.path)) missing[asset.type].add(asset.src)
+    }
+    if (missing.image.size)
+      add({
+        ...where,
+        severity: 'error',
+        kind: 'images',
+        message: `${missing.image.size} image${missing.image.size === 1 ? '' : 's'} not found: the file isn’t in the site.`,
+        detail: [...missing.image].slice(0, 10)
+      })
+    if (missing.file.size)
+      add({
+        ...where,
+        severity: 'error',
+        kind: 'links',
+        message: `${missing.file.size} file${missing.file.size === 1 ? '' : 's'} the page loads (styles, scripts, icons) ${missing.file.size === 1 ? 'is' : 'are'} missing.`,
+        detail: [...missing.file].slice(0, 10)
+      })
+    const deadExternal = externalBroken(root, page.links)
+    if (deadExternal.length)
+      add({
+        ...where,
+        severity: 'warning',
+        kind: 'links',
+        message: `${deadExternal.length} link${deadExternal.length === 1 ? '' : 's'} to other sites ${deadExternal.length === 1 ? 'doesn’t' : 'don’t'} work.`,
+        detail: deadExternal.slice(0, 10)
+      })
+
     // Links: broken files and missing #anchors.
     const broken: string[] = []
     const missingHere: string[] = []
@@ -375,6 +489,23 @@ export async function auditSite(root: string): Promise<SeoReport> {
     })
   }
 
+  // The site as a whole: the 404 page and the icon.
+  if (!fileSet.has('404.html'))
+    add({
+      page: 'index.html',
+      severity: 'info',
+      kind: 'site',
+      message: 'No 404 page: a mistyped or old address shows the host’s plain error page.'
+    })
+  const home = byPath.get('index.html')
+  if (home && !fileSet.has('favicon.ico') && !/<link[^>]+rel=["']?[^"'>]*\bicon\b/i.test(home.html))
+    add({
+      page: 'index.html',
+      severity: 'info',
+      kind: 'site',
+      message: 'No site icon (favicon): browser tabs and search results show a blank icon.'
+    })
+
   issues.push(
     ...(await languageIssues(
       root,
@@ -385,8 +516,10 @@ export async function auditSite(root: string): Promise<SeoReport> {
 
   const order = { error: 0, warning: 1, info: 2 }
   issues.sort((a, b) => order[a.severity] - order[b.severity] || a.page.localeCompare(b.page))
+  const external = externalChecks.get(root)
   return {
     pages: pages.length,
+    external: external ? { links: external.results.size, at: external.at } : null,
     issues,
     counts: {
       error: issues.filter((i) => i.severity === 'error').length,

@@ -23,16 +23,20 @@ interface FilteredList<T> {
   pages: number
   /** Whether the list is long enough for a search box. */
   searchable: boolean
+  /** Rows per page in this list. */
+  pageSize: number
 }
 
 /**
  * One search across several texts of each item (e.g. title and file name), then pages
- * of PAGE_SIZE. `id` names the list, so its search and page survive leaving the view.
+ * of `pageSize` (PAGE_SIZE unless the list's rows are tall). `id` names the list, so its
+ * search and page survive leaving the view.
  */
 export function useFilteredList<T>(
   id: string,
   items: T[],
-  texts: (item: T) => (string | undefined)[]
+  texts: (item: T) => (string | undefined)[],
+  pageSize = PAGE_SIZE
 ): FilteredList<T> {
   const [saved, setSaved] = useState(() => ({
     id,
@@ -53,7 +57,7 @@ export function useFilteredList<T>(
         return words.every((word) => haystack.includes(word))
       })
     : items
-  const pages = Math.max(1, Math.ceil(matching.length / PAGE_SIZE))
+  const pages = Math.max(1, Math.ceil(matching.length / pageSize))
   // A shorter list (search, deleted rows) never leaves you on an empty page.
   const page = Math.min(state.page, pages)
 
@@ -62,9 +66,10 @@ export function useFilteredList<T>(
     setQuery: (query) => setState((s) => ({ ...s, query, page: 1 })),
     page,
     setPage: (next) => setState((s) => ({ ...s, page: next })),
-    rows: matching.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+    rows: matching.slice((page - 1) * pageSize, page * pageSize),
     matched: matching.length,
     pages,
-    searchable: items.length > SEARCH_FROM || state.query !== ''
+    searchable: items.length > SEARCH_FROM || state.query !== '',
+    pageSize
   }
 }

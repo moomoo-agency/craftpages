@@ -25,7 +25,7 @@ up to how you share the folder.
 
 ## Sharing one site
 
-**Sync (beta, new in 1.1).** CraftPages can keep the project in step between computers
+**Sync.** CraftPages can keep the project in step between computers
 itself, through your Cloudflare account or your web host: changes, unsaved edits, publish
 history, and who has which page open. Publishing with sync on publishes on top of what the
 other computers have, never over it. See [[Sync between computers]].

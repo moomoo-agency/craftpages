@@ -1,6 +1,7 @@
 import type { Translation } from '../types'
 
 const messages: Translation['search'] = {
+  searchPages: 'Cerca pagine',
   title: 'Ricerca nel sito',
 
   nothingChanged: 'Nessuna modifica.',

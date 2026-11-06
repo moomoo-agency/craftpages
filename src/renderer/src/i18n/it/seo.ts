@@ -3,6 +3,7 @@ import type { Translation } from '../types'
 const messages: Translation['seo'] = {
   title: 'SEO',
 
+  searchPages: 'Cerca pagine',
   checkTitle: 'Controllo del sito',
   checking: 'Controllo di tutte le pagine…',
   checkingShort: 'Controllo…',
@@ -29,6 +30,19 @@ const messages: Translation['seo'] = {
   kindSocial: 'Social',
   kindLanguage: 'Lingua',
   kindIndexing: 'Indicizzazione',
+  kindSite: 'Tutto il sito',
+  externalCheck: 'Controlla i link ad altri siti',
+  externalChecking: 'Controllo dei link…',
+  externalHint:
+    'Visita ogni link che porta a un altro sito. Segnala solo i problemi certi: pagine che non esistono più (404) e siti che non ci sono.',
+  externalDone: {
+    one: 'Controllato {count} link ad altri siti: {broken} non funziona.',
+    other: 'Controllati {count} link ad altri siti: {broken} non funzionano.'
+  },
+  externalLast: {
+    one: 'Link ad altri siti: {count} controllato alle {time}.',
+    other: 'Link ad altri siti: {count} controllati alle {time}.'
+  },
   nothingInFilter: 'Nessun risultato con questo filtro.',
   noIssues: 'Nessun problema trovato.',
   openPage: 'Apri pagina',

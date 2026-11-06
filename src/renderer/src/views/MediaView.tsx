@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Explainer, Notice, Section } from '../components/Field'
+import { Pagination } from '../components/ListControls'
+import { useFilteredList } from '../lib/list'
 import { errorMessage, formatBytes } from '../lib/api'
 import { translate, useT, type Key } from '../i18n'
 import type { ImageEntry, OptimizeResult, Workspace } from '../../../shared/types'
@@ -60,6 +62,24 @@ export default function MediaView({ workspace, onEditPage }: Props): React.JSX.E
     window.api.getSiteSettings().then((site) => setMaxWidth(site.images.maxWidth))
   }, [workspace, reload])
 
+  const all = images ?? []
+  const matches = (image: ImageEntry): boolean =>
+    (filter === 'all' ||
+      (filter === 'unused' && image.usedIn.length === 0) ||
+      (filter === 'large' && image.bytes > LARGE) ||
+      (filter === 'wide' && image.width > maxWidth) ||
+      (filter === 'unsized' && image.unsized > 0)) &&
+    (!folder || folderOf(image.path) === folder) &&
+    (!query || image.path.toLowerCase().includes(query.toLowerCase()))
+  const visible = all.filter(matches)
+  // Thirty images a page (six rows of five); the filters and search above narrow first.
+  const grid = useFilteredList(
+    `media:${workspace?.folder}:${filter}:${folder}:${query}`,
+    visible,
+    () => [],
+    30
+  )
+
   if (!workspace) {
     return (
       <div className="empty">
@@ -80,16 +100,6 @@ export default function MediaView({ workspace, onEditPage }: Props): React.JSX.E
     }
   }
 
-  const all = images ?? []
-  const matches = (image: ImageEntry): boolean =>
-    (filter === 'all' ||
-      (filter === 'unused' && image.usedIn.length === 0) ||
-      (filter === 'large' && image.bytes > LARGE) ||
-      (filter === 'wide' && image.width > maxWidth) ||
-      (filter === 'unsized' && image.unsized > 0)) &&
-    (!folder || folderOf(image.path) === folder) &&
-    (!query || image.path.toLowerCase().includes(query.toLowerCase()))
-  const visible = all.filter(matches)
   const folders = [...new Set(all.map((image) => folderOf(image.path)))].sort()
   const counts = {
     all: all.length,
@@ -360,7 +370,7 @@ export default function MediaView({ workspace, onEditPage }: Props): React.JSX.E
             {images && visible.length === 0 && (
               <p className="muted">{t(all.length ? 'media.noMatches' : 'media.noImages')}</p>
             )}
-            {visible.map((image) => {
+            {grid.rows.map((image) => {
               const name = nameOf(image.path)
               const checked = selected.has(image.path)
               return (
@@ -411,6 +421,15 @@ export default function MediaView({ workspace, onEditPage }: Props): React.JSX.E
                 </div>
               )
             })}
+            <div className="media-grid__pages">
+              <Pagination
+                page={grid.page}
+                pages={grid.pages}
+                total={grid.matched}
+                onPage={grid.setPage}
+                pageSize={grid.pageSize}
+              />
+            </div>
           </div>
 
           {chosen && (

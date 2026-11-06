@@ -1,85 +1,126 @@
 /* ---------- Tokens ---------- */
+/* The workshop: warm paper, ink, and the logo's clay as the one accent (Letterpress Proof). */
+@font-face {
+  font-family: 'Young Serif';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(./fonts/young-serif-latin-ext-400.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: 'Young Serif';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(./fonts/young-serif-latin-400.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* Young Serif has no Cyrillic: Vollkorn SemiBold, sturdy and soft-edged like it, sets
+   Ukrainian titles (Cyrillic subset only, so Latin always comes from Young Serif). */
+@font-face {
+  font-family: 'CraftPages Serif Cyrillic';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(./fonts/vollkorn-cyrillic-600.woff2) format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+
 :root {
   color-scheme: light;
-  --bg: #ffffff;
-  --sidebar: #f7f7f9;
-  --surface: #ffffff;
-  --surface-2: #f0f1f4;
-  --text: #17181b;
+  /* The bench: warm paper. Sheets (panels, fields, buttons) sit on it a shade lighter. */
+  --bg: #f6f1e8;
+  --sidebar: #eee6da;
+  --surface: #fffdf9;
+  --surface-2: #f2ebe0;
+  --text: #1c1a17;
   /* 5.5:1 or better on every surface (WCAG AA for small text). */
-  --muted: #5b606b;
-  /* Dividers and card outlines. */
-  --border: #d6d9df;
+  --muted: #5d564d;
+  /* Dividers and sheet outlines. */
+  --border: #e3d8c9;
   /* Buttons and chips: visible without competing with the content. */
-  --border-control: #b9bdc6;
+  --border-control: #c9bba8;
   /* Form fields: 3:1 against the surface (WCAG 1.4.11). */
-  --border-strong: #8b909a;
-  --accent: #3651e8;
-  --accent-hover: #2b43cc;
-  --accent-soft: #e8ecff;
+  --border-strong: #8c8173;
+  /* Clay, the deep shade: 5:1 or better as text on every surface, 6:1 under white. */
+  --accent: #a8421f;
+  --accent-hover: #8f3718;
+  --accent-soft: #f7e4da;
   --on-accent: #ffffff;
-  --success: #177a34;
-  --success-soft: #e3f3e7;
-  --danger: #c5221f;
-  --danger-soft: #fce8e6;
-  --warning: #9a5200;
-  --warning-soft: #fdf1dc;
-  --shadow-sm: 0 1px 2px rgb(16 18 24 / 0.06);
-  --focus: 0 0 0 3px rgb(54 81 232 / 0.28);
+  --success: #1f6e33;
+  --success-soft: #e2f0e2;
+  /* Crimson, kept well away from the clay so a primary button never reads as a warning. */
+  --danger: #b3173d;
+  --danger-soft: #fbe3e8;
+  --warning: #8f4d00;
+  --warning-soft: #fbedd5;
+  --shadow-sm: 0 1px 2px rgb(60 40 20 / 0.07);
+  /* A sheet resting on the bench: a hairline of contact plus a soft lift. */
+  --shadow-sheet: 0 1px 0 rgb(60 40 20 / 0.06), 0 2px 8px rgb(60 40 20 / 0.06);
+  --focus: 0 0 0 3px rgb(168 66 31 / 0.28);
   --radius: 8px;
   --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, sans-serif;
+  /* Section titles, as on craftpages.app. */
+  --font-display: 'Young Serif', 'CraftPages Serif Cyrillic', Georgia, serif;
   --mono: ui-monospace, 'SF Mono', Menlo, monospace;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
     color-scheme: dark;
-    --bg: #16171a;
-    --sidebar: #1c1d21;
-    --surface: #1f2024;
-    --surface-2: #26272c;
-    --text: #eceef1;
-    --muted: #a7abb5;
-    --border: #383b43;
-    --border-control: #4c505a;
-    --border-strong: #6b707b;
-    --accent: #8196ff;
-    --accent-hover: #97a8ff;
-    --accent-soft: #262c4a;
-    --on-accent: #0f1015;
-    --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.3);
-    --focus: 0 0 0 3px rgb(129 150 255 / 0.35);
-    --success: #6fcf8a;
-    --success-soft: #1d3325;
-    --danger: #f28b82;
-    --danger-soft: #3c1f1e;
-    --warning: #fdd663;
+    /* Roasted paper and cream ink, the website's dark side. */
+    --bg: #1b1814;
+    --sidebar: #151310;
+    --surface: #24201b;
+    --surface-2: #2d2822;
+    --text: #f1e9de;
+    --muted: #b6aa9b;
+    --border: #3b342c;
+    --border-control: #51473c;
+    --border-strong: #7f7466;
+    --accent: #e2774f;
+    --accent-hover: #eb9070;
+    --accent-soft: #3b261c;
+    --on-accent: #1a0f0a;
+    --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.35);
+    --shadow-sheet: 0 1px 0 rgb(0 0 0 / 0.4), 0 2px 8px rgb(0 0 0 / 0.25);
+    --focus: 0 0 0 3px rgb(226 119 79 / 0.35);
+    --success: #86d49a;
+    --success-soft: #1f3324;
+    --danger: #f47174;
+    --danger-soft: #3d1d25;
+    --warning: #f5cf6a;
     --warning-soft: #3a3020;
   }
 }
 
 :root[data-theme='dark'] {
   color-scheme: dark;
-  --bg: #16171a;
-  --sidebar: #1c1d21;
-  --surface: #1f2024;
-  --surface-2: #26272c;
-  --text: #eceef1;
-  --muted: #a7abb5;
-  --border: #383b43;
-  --border-control: #4c505a;
-  --border-strong: #6b707b;
-  --accent: #8196ff;
-  --accent-hover: #97a8ff;
-  --accent-soft: #262c4a;
-  --on-accent: #0f1015;
-  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.3);
-  --focus: 0 0 0 3px rgb(129 150 255 / 0.35);
-  --success: #6fcf8a;
-  --success-soft: #1d3325;
-  --danger: #f28b82;
-  --danger-soft: #3c1f1e;
-  --warning: #fdd663;
+  /* Roasted paper and cream ink, the website's dark side. */
+  --bg: #1b1814;
+  --sidebar: #151310;
+  --surface: #24201b;
+  --surface-2: #2d2822;
+  --text: #f1e9de;
+  --muted: #b6aa9b;
+  --border: #3b342c;
+  --border-control: #51473c;
+  --border-strong: #7f7466;
+  --accent: #e2774f;
+  --accent-hover: #eb9070;
+  --accent-soft: #3b261c;
+  --on-accent: #1a0f0a;
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.35);
+  --shadow-sheet: 0 1px 0 rgb(0 0 0 / 0.4), 0 2px 8px rgb(0 0 0 / 0.25);
+  --focus: 0 0 0 3px rgb(226 119 79 / 0.35);
+  --success: #86d49a;
+  --success-soft: #1f3324;
+  --danger: #f47174;
+  --danger-soft: #3d1d25;
+  --warning: #f5cf6a;
   --warning-soft: #3a3020;
 }
 
@@ -111,6 +152,36 @@ body {
 button {
   font: inherit;
   color: inherit;
+}
+
+::selection {
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
+input,
+textarea {
+  caret-color: var(--accent);
+}
+
+/* Scrollbars in the bench's own colours instead of the platform grey. */
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: var(--border-control) padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--border-strong);
 }
 
 /* One focus ring for everything reachable by keyboard. */
@@ -214,9 +285,10 @@ button {
   min-width: 0;
   margin: 0;
   overflow: hidden;
-  font-size: 18px;
-  font-weight: 650;
-  letter-spacing: -0.01em;
+  font-family: var(--font-display);
+  font-size: 21px;
+  font-weight: 400;
+  letter-spacing: -0.005em;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -234,6 +306,8 @@ button {
   flex: 1;
   overflow: auto;
   padding: 28px 32px 40px;
+  /* Section pages fold their section list away when this gets narrow. */
+  container: content / inline-size;
 }
 
 /* Full-height screens (blog post editor, layout pointer, blog preview) fill the content
@@ -344,7 +418,6 @@ button {
   background: var(--accent-soft);
   color: var(--accent);
   font-weight: 600;
-  box-shadow: inset 3px 0 0 var(--accent);
 }
 
 .nav__item.is-active svg {
@@ -727,7 +800,6 @@ button {
   margin: 14px 0 0;
   padding: 10px 14px;
   border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
-  border-left: 3px solid var(--accent);
   border-radius: 6px;
   background: var(--accent-soft);
   font-size: 13.5px;
@@ -736,21 +808,18 @@ button {
 
 .notice--error {
   border-color: color-mix(in srgb, var(--danger) 30%, transparent);
-  border-left-color: var(--danger);
   background: var(--danger-soft);
   color: var(--danger);
 }
 
 .notice--success {
   border-color: color-mix(in srgb, var(--success) 30%, transparent);
-  border-left-color: var(--success);
   background: var(--success-soft);
   color: var(--success);
 }
 
 .notice--warning {
   border-color: color-mix(in srgb, var(--warning) 30%, transparent);
-  border-left-color: var(--warning);
   background: var(--warning-soft);
   color: var(--warning);
 }
@@ -994,10 +1063,12 @@ textarea.mono {
 }
 
 .panel {
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border: 1.5px solid var(--border);
+  border-radius: 6px;
   background: var(--surface);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-sheet);
+  /* Jumping here from the section list leaves room above the sheet. */
+  scroll-margin-top: 20px;
 }
 
 .panel__head {
@@ -1005,21 +1076,325 @@ textarea.mono {
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
-  padding: 18px 24px;
-  border-bottom: 1px solid var(--border);
+  padding: 20px 24px 16px;
+  /* A proof's head is ruled off with a dashed line, as on craftpages.app. */
+  border-bottom: 1.5px dashed var(--border-control);
+}
+
+.panel__title {
+  min-width: 0;
+}
+
+.panel__heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
 }
 
 .panel__head h2 {
   margin: 0;
-  font-size: 16px;
-  font-weight: 650;
+  font-family: var(--font-display);
+  font-size: 19px;
+  font-weight: 400;
+  line-height: 1.25;
+  letter-spacing: -0.005em;
+  text-wrap: balance;
+}
+
+.panel__head h2:focus {
+  outline: none;
 }
 
 .panel__head p {
   max-width: 68ch;
-  margin: 4px 0 0;
+  margin: 6px 0 0;
   font-size: 13.5px;
   line-height: 1.5;
+  text-wrap: pretty;
+}
+
+/* The page's status section: it opens the page and says where things stand. */
+.panel--lead {
+  border-color: var(--border-control);
+}
+
+.panel--lead > .panel__head {
+  padding: 26px 28px 20px;
+}
+
+.panel--lead > .panel__head h2 {
+  font-size: 25px;
+  line-height: 1.2;
+}
+
+.panel--lead > .panel__head p {
+  font-size: 14px;
+}
+
+.panel--lead > .panel__body {
+  padding: 20px 28px 24px;
+}
+
+@keyframes strip-more {
+  from,
+  96% {
+    mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
+  }
+  to {
+    mask-image: none;
+  }
+}
+
+/* A sheet with only a head (nothing connected yet…) ends at its own border. */
+.panel:has(> .panel__body:empty) > .panel__head {
+  border-bottom: 0;
+}
+
+/* ---------- Stamps ---------- */
+/* A rubber stamp in the margin of a proof: a double rule, small capitals, a slight tilt.
+   The words carry the state; the ink colour repeats it. */
+.stamp {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 7px;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  outline: 1px solid currentColor;
+  outline-offset: 1.5px;
+  font: 650 10.5px/1 var(--font);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  transform: rotate(-1.5deg);
+  margin: 2px 2px 2px 3px;
+}
+
+.stamp--on,
+.stamp--done {
+  color: var(--success);
+}
+
+.stamp--off {
+  color: var(--muted);
+}
+
+.stamp--setup,
+.stamp--improve {
+  color: var(--warning);
+}
+
+.stamp--problem {
+  color: var(--danger);
+}
+
+.stamp--beta {
+  color: var(--accent);
+}
+
+/* Pressed onto the sheet when the state changes while you watch. */
+@media (prefers-reduced-motion: no-preference) {
+  .stamp--pressed {
+    animation: stamp-press 340ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+}
+
+@keyframes stamp-press {
+  0% {
+    opacity: 0;
+    transform: rotate(-6deg) scale(1.6);
+    filter: blur(1.5px);
+  }
+  60% {
+    opacity: 1;
+    transform: rotate(-1deg) scale(0.96);
+    filter: blur(0);
+  }
+  100% {
+    transform: rotate(-1.5deg) scale(1);
+  }
+}
+
+/* ---------- Section pages ---------- */
+/* The sheets column, with the list of its sections beside it once there are enough. */
+.section-page--listed {
+  display: grid;
+  grid-template-columns: 184px minmax(0, 1fr);
+  gap: 32px;
+  align-items: start;
+  max-width: calc(920px + 184px + 32px);
+}
+
+.section-rail {
+  position: sticky;
+  top: 0;
+  padding-top: 4px;
+}
+
+.section-rail ol {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: 0;
+  padding: 0 0 0 1px;
+  list-style: none;
+  border-left: 1px solid var(--border);
+}
+
+.section-rail__item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2px 8px;
+  width: 100%;
+  min-height: 32px;
+  margin-left: -1px;
+  padding: 5px 8px 5px 12px;
+  border: 0;
+  border-left: 1px solid transparent;
+  background: none;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.3;
+  text-align: left;
+  cursor: pointer;
+}
+
+.section-rail__item:hover {
+  color: var(--text);
+}
+
+.section-rail__item:focus-visible {
+  outline-offset: -2px;
+}
+
+.section-rail__item.is-current {
+  border-left-color: var(--accent);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.section-rail__item--sub {
+  min-height: 26px;
+  padding-left: 24px;
+  font-size: 12.5px;
+}
+
+.section-rail__title {
+  /* A long state word (Italian, Ukrainian) drops under the title instead of overlapping it. */
+  flex: 1 1 9ch;
+  min-width: 0;
+}
+
+/* On and off: a small inked dot, full or empty; the label is its accessible name. */
+.section-rail__mark {
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+}
+
+.section-rail__mark--on,
+.section-rail__mark--done {
+  color: var(--success);
+  background: currentColor;
+}
+
+.section-rail__mark--off {
+  color: var(--border-strong);
+}
+
+/* States that want you say so in words. */
+.section-rail__word {
+  flex-shrink: 0;
+  font-size: 10.5px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.section-rail__word--setup,
+.section-rail__word--improve {
+  color: var(--warning);
+}
+
+.section-rail__word--problem {
+  color: var(--danger);
+}
+
+.section-rail__word--beta {
+  color: var(--accent);
+}
+
+/* Narrow windows: the list steps aside and the sheets take the width. */
+/* Narrow windows: the list becomes a strip of the sections above the sheets, still sticky,
+   scrolling sideways; groups inside a section stay in the wide list only. */
+@container content (max-width: 820px) {
+  .section-page--listed {
+    display: block;
+  }
+
+  .section-rail {
+    z-index: 2;
+    /* Sticks at the very top of the scrolling area, not below its padding. */
+    top: -28px;
+    margin: -28px -32px 20px;
+    padding: 8px 32px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg);
+  }
+
+  .section-rail ol {
+    flex-direction: row;
+    gap: 2px;
+    padding: 0;
+    overflow-x: auto;
+    border-left: 0;
+    scrollbar-width: none;
+  }
+
+  /* More sections than fit: the right edge fades until the strip is scrolled to its end.
+     A strip that fits has no scroll timeline, so no fade. */
+  @supports (animation-timeline: scroll()) {
+    .section-rail ol {
+      animation: strip-more linear both;
+      animation-timeline: scroll(self inline);
+    }
+  }
+
+  .section-rail__item {
+    flex-wrap: nowrap;
+    width: auto;
+    min-height: 30px;
+    margin: 0;
+    padding: 4px 8px;
+    border-left: 0;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+
+  .section-rail__title {
+    flex: 0 0 auto;
+  }
+
+  .section-rail__item.is-current {
+    background: var(--accent-soft);
+  }
+
+  .section-rail__item--sub {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .section-rail__item {
+    transition:
+      color 120ms ease,
+      border-color 160ms ease;
+  }
 }
 
 .panel__actions {
@@ -1033,6 +1408,10 @@ textarea.mono {
 
 .panel__body {
   padding: 20px 24px;
+}
+
+.panel__body:empty {
+  display: none;
 }
 
 .panel__body > :first-child {
@@ -2341,6 +2720,8 @@ iframe {
 
 /* Sub-sections inside a settings panel (Images, Blog): a divider makes the groups evident. */
 .panel__body h3.settings__subhead {
+  /* Jumped to from the section list. */
+  scroll-margin-top: 24px;
   margin: 24px 0 12px;
   padding-top: 20px;
   border-top: 1px solid var(--border);
@@ -3339,6 +3720,14 @@ input[type='checkbox'] {
 }
 
 /* Media library */
+.media-grid__pages {
+  grid-column: 1 / -1;
+}
+
+.media-grid__pages:empty {
+  display: none;
+}
+
 .media {
   display: flex;
   flex-direction: column;
@@ -4590,11 +4979,47 @@ div.media-card:has(.media-card__open:hover) {
   list-style: none;
 }
 
-.sync-conflicts li {
+.sync-conflicts > ul > li {
   display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sync-conflicts__row {
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  gap: 8px;
+}
+
+.sync-conflicts__row .mono {
+  margin-right: auto;
+}
+
+.sync-compare {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.sync-compare h4 {
+  margin: 0;
+  font-size: 13px;
+}
+
+.sync-compare ul {
+  display: block;
+  margin: 6px 0 0;
+  padding-left: 1.1em;
+  list-style: disc;
+  font-size: 13px;
+}
+
+.sync-compare li {
+  overflow-wrap: anywhere;
 }
 
 .sync-pill {
@@ -5095,12 +5520,16 @@ div.media-card:has(.media-card__open:hover) {
   gap: 12px;
 }
 
-/* Draft bar at rest: where things stand, quietly. */
+/* Draft bar at rest: where things stand, as the website's dashed sticker. */
 .draft-bar--idle {
   gap: 8px;
+  padding: 3px 12px;
+  border: 1.5px dashed var(--border-control);
+  border-radius: 999px;
   color: var(--muted);
   font-size: 13px;
   white-space: nowrap;
+  transform: rotate(-1.5deg);
 }
 
 /* Settings at the bottom of the sidebar, by Publish. */
@@ -5566,4 +5995,95 @@ div.media-card:has(.media-card__open:hover) {
 .field__static {
   margin: 0;
   padding: 8px 0;
+}
+
+/* SEO: redirects, 404 page, site icon; cookie consent */
+.tool-form {
+  display: grid;
+  gap: 12px;
+}
+
+.tool-form__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.redirects input,
+.redirects select {
+  width: 100%;
+  min-width: 0;
+}
+
+.redirects td:nth-child(3) {
+  width: 250px;
+}
+
+.redirects td:last-child {
+  width: 1%;
+  white-space: nowrap;
+}
+
+.redirects__warning {
+  margin-top: 4px;
+  color: var(--warning);
+}
+
+.favicon-preview {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  padding: 12px;
+  border: 1px dashed var(--border-control);
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+
+.favicon-preview img {
+  object-fit: contain;
+  image-rendering: auto;
+}
+
+.favicon-preview .mono {
+  margin-left: auto;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.consent-view select {
+  max-width: 220px;
+}
+
+/* Analytics & tracking, on the Tracking & consent screen */
+.tracking__subtitle {
+  margin: 24px 0 8px;
+  font-size: 1rem;
+}
+
+.tracking__actions,
+.tracking__exclude {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-top: 12px;
+}
+
+.tracking__excluded {
+  margin: 8px 0;
+  padding-left: 1.2em;
+}
+
+.consent-view textarea.mono {
+  width: 100%;
+  font-size: 0.85rem;
+}
+
+/* Project settings → Sync, and From another computer: this computer's name */
+.computer-name {
+  margin: 16px 0 8px;
+}
+
+.computer-name input {
+  max-width: 360px;
 }

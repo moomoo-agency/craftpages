@@ -21,12 +21,14 @@ import type {
 } from '../shared/types'
 import { isServerConnection } from '../shared/types'
 import { log } from './log'
+import { setComputerName } from './computer-name'
 import { registerSecrets } from './redact'
 
 export const DEFAULT_MCP_PORT = 7424
 
 const DEFAULT_APP: AppSettings = {
   mcp: { enabled: true, port: DEFAULT_MCP_PORT },
+  computerName: '',
   lastWorkspace: null,
   recentProjects: [],
   connections: [],
@@ -78,6 +80,7 @@ export async function getAppSettings(): Promise<AppSettings> {
     // Cloudflare credentials used to be app-wide; they're per project now.
     delete stored?.cloudflare
     appSettings = merge(DEFAULT_APP, stored)
+    setComputerName(appSettings.computerName)
   }
   return appSettings
 }
@@ -89,6 +92,8 @@ export async function saveAppSettings(patch: DeepPartial<AppSettings>): Promise<
     throw new Error('Port must be a whole number between 1024 and 65535.')
   }
   next.mcp.port = port
+  next.computerName = (next.computerName ?? '').trim().slice(0, 60)
+  setComputerName(next.computerName)
   appSettings = next
   await writeJson(appFile(), next)
   return next

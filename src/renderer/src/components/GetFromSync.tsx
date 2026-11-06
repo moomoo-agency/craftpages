@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Explainer, Notice } from './Field'
-import SyncSourceForm from './SyncSourceForm'
+import SyncSourceForm, { DEFAULT_SYNC_DIR } from './SyncSourceForm'
+import ComputerName from './ComputerName'
 import { useT } from '../i18n'
 import { errorMessage, formatDate } from '../lib/api'
 import type { SyncProjectView, SyncSource, Workspace } from '../../../shared/types'
@@ -13,7 +14,11 @@ interface Props {
 /** Projects → From another computer: find a synced project and download it here. */
 export default function GetFromSync({ onOpened, onCancel }: Props): React.JSX.Element {
   const t = useT()
-  const [source, setSource] = useState<SyncSource>({ mode: 'cloudflare', connection: '' })
+  const [source, setSource] = useState<SyncSource>({
+    mode: 'cloudflare',
+    connection: '',
+    dir: DEFAULT_SYNC_DIR
+  })
   const [projects, setProjects] = useState<SyncProjectView[] | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -42,6 +47,7 @@ export default function GetFromSync({ onOpened, onCancel }: Props): React.JSX.El
         }}
         onReady={setReady}
       />
+      <ComputerName />
       <div className="panel__actions panel__actions--start">
         <button className="btn" onClick={onCancel}>
           {t('common.cancel')}
@@ -50,7 +56,29 @@ export default function GetFromSync({ onOpened, onCancel }: Props): React.JSX.El
           className="btn btn--primary"
           disabled={!source.connection || !ready || busy !== null}
           onClick={() =>
-            run('find', async () => setProjects(await window.api.listSyncProjects(source)))
+            run('find', async () => {
+              let found: SyncProjectView[] = []
+              let failure: unknown = null
+              try {
+                found = await window.api.listSyncProjects(source)
+              } catch (e) {
+                failure = e
+              }
+              // Sync set up before 1.5 with the folder left empty keeps its data in the
+              // login folder: look there too before saying there's nothing.
+              if (!found.length && source.mode === 'server' && source.dir === DEFAULT_SYNC_DIR) {
+                const older = await window.api
+                  .listSyncProjects({ ...source, dir: '' })
+                  .catch(() => [] as SyncProjectView[])
+                if (older.length) {
+                  setSource({ ...source, dir: '' })
+                  setProjects(older)
+                  return
+                }
+              }
+              if (failure) throw failure
+              setProjects(found)
+            })
           }
         >
           {busy === 'find' ? t('connections.checking') : t('sync.find')}

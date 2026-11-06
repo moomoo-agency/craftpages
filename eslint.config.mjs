@@ -30,7 +30,12 @@ export default defineConfig(
   },
   {
     // Plain browser script injected into the page-editor iframe (see src/main/preview/server.ts).
-    files: ['src/main/preview/*.js', 'src/main/*.js', 'src/main/search/*.js'],
+    files: [
+      'src/main/preview/*.js',
+      'src/main/*.js',
+      'src/main/search/*.js',
+      'src/main/consent/*.js'
+    ],
     rules: { '@typescript-eslint/explicit-function-return-type': 'off' }
   },
   {

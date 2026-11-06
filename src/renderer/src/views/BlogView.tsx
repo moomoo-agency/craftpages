@@ -1,5 +1,6 @@
 import { useEffect, useId, useState } from 'react'
 import { Explainer, Field, Notice, Section } from '../components/Field'
+import SectionPage from '../components/SectionPage'
 import PostEditor from './PostEditor'
 import PageViewer from '../components/PageViewer'
 import LayoutPointer from './LayoutPointer'
@@ -198,11 +199,13 @@ export default function BlogView({
   const [latestPage, setLatestPage] = useState('')
   /** Pages the blog writes; never offered as layouts or latest-posts pages. */
   const [generated, setGenerated] = useState<Set<string>>(new Set())
-  const postList = useFilteredList(`posts:${workspace?.folder}`, posts ?? [], (item) => [
-    item.title,
-    item.url,
-    ...item.tags
-  ])
+  // Ten posts a page: each row runs to two lines (title, address, date).
+  const postList = useFilteredList(
+    `posts:${workspace?.folder}`,
+    posts ?? [],
+    (item) => [item.title, item.url, ...item.tags],
+    10
+  )
 
   // Saving a post rewrites the blog's pages, so the generated list is reloaded with posts.
   const loadPosts = (): Promise<void> =>
@@ -624,6 +627,7 @@ export default function BlogView({
   const setupSection = (
     <Section
       title={layoutsDone && created ? t('blog.setupTitle') : t('blog.setupTitleTodo')}
+      state={layoutsDone && created ? 'done' : 'setup'}
       description={layoutsDone && created ? t('blog.setupDone') : t('blog.setupTodo')}
     >
       <ol className="steps">
@@ -941,6 +945,7 @@ export default function BlogView({
             pages={postList.pages}
             total={postList.matched}
             onPage={postList.setPage}
+            pageSize={postList.pageSize}
           />
         </>
       )}
@@ -959,7 +964,7 @@ export default function BlogView({
   )
 
   return (
-    <div className="blog">
+    <SectionPage className="blog">
       {layoutsDone && created ? (
         <>
           {postsSection}
@@ -973,7 +978,7 @@ export default function BlogView({
           {postsSection}
         </>
       )}
-    </div>
+    </SectionPage>
   )
 }
 

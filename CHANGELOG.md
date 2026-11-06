@@ -1,5 +1,56 @@
 # Changelog
 
+## 1.5.0 (2026-11-06)
+
+- Tracking & consent (Site → Tracking & consent), with no outside service and no fee:
+  - **Cookie consent:** CraftPages finds the analytics, ads pixels and embeds on every page
+    (about 45 tools recognised) and holds each one in place until the visitor agrees. The
+    banner has Reject / Choose / Accept side by side, remembers the choice for 12 months,
+    sends Google Consent Mode v2 signals, and comes with text in six languages (yours can
+    replace it). Embeds show an Allow button until allowed. Turning consent off puts every
+    tag back exactly as it was.
+  - **Analytics & tracking:** pick a service and paste its ID, and the tag goes on every
+    page and on pages added later: Google Analytics 4, Tag Manager, Meta Pixel, Microsoft
+    Clarity, LinkedIn, TikTok, Plausible, Umami, Cloudflare Web Analytics, or any snippet
+    you paste.
+    - With consent on, tags are written already waiting, so they never run before the
+      visitor agrees.
+    - Without consent, adding one says when the EU and UK need it, and offers to turn
+      consent on.
+    - Single pages (a thank-you page) can be left out.
+- SEO gets three new tools:
+  - **Site icon:** one image becomes favicon.ico, the SVG, the Apple touch icon and the
+    Android icons with a manifest, and every page gets the tags.
+  - **404 page:** made from one of your pages, so it has your header and footer.
+  - **Redirects:** written to `_redirects` for Cloudflare, or `.htaccess` for a web host.
+  - The site check can also check links to other sites, on request.
+- Sync between computers is no longer beta:
+  - **Publish never overwrites:** publishing syncs first, so the other computers' work
+    comes into the folder before the site goes up. Another computer's publish no longer
+    shows as "published from somewhere else", and the success note says what came in.
+  - **Edits on two computers are combined:** a page changed on two computers is merged
+    line by line, so a new headline here and a changed paragraph there both stay. Only a
+    line changed on both sides stops and asks, and even then everything else is merged.
+    **Compare** shows what each choice would lose, then **Keep mine** or **Use theirs**.
+  - **Named computers:** give each computer a name ("Rosa's laptop", "Office PC"). It's
+    used in sync, "Also open on …" and Publish history.
+  - **A safer sync folder:** on a web host it now defaults to `/craftpages-sync`, next to
+    the site rather than in it. A sync folder inside the published folder is refused, and
+    an existing one there gets a warning. Projects synced into the login folder before 1.5
+    are still found.
+  - **Publish history:** each publish shows what it put live since the previous publish.
+- **A new look for the section pages** (Letterpress Proof): a section rail with state stamps
+  (On, Off, Needs setup…), and long lists are paginated and searchable.
+- **The header note clears:** "Saved … not online yet" goes away once the site is
+  published.
+- Publish to Pagehaus in a few clicks: Settings → Deploy connections → "Add Pagehaus…" fills
+  in the server and port (SFTP, sftp.pagehaus.app, 2022); you add your site name and
+  password. CraftPages checks the server against the keys Pagehaus publishes, even on the
+  first connection. In Project settings → Deploy, the folder stays empty and the base URL is
+  set to your `https://<site>.pagehaus.site/` address if the project has none.
+- A wider window: CraftPages opens at 1430 × 860 (or the screen's size, if smaller) and
+  remembers its size and position between launches.
+
 ## 1.4.3 (2026-10-29)
 
 - Code mode: JavaScript files no longer load VS Code's TypeScript service (13 MB of the app,

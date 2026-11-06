@@ -1,6 +1,12 @@
 import { useEffect, useId, useState } from 'react'
 import { Field, Notice, Section } from '../components/Field'
+import SectionPage from '../components/SectionPage'
+import { ListSearch, NoMatches, Pagination } from '../components/ListControls'
+import { useFilteredList } from '../lib/list'
 import MediaPicker from '../components/MediaPicker'
+import RedirectsSection from '../components/RedirectsSection'
+import NotFoundSection from '../components/NotFoundSection'
+import FaviconSection from '../components/FaviconSection'
 import { useT, type Key } from '../i18n'
 import { errorMessage } from '../lib/api'
 import { defaultRobots, identityScript } from '../../../shared/identity'
@@ -41,7 +47,8 @@ const KINDS: Record<SeoIssue['kind'], Key> = {
   canonical: 'seo.kindCanonical',
   social: 'seo.kindSocial',
   language: 'seo.kindLanguage',
-  indexing: 'seo.kindIndexing'
+  indexing: 'seo.kindIndexing',
+  site: 'seo.kindSite'
 }
 
 type Status = { kind: 'error' | 'success' | 'info'; text: string } | null
@@ -66,6 +73,26 @@ export default function SeoView({ workspace, onEditPage }: Props): React.JSX.Ele
 
   const note = (section: string, value: Status): void =>
     setStatus((s) => ({ ...s, [section]: value }))
+
+  const [linking, setLinking] = useState(false)
+
+  /** Asks every linked site whether the page is still there, then checks again. */
+  const checkExternal = async (): Promise<void> => {
+    setLinking(true)
+    note('check', null)
+    try {
+      const result = await window.api.checkExternalLinks()
+      setReport(await window.api.auditSeo())
+      note('check', {
+        kind: result.broken ? 'error' : 'success',
+        text: t('seo.externalDone', { count: result.links, broken: result.broken })
+      })
+    } catch (e) {
+      note('check', { kind: 'error', text: errorMessage(e) })
+    } finally {
+      setLinking(false)
+    }
+  }
 
   const check = async (): Promise<void> => {
     setChecking(true)
@@ -94,6 +121,20 @@ export default function SeoView({ workspace, onEditPage }: Props): React.JSX.Ele
       setAddedCode(null)
     })
   }, [workspace])
+
+  const visible = (report?.issues ?? []).filter(
+    (issue) =>
+      (severity === 'all' || issue.severity === severity) && (kind === 'all' || issue.kind === kind)
+  )
+  const byPage = new Map<string, SeoIssue[]>()
+  for (const issue of visible) byPage.set(issue.page, [...(byPage.get(issue.page) ?? []), issue])
+  // Eight pages of findings at a time; each filter keeps its own place in the list.
+  const pageList = useFilteredList(
+    `seo:${workspace?.folder}:${severity}:${kind}`,
+    [...byPage],
+    ([page]) => [page],
+    8
+  )
 
   if (!workspace) {
     return (
@@ -178,12 +219,6 @@ export default function SeoView({ workspace, onEditPage }: Props): React.JSX.Ele
     )
   }
 
-  const visible = (report?.issues ?? []).filter(
-    (issue) =>
-      (severity === 'all' || issue.severity === severity) && (kind === 'all' || issue.kind === kind)
-  )
-  const byPage = new Map<string, SeoIssue[]>()
-  for (const issue of visible) byPage.set(issue.page, [...(byPage.get(issue.page) ?? []), issue])
   const sitemapLine = site?.baseUrl
     ? `Sitemap: ${site.baseUrl}/sitemap.xml`
     : 'Sitemap: /sitemap.xml'
@@ -194,20 +229,51 @@ export default function SeoView({ workspace, onEditPage }: Props): React.JSX.Ele
     : ''
 
   return (
-    <div className="seo">
+    <SectionPage className="seo">
       <Section
+        lead
         title={t('seo.checkTitle')}
+        state={
+          !report
+            ? undefined
+            : report.counts.error > 0
+              ? 'problem'
+              : report.counts.warning > 0
+                ? 'improve'
+                : 'done'
+        }
         description={
           report
             ? t('seo.checkSummary', { count: report.pages, ...report.counts })
             : t('seo.checking')
         }
         actions={
-          <button className="btn" onClick={check} disabled={checking}>
-            {checking ? t('seo.checkingShort') : t('seo.checkAgain')}
-          </button>
+          <>
+            <button className="btn" onClick={check} disabled={checking}>
+              {checking ? t('seo.checkingShort') : t('seo.checkAgain')}
+            </button>
+            <button
+              className="btn"
+              onClick={checkExternal}
+              disabled={linking || checking}
+              title={t('seo.externalHint')}
+            >
+              {linking ? t('seo.externalChecking') : t('seo.externalCheck')}
+            </button>
+          </>
         }
       >
+        {report?.external && (
+          <p className="muted small">
+            {t('seo.externalLast', {
+              count: report.external.links,
+              time: new Date(report.external.at).toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit'
+              })
+            })}
+          </p>
+        )}
         <div className="seo__filters">
           <div className="segmented" role="radiogroup" aria-label={t('seo.severityFilter')}>
             {(['all', 'error', 'warning', 'info'] as const).map((value) => (
@@ -250,7 +316,17 @@ export default function SeoView({ workspace, onEditPage }: Props): React.JSX.Ele
             )}
           </p>
         )}
-        {[...byPage].map(([page, issues]) => (
+        {pageList.searchable && (
+          <ListSearch
+            value={pageList.query}
+            onChange={pageList.setQuery}
+            label={t('seo.searchPages')}
+          />
+        )}
+        {pageList.query && pageList.matched === 0 && (
+          <NoMatches query={pageList.query} onClear={() => pageList.setQuery('')} />
+        )}
+        {pageList.rows.map(([page, issues]) => (
           <div key={page} className="seo-page">
             <header>
               <h3 className="mono seo-page__path">{page}</h3>
@@ -279,6 +355,13 @@ export default function SeoView({ workspace, onEditPage }: Props): React.JSX.Ele
             </ul>
           </div>
         ))}
+        <Pagination
+          page={pageList.page}
+          pages={pageList.pages}
+          total={pageList.matched}
+          onPage={pageList.setPage}
+          pageSize={pageList.pageSize}
+        />
       </Section>
 
       {site && (
@@ -338,6 +421,9 @@ export default function SeoView({ workspace, onEditPage }: Props): React.JSX.Ele
       {site && (
         <Section
           title="sitemap.xml"
+          state={
+            sitemap ? (!sitemap.exists ? 'off' : sitemap.upToDate ? 'on' : undefined) : undefined
+          }
           description={t('seo.sitemapDescription')}
           actions={
             <button className="btn btn--primary" onClick={() => saveSeo('sitemap')}>
@@ -493,6 +579,10 @@ export default function SeoView({ workspace, onEditPage }: Props): React.JSX.Ele
         {show('robots')}
       </Section>
 
+      <RedirectsSection workspace={workspace} />
+      <NotFoundSection workspace={workspace} onEditPage={onEditPage} />
+      <FaviconSection workspace={workspace} />
+
       <Section title={t('seo.identityTitle')} description={t('seo.identityDescription')}>
         {!identity ? null : identity.organization ? (
           <p>
@@ -593,6 +683,6 @@ export default function SeoView({ workspace, onEditPage }: Props): React.JSX.Ele
           }}
         />
       )}
-    </div>
+    </SectionPage>
   )
 }
